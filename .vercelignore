@@ -1,0 +1,9 @@
+# Solo se publica el sitio: index.html, styles.css, app.js, data/products.js, data/dilutions.js y assets/
+.claude
+.shots
+data/p*.json
+data/brands.json
+build-data.js
+fetch-logos.js
+find-logos.js
+serve.js
