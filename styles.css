@@ -999,3 +999,9 @@ body.sticky-on .bnav{transform:translateY(150%)}
   *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
   .rv{opacity:1;transform:none}
 }
+
+/* producto agotado (stock en vivo de Bsale) */
+.pc__stock--out{background:var(--ink);color:var(--bg)}
+.pc__add[disabled],.btn[disabled]{opacity:.5;cursor:not-allowed;pointer-events:none}
+.stock--out{color:var(--muted)}
+.stock--out i{background:var(--muted)}

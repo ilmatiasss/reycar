@@ -131,25 +131,57 @@ const track = (fn, ...a) => { try { if (window.Track) window.Track[fn](...a); } 
 // mismo formato de ID que usa hoy el catálogo de Meta del sitio: SKU_idProducto
 const tItem = (p, qty = 1) => ({ id: `${p.sku}_${p.id}`, name: p.t, brand: p.b || '', category: (gById.get(p.g) || {}).name || '', price: web(p), qty });
 
+/* ───────── stock en vivo (Bsale, vía /api/stock) ─────────
+   Si la API no está configurada o no responde, queda el stock del catálogo y nada se rompe. */
+const STOCK_EVERY = 60 * 1000;
+async function syncStock(timeout = 1500) {
+  try {
+    const r = await fetch('/api/stock', { cache: 'no-store', signal: AbortSignal.timeout(timeout) });
+    if (!r.ok) return false;
+    const j = await r.json();
+    if (j.source !== 'bsale' || !j.stock) return false;
+    let hits = 0;
+    P.forEach((p) => {
+      const q = j.stock[String(p.sku)];
+      if (q === undefined) return;          // no está en Bsale: conserva el stock del catálogo
+      hits++; p.stk = q;
+    });
+    console.info(`[stock] Bsale: ${hits} de ${P.length} productos coinciden por SKU${j.stale ? ' (datos con retraso)' : ''}`);
+    return true;
+  } catch (e) { return false; }
+}
+
 /* ───────── carro ───────── */
 let cart = {};
 try { cart = JSON.parse(localStorage.getItem('reycars-cart') || '{}'); } catch (e) { cart = {}; }
 Object.keys(cart).forEach((id) => { if (!byId.has(+id)) delete cart[id]; });
+// después de actualizar el stock: el carro nunca supera lo disponible
+function fitCartToStock() {
+  let removed = 0;
+  Object.keys(cart).forEach((id) => {
+    const m = maxQty(byId.get(+id));
+    if (m === 0) { delete cart[id]; removed++; } else if (cart[id] > m) cart[id] = m;
+  });
+  saveCart(); updateCartUI();
+  if (removed) toast('Algún producto de tu carro se agotó y lo quitamos');
+}
 const saveCart = () => { try { localStorage.setItem('reycars-cart', JSON.stringify(cart)); } catch (e) { /* modo privado */ } };
 const cartCount = () => Object.values(cart).reduce((a, b) => a + b, 0);
+const maxQty = (p) => (Number.isFinite(p.stk) ? p.stk : 99);   // 0 = agotado
 const cartItemsT = () => Object.entries(cart).map(([id, q]) => tItem(byId.get(+id), q));
 const cartTotal = () => Object.entries(cart).reduce((a, [id, q]) => a + web(byId.get(+id)) * q, 0);
 
 function addToCart(id, qty = 1) {
   const p = byId.get(id), before = cart[id] || 0;
-  cart[id] = Math.min(before + qty, p.stk || 99);
+  if (maxQty(p) === 0) { toast('Este producto está agotado por ahora'); return p; }
+  cart[id] = Math.min(before + qty, maxQty(p));
   saveCart(); updateCartUI(true);
   if (cart[id] > before) track('addToCart', tItem(p, cart[id] - before));
   return p;
 }
 function setQty(id, q) {
   const p = byId.get(id);
-  q = Math.max(0, Math.min(q, p.stk || 99));
+  q = Math.max(0, Math.min(q, maxQty(p)));
   if (q === 0) delete cart[id]; else cart[id] = q;
   saveCart(); updateCartUI(); drawCart();
 }
@@ -300,7 +332,8 @@ const img = (p, big) => (p.img
   : `<span class="ph">${esc(p.b || 'Reycar')}</span>`);
 
 function card(p) {
-  const low = p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '';
+  const out = p.stk === 0;
+  const low = out ? '<span class="pc__stock pc__stock--out">Agotado</span>' : p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '';
   const ys = yieldSummary(p);
   return `<article class="pc">
     <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}<span class="pc__off">-${DISC * 100}%</span>${low}${ys ? `<span class="pc__yield">${ico('drop')}Rinde ${ys.label}</span>` : ''}</a>
@@ -309,7 +342,7 @@ function card(p) {
       <a class="pc__name" href="#/producto/${p.s}">${esc(p.t)}</a>
       ${p.spec ? `<span class="pc__spec">${esc(p.spec)}</span>` : ''}
       <div class="pc__price"><b>${clp(web(p))}</b><s>${clp(p.p)}</s></div>
-      <button class="pc__add" data-action="add" data-id="${p.id}" aria-label="Agregar al carro: ${esc(p.t)}">${ico('bag')}<span class="pc__addt">${ADD_LABEL}</span></button>
+      <button class="pc__add" data-action="add" data-id="${p.id}"${out ? ' disabled' : ''} aria-label="${out ? 'Agotado' : 'Agregar al carro'}: ${esc(p.t)}">${ico('bag')}<span class="pc__addt">${out ? 'Agotado' : ADD_LABEL}</span></button>
     </div>
   </article>`;
 }
@@ -683,7 +716,7 @@ function viewProduct(slug) {
   const ri = ROUTE.indexOf(p.g);
   const nextG = ri >= 0 && ri < ROUTE.length - 1 ? gById.get(ROUTE[ri + 1]) : null;
   const next = nextG ? filterProducts({ g: nextG.id }).filter((x) => x.img && x.b).slice(0, 5) : [];
-  const low = p.stk && p.stk <= 5;
+  const out = p.stk === 0, low = p.stk > 0 && p.stk <= 5;
   const ys = yieldSummary(p), logo = LOGOS[p.b];
   document.title = `${p.t} — Reycar Store`;
   return `<section class="page wrap view">
@@ -710,10 +743,10 @@ function viewProduct(slug) {
           <span class="info__now">${clp(web(p))}</span><s class="info__was">${clp(p.p)}</s><span class="info__save">Ahorras ${clp(p.p - web(p))}</span>
           <span class="info__note">Precio web con ${DISC * 100}% de descuento</span>
         </div>
-        <div class="stock${low ? ' stock--low' : ''}"><i></i>${low ? (p.stk === 1 ? 'Última unidad disponible' : `Quedan ${p.stk} unidades`) : 'En stock'}</div>
+        <div class="stock${out ? ' stock--out' : low ? ' stock--low' : ''}"><i></i>${out ? 'Agotado por ahora' : low ? (p.stk === 1 ? 'Última unidad disponible' : `Quedan ${p.stk} unidades`) : 'En stock'}</div>
         <div class="buy">
           <div class="qty"><button data-action="pdp-qty" data-d="-1" aria-label="Menos">${ico('minus')}</button><output id="pdpQty">1</output><button data-action="pdp-qty" data-d="1" aria-label="Más">${ico('plus')}</button></div>
-          <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}">Agregar al carro</button>
+          <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}"${out ? ' disabled' : ''}>${out ? 'Agotado' : 'Agregar al carro'}</button>
         </div>
         <a class="btn btn--line btn--block buy__wa" href="${wa(`Hola Reycar, tengo una consulta sobre: ${p.t} (${p.url})`)}" target="_blank" rel="noopener">${ico('chat')} ¿Dudas? Pregunta por WhatsApp</a>
         <ul class="pdpk">
@@ -740,7 +773,7 @@ function viewProduct(slug) {
     ${p.img ? `<span class="sb__img"><img src="${p.img}" alt=""></span>` : ''}
     <span class="sb__t"><small>${esc(p.b || g.name)}</small><b>${esc(p.t)}</b></span>
     <b class="sb__p">${clp(web(p))}</b>
-    <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}" tabindex="-1">${ico('bag')} Agregar</button>
+    <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}" tabindex="-1"${out ? ' disabled' : ''}>${ico('bag')} ${out ? 'Agotado' : 'Agregar'}</button>
   </div>`;
 }
 
@@ -1055,7 +1088,7 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'add-pdp': addToCart(id, pdp.qty); drawCart(); openOverlay('#drawer'); break;
-    case 'pdp-qty': pdp.qty = Math.max(1, Math.min(pdp.p.stk || 99, pdp.qty + +t.dataset.d)); $('#pdpQty').textContent = pdp.qty; break;
+    case 'pdp-qty': pdp.qty = Math.max(1, Math.min(maxQty(pdp.p) || 1, pdp.qty + +t.dataset.d)); $('#pdpQty').textContent = pdp.qty; break;
     case 'gal': {
       const i = +t.dataset.i;
       $('#galImg').innerHTML = `<img src="${U(pdp.p.im[i][1])}" alt="${esc(pdp.p.t)}">`;
@@ -1136,7 +1169,12 @@ applyMode();
 buildChrome();
 syncFooter();
 updateCartUI();
-route();
+// primero el stock real (máx. 1,5 s), luego se dibuja; después se refresca en silencio cada minuto
+syncStock().then((ok) => {
+  if (ok) fitCartToStock();
+  route();
+  setInterval(() => { if (!document.hidden) syncStock(4000).then((o) => { if (o) fitCartToStock(); }); }, STOCK_EVERY);
+});
 /* Solo para el panel de pruebas (?track=debug): muestra cómo viajaría una compra confirmada.
    En la tienda real, Purchase se dispara desde el servidor cuando el pago ya está confirmado. */
 window.__reycarSimulatePurchase = () => {

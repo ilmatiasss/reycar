@@ -4,6 +4,8 @@
 data/p*.json
 data/brands.json
 build-data.js
+scripts
+LEEME.md
 fetch-logos.js
 find-logos.js
 serve.js
