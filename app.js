@@ -125,18 +125,26 @@ function featured(n = 10) {
 const STEP_IMG = { lavado: /Incredible Suds/i, secado: /Twist Towel/i, descontaminacion: /Clay Towel/i, pulido: /Heavy Cut Compound 1000/i, proteccion: /Ceramic Gloss/i };
 const stepImg = (g) => (STEP_IMG[g] && pick(STEP_IMG[g])) || bestOf((p) => p.g === g && p.b);
 
+/* ───────── medición (tracking.js) ─────────
+   Si la medición falla o no está cargada, la tienda sigue funcionando igual. */
+const track = (fn, ...a) => { try { if (window.Track) window.Track[fn](...a); } catch (e) { /* nunca romper la tienda */ } };
+// mismo formato de ID que usa hoy el catálogo de Meta del sitio: SKU_idProducto
+const tItem = (p, qty = 1) => ({ id: `${p.sku}_${p.id}`, name: p.t, brand: p.b || '', category: (gById.get(p.g) || {}).name || '', price: web(p), qty });
+
 /* ───────── carro ───────── */
 let cart = {};
 try { cart = JSON.parse(localStorage.getItem('reycars-cart') || '{}'); } catch (e) { cart = {}; }
 Object.keys(cart).forEach((id) => { if (!byId.has(+id)) delete cart[id]; });
 const saveCart = () => { try { localStorage.setItem('reycars-cart', JSON.stringify(cart)); } catch (e) { /* modo privado */ } };
 const cartCount = () => Object.values(cart).reduce((a, b) => a + b, 0);
+const cartItemsT = () => Object.entries(cart).map(([id, q]) => tItem(byId.get(+id), q));
 const cartTotal = () => Object.entries(cart).reduce((a, [id, q]) => a + web(byId.get(+id)) * q, 0);
 
 function addToCart(id, qty = 1) {
-  const p = byId.get(id);
-  cart[id] = Math.min((cart[id] || 0) + qty, p.stk || 99);
+  const p = byId.get(id), before = cart[id] || 0;
+  cart[id] = Math.min(before + qty, p.stk || 99);
   saveCart(); updateCartUI(true);
+  if (cart[id] > before) track('addToCart', tItem(p, cart[id] - before));
   return p;
 }
 function setQty(id, q) {
@@ -836,7 +844,7 @@ function route() {
   if (typeof showHeader === 'function') showHeader();
 
   if (name === 'tienda' && lastRoute === 'tienda' && $('#shopRoot')) {
-    shop.params = parseQuery(qs); shop.shown = PAGE; drawShop(); window.scrollTo(0, 0); return;
+    shop.params = parseQuery(qs); shop.shown = PAGE; drawShop(); window.scrollTo(0, 0); track('pageView'); return;
   }
   document.title = 'Reycar Store — Detailing automotriz profesional';
   let html;
@@ -854,6 +862,8 @@ function route() {
   observeReveals();
   cfInit();
   if (name === 'producto' && pdp.p) { calcInit(pdp.p); pdpInit(); }
+  track('pageView');
+  if (name === 'producto' && pdp.p) track('viewItem', tItem(pdp.p));
 }
 
 /* ───────── carrusel de la portada (manual) ───────── */
@@ -1025,12 +1035,14 @@ sInput.addEventListener('blur', () => setTimeout(closeSearch, 120));
 $('#hdSearch').addEventListener('submit', (e) => {
   e.preventDefault();
   const q = sInput.value.trim(); if (!q) return;
+  track('search', q);
   location.hash = '#/tienda?q=' + encodeURIComponent(q);
   closeSearch(); sInput.blur();
 });
 
 /* ───────── eventos ───────── */
 document.addEventListener('click', (e) => {
+  if (e.target.closest('a[href^="https://wa.me"]')) track('contact', 'whatsapp');
   const t = e.target.closest('[data-action]'); if (!t) return;
   const a = t.dataset.action, id = +t.dataset.id;
   switch (a) {
@@ -1064,11 +1076,11 @@ document.addEventListener('click', (e) => {
     case 'close-lightbox': closeLightbox(); break;
     case 'share': shareProduct(); break;
     case 'calc-mix': if (calc) { calc.mix = t.dataset.k; drawCalc(); } break;
-    case 'open-cart': drawCart(); openOverlay('#drawer'); break;
+    case 'open-cart': drawCart(); openOverlay('#drawer'); track('viewCart', cartItemsT()); break;
     case 'close-cart': closeOverlay('#drawer'); break;
     case 'qty': setQty(id, (cart[id] || 0) + +t.dataset.d); break;
     case 'rm': setQty(id, 0); break;
-    case 'checkout': toast('Prototipo: aquí se conecta al checkout de WooCommerce'); break;
+    case 'checkout': track('beginCheckout', cartItemsT()); toast('Prototipo: aquí se conecta al checkout'); break;
     case 'open-menu': openOverlay('#mobileMenu'); break;
     case 'close-menu': closeOverlay('#mobileMenu'); break;
     case 'set-group': setParams({ g: t.dataset.g }); break;
@@ -1125,4 +1137,10 @@ buildChrome();
 syncFooter();
 updateCartUI();
 route();
+/* Solo para el panel de pruebas (?track=debug): muestra cómo viajaría una compra confirmada.
+   En la tienda real, Purchase se dispara desde el servidor cuando el pago ya está confirmado. */
+window.__reycarSimulatePurchase = () => {
+  const items = cartItemsT();
+  track('purchase', { id: 'SIMULADO-' + Date.now().toString(36), items: items.length ? items : [tItem(P[0])], shipping: 0 });
+};
 })();
