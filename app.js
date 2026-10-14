@@ -187,9 +187,9 @@ function setQty(id, q) {
 }
 function updateCartUI(bump) {
   const n = cartCount();
-  ['#cartCount', '#bnavCount'].forEach((s) => { const b = $(s); if (b) { b.hidden = n === 0; b.textContent = n; } });
+  ['#cartCount'].forEach((s) => { const b = $(s); if (b) { b.hidden = n === 0; b.textContent = n; } });
   $('#cartTotal').textContent = clp(cartTotal());
-  if (bump) ['.hd__carticon', '.bnav__ic'].forEach((s) => { const c = $(s); if (c) { c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); } });
+  if (bump) ['.hd__carticon'].forEach((s) => { const c = $(s); if (c) { c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); } });
 }
 function drawCart() {
   const ids = Object.keys(cart);
@@ -874,21 +874,14 @@ function buildChrome() {
   $('#cats').innerHTML = G.filter((g) => g.id !== 'servicios' && g.id !== 'cursos').map((g) => `<a href="#/tienda?g=${g.id}" data-g="${g.id}">${esc(g.name)}</a>`).join('')
     + `<span class="cats__sp"></span><a href="#/marcas" data-r="marcas">Marcas</a><a class="cats__svc" href="#/asesoria" data-r="asesoria">Servicios de taller</a>`;
   $('#ftCats').insertAdjacentHTML('beforeend', G.filter((g) => ROUTE.includes(g.id)).map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="#/tienda">Todo el catálogo</a>');
-  // hoja de categorías (móvil): mosaico con una foto por categoría
+  // menú del celular: lista de categorías y accesos
   $('#mobileMenuBody').innerHTML = `<div class="mm">
-    <div class="mm__grid">${G.filter((g) => g.id !== 'servicios').map((g, i) => {
-      const p = stepImg(g.id);
-      return `<a class="mm__tile" href="#/tienda?g=${g.id}">
-        <span class="mm__img">${p ? `<img src="${p.img}" alt="" loading="lazy">` : ''}</span>
-        <span class="mm__n">${ROUTE.includes(g.id) ? String(i + 1).padStart(2, '0') : ''}</span>
-        <b>${esc(g.name)}</b><small>${g.count} productos</small>
-      </a>`;
-    }).join('')}</div>
+    <nav class="mm__list" aria-label="Categorías">${G.filter((g) => g.id !== 'servicios').map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`).join('')}</nav>
     <div class="mm__links">
       <a href="#/tienda">Todo el catálogo <small>${P.length}</small></a>
       <a href="#/marcas">Marcas <small>${BRANDS.length}</small></a>
       <a class="mm__svc" href="#/asesoria">Servicios de taller <small>Quinta Normal</small></a>
-      <a href="#contacto">Contacto <small>+56 9 6355 5437</small></a>
+      <a href="${wa('Hola Reycar, necesito asesoría')}" target="_blank" rel="noopener">Asesoría por WhatsApp <small>+56 9 6355 5437</small></a>
     </div>
   </div>`;
 }
@@ -897,7 +890,6 @@ function markNav() {
   const g = (h.match(/[?&]g=([^&]+)/) || [])[1];
   const r = (h.match(/^#\/([^/?]+)/) || [])[1];
   $$('#cats a').forEach((a) => a.classList.toggle('on', !!((a.dataset.g && a.dataset.g === g && r === 'tienda') || (a.dataset.r && a.dataset.r === r))));
-  $$('.bnav [data-bnav]').forEach((a) => a.classList.toggle('on', (a.dataset.bnav === 'home' && !r) || (a.dataset.bnav === 'cats' && r === 'tienda')));
   // la categoría activa visible en la barra de chips (móvil)
   const on = $('#cats a.on');
   if (on) { const c = $('#cats'); c.scrollTo({ left: on.offsetLeft - 16, behavior: 'smooth' }); }
