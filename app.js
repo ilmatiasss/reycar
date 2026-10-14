@@ -1,4 +1,4 @@
-/* Reycars Store — prototipo del rediseño (vanilla JS, sin build) */
+/* Reycar Store — prototipo del rediseño (vanilla JS, sin build) */
 (() => {
 'use strict';
 
@@ -289,7 +289,7 @@ function drawCalc(resetRange) {
 }
 const img = (p, big) => (p.img
   ? `<img src="${big && p.im[0][1] ? U(p.im[0][1]) : p.img}" alt="${esc(p.t)}" loading="lazy" decoding="async">`
-  : `<span class="ph">${esc(p.b || 'Reycars')}</span>`);
+  : `<span class="ph">${esc(p.b || 'Reycar')}</span>`);
 
 function card(p) {
   const low = p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '';
@@ -309,7 +309,7 @@ const perksBar = () => `<div class="perks">
   <div class="perk">${ico('truck')}<div><b>Envíos a todo Chile</b><span>Despacho a todo el país</span></div></div>
   <div class="perk">${ico('card')}<div><b>Webpay y tarjetas</b><span>Crédito y débito</span></div></div>
   <div class="perk">${ico('shield')}<div><b>Productos originales</b><span>Marcas reconocidas</span></div></div>
-  <a class="perk" href="${wa('Hola Reycars, necesito asesoría')}" target="_blank" rel="noopener">${ico('chat')}<div><b>Asesoría por WhatsApp</b><span>+56 9 6355 5437</span></div></a>
+  <a class="perk" href="${wa('Hola Reycar, necesito asesoría')}" target="_blank" rel="noopener">${ico('chat')}<div><b>Asesoría por WhatsApp</b><span>+56 9 6355 5437</span></div></a>
 </div>`;
 const helpBox = () => `<div class="help rv">
   <div>
@@ -317,7 +317,7 @@ const helpBox = () => `<div class="help rv">
     <h3 class="cond">¿No sabes qué producto usar?</h3>
     <p>Cuéntanos qué auto tienes y qué quieres lograr. Te recomendamos la rutina por WhatsApp.</p>
   </div>
-  <a class="btn btn--white" href="${wa('Hola Reycars, quisiera una recomendación de productos')}" target="_blank" rel="noopener">${ico('chat')} Escribir por WhatsApp</a>
+  <a class="btn btn--white" href="${wa('Hola Reycar, quisiera una recomendación de productos')}" target="_blank" rel="noopener">${ico('chat')} Escribir por WhatsApp</a>
 </div>`;
 // logos oficiales (fetch-logos.js). fx: 'dark' oscurece logos que vienen en blanco; 'clip' recorta el borde del archivo.
 const LOGOS = {
@@ -349,7 +349,7 @@ const vehicleOf = (p) => (/SUV|camioneta/i.test(p.n) ? 'Camioneta · SUV XL' : /
 /* ───────── logo grande de la portada ───────── */
 function crestHTML() {
   return `<div class="crest an" id="crest">
-    <img class="crest__logo" src="assets/reycars-crest.webp" alt="Reycars Detailing Center" width="768" height="786" fetchpriority="high">
+    <img class="crest__logo" src="assets/reycars-crest.webp" alt="Reycar Detailing Center" width="768" height="786" fetchpriority="high">
   </div>`;
 }
 
@@ -374,7 +374,7 @@ function viewHome() {
       <div class="stage__top">
         ${crestHTML()}
         <div class="stage__copy">
-          <span class="stage__eyebrow an" style="--d:.25s">Reycars · Detailing Center · Quinta Normal</span>
+          <span class="stage__eyebrow an" style="--d:.25s">Reycar · Detailing Center · Quinta Normal</span>
           <h1 class="cond an" style="--d:.35s">Tu auto,<br>tratado como <span class="gold">rey.</span></h1>
           <p class="an" style="--d:.47s">Productos originales de Meguiars, Carpro, Koch-Chemie, Vonixx y más, y el taller que los aplica. Envíos a todo Chile.</p>
           <div class="stage__cta an" style="--d:.59s">
@@ -447,7 +447,7 @@ function viewHome() {
 
   <section class="sec wrap">
     <div class="sh rv">
-      <div><span class="mono mono--gold">Selección Reycars</span><h2 class="cond">Productos</h2></div>
+      <div><span class="mono mono--gold">Selección Reycar</span><h2 class="cond">Productos</h2></div>
       <div class="tabs" role="tablist">${Object.entries(HOME_TABS).map(([k, v]) => `<button role="tab" aria-selected="${k === homeTab}" class="${k === homeTab ? 'on' : ''}" data-action="tab" data-t="${k}">${v}</button>`).join('')}</div>
     </div>
     <div class="grid" id="homeGrid">${tabItems(homeTab).map(card).join('')}</div>
@@ -467,7 +467,7 @@ function viewHome() {
           <span class="mono mono--gold">${vehicleOf(p)}</span>
           <h3>${esc(p.t)}</h3>
           <div class="offer__price"><b>${clp(web(p))}</b><s>${clp(p.p)}</s></div>
-          <div class="offer__row"><a class="btn btn--red" href="${wa(`Hola Reycars, quiero agendar: ${p.t}`)}" target="_blank" rel="noopener">Agendar por WhatsApp</a><a class="offer__link" href="#/producto/${p.s}">Ver detalle</a></div>
+          <div class="offer__row"><a class="btn btn--red" href="${wa(`Hola Reycar, quiero agendar: ${p.t}`)}" target="_blank" rel="noopener">Agendar por WhatsApp</a><a class="offer__link" href="#/producto/${p.s}">Ver detalle</a></div>
         </div>`).join('')}
         ${course ? `<a class="offer offer--course" href="#/producto/${course.s}"><div><span class="mono">Curso presencial · 6 días</span><b>Aprende detailing profesional</b></div><span class="p">${clp(web(course))} ${arrow}</span></a>` : ''}
       </div>
@@ -483,7 +483,7 @@ function viewHome() {
 }
 
 function viewBrands() {
-  document.title = 'Marcas — Reycars Store';
+  document.title = 'Marcas — Reycar Store';
   return `<section class="page wrap view">
     <div class="crumbs"><a href="#/">Inicio</a><span>Marcas</span></div>
     <div class="ptitle"><h1 class="cond">Marcas</h1><p>${BRANDS.length} marcas de detailing automotriz, todas con productos originales.</p></div>
@@ -493,7 +493,7 @@ function viewBrands() {
 }
 
 function viewServices() {
-  document.title = 'Servicios de taller — Reycars Store';
+  document.title = 'Servicios de taller — Reycar Store';
   const items = [...P.filter((p) => p.g === 'servicios').sort((a, b) => a.p - b.p), ...P.filter((p) => p.g === 'cursos')];
   const fallback = items.find((p) => steps(p.d).length && p.g === 'servicios');
   return `<section class="page wrap view">
@@ -505,14 +505,14 @@ function viewServices() {
       const inherited = !st.length && !course && fallback;
       if (inherited) st = steps(fallback.d, 10);
       return `<article class="svc__c">
-        <a class="svc__img${p.img ? '' : ' svc__img--ph'}" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${p.img ? `<img src="${U(p.im[0][1])}" alt="" loading="lazy">` : 'Reycars · Detailing Center'}</a>
+        <a class="svc__img${p.img ? '' : ' svc__img--ph'}" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${p.img ? `<img src="${U(p.im[0][1])}" alt="" loading="lazy">` : 'Reycar · Detailing Center'}</a>
         <div class="svc__b">
           <span class="mono mono--red">${course ? 'Curso presencial · 6 días' : vehicleOf(p)}</span>
           <h3>${esc(p.t)}</h3>
           <div class="svc__price"><b>${clp(web(p))}</b><s>${clp(p.p)}</s></div>
           ${st.length ? `${inherited ? '<p class="svc__txt">Mismo proceso que el servicio sedán, para vehículos grandes:</p>' : ''}<ol class="svc__steps">${st.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
           <div class="svc__cta">
-            <a class="btn btn--red btn--sm" href="${wa(`Hola Reycars, quiero ${course ? 'reservar un cupo en' : 'agendar'}: ${p.t}`)}" target="_blank" rel="noopener">${course ? 'Reservar cupo' : 'Agendar'} por WhatsApp</a>
+            <a class="btn btn--red btn--sm" href="${wa(`Hola Reycar, quiero ${course ? 'reservar un cupo en' : 'agendar'}: ${p.t}`)}" target="_blank" rel="noopener">${course ? 'Reservar cupo' : 'Agendar'} por WhatsApp</a>
             <a class="svc__link" href="#/producto/${p.s}">Ver detalle</a>
           </div>
         </div>
@@ -619,7 +619,7 @@ function drawShop() {
   const f = $('.filters', root), bl = $('.brandlist', root);
   if (f) f.scrollTop = keep.f;
   if (bl) bl.scrollTop = keep.b;
-  document.title = `${o.q ? 'Búsqueda: ' + o.q : g ? g.name : sel.length === 1 ? sel[0] : 'Tienda'} — Reycars Store`;
+  document.title = `${o.q ? 'Búsqueda: ' + o.q : g ? g.name : sel.length === 1 ? sel[0] : 'Tienda'} — Reycar Store`;
   markNav();
 }
 function drawResults(list = filterProducts(shop.params)) {
@@ -677,14 +677,14 @@ function viewProduct(slug) {
   const next = nextG ? filterProducts({ g: nextG.id }).filter((x) => x.img && x.b).slice(0, 5) : [];
   const low = p.stk && p.stk <= 5;
   const ys = yieldSummary(p), logo = LOGOS[p.b];
-  document.title = `${p.t} — Reycars Store`;
+  document.title = `${p.t} — Reycar Store`;
   return `<section class="page wrap view">
     <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda?g=${g.id}">${esc(g.name)}</a><span>${esc(p.t)}</span></div>
     <a class="back" href="#/tienda?g=${g.id}"><span aria-hidden="true">←</span> ${esc(g.name)}</a>
     <div class="pdp">
       <div class="gal">
         <div class="gal__main${p.img ? ' gal__main--zoom' : ''}" id="galMain"${p.img ? ' data-action="lightbox" role="button" tabindex="0" aria-label="Ampliar foto"' : ''}>
-          <div class="gal__img" id="galImg">${p.img ? `<img src="${U(p.im[0][1])}" alt="${esc(p.t)}" fetchpriority="high">` : `<span class="ph">${esc(p.b || 'Reycars')}</span>`}</div>
+          <div class="gal__img" id="galImg">${p.img ? `<img src="${U(p.im[0][1])}" alt="${esc(p.t)}" fetchpriority="high">` : `<span class="ph">${esc(p.b || 'Reycar')}</span>`}</div>
           <div class="gal__tags"><span class="gal__tag gal__tag--off">−${DISC * 100}% web</span>${p.spec ? `<span class="gal__tag">${esc(p.spec)}</span>` : ''}</div>
           ${ys ? `<span class="gal__yield">${ico('drop')}Rinde ${ys.label}</span>` : ''}
           ${p.img ? `<span class="gal__zoom" aria-hidden="true">${ico('zoom')}Ampliar</span>` : ''}
@@ -707,7 +707,7 @@ function viewProduct(slug) {
           <div class="qty"><button data-action="pdp-qty" data-d="-1" aria-label="Menos">${ico('minus')}</button><output id="pdpQty">1</output><button data-action="pdp-qty" data-d="1" aria-label="Más">${ico('plus')}</button></div>
           <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}">Agregar al carro</button>
         </div>
-        <a class="btn btn--line btn--block buy__wa" href="${wa(`Hola Reycars, tengo una consulta sobre: ${p.t} (${p.url})`)}" target="_blank" rel="noopener">${ico('chat')} ¿Dudas? Pregunta por WhatsApp</a>
+        <a class="btn btn--line btn--block buy__wa" href="${wa(`Hola Reycar, tengo una consulta sobre: ${p.t} (${p.url})`)}" target="_blank" rel="noopener">${ico('chat')} ¿Dudas? Pregunta por WhatsApp</a>
         <ul class="pdpk">
           <li>${ico('truck')}<span><b>Envío a todo Chile.</b> El costo se calcula al finalizar la compra.</span></li>
           <li>${ico('card')}<span><b>Paga con Webpay,</b> tarjetas de crédito o débito.</span></li>
@@ -784,7 +784,7 @@ function closeLightbox() {
 }
 function shareProduct() {
   const p = pdp.p; if (!p) return;
-  const text = `${p.t} en Reycars Store`;
+  const text = `${p.t} en Reycar Store`;
   if (navigator.share) navigator.share({ title: text, url: p.url }).catch(() => {});
   else window.open(`https://wa.me/?text=${encodeURIComponent(text + ': ' + p.url)}`, '_blank', 'noopener');
 }
@@ -838,7 +838,7 @@ function route() {
   if (name === 'tienda' && lastRoute === 'tienda' && $('#shopRoot')) {
     shop.params = parseQuery(qs); shop.shown = PAGE; drawShop(); window.scrollTo(0, 0); return;
   }
-  document.title = 'Reycars Store — Detailing automotriz profesional';
+  document.title = 'Reycar Store — Detailing automotriz profesional';
   let html;
   if (name === 'tienda') html = viewShop(parseQuery(qs));
   else if (name === 'producto') html = viewProduct(decodeURIComponent(seg[1] || ''));
@@ -995,7 +995,7 @@ function drawSearch(q) {
   const bs = BRANDS.filter((b) => norm(b.name).includes(nq)).slice(0, 2);
   const top = all.slice(0, 6);
   if (!top.length && !gs.length && !bs.length) {
-    sDrop.innerHTML = `<div class="sempty"><b>Sin resultados para «${esc(q)}»</b>Prueba con otra palabra o <a href="${wa('Hola Reycars, busco: ' + q)}" target="_blank" rel="noopener" style="text-decoration:underline">pregúntanos por WhatsApp</a>.</div>`;
+    sDrop.innerHTML = `<div class="sempty"><b>Sin resultados para «${esc(q)}»</b>Prueba con otra palabra o <a href="${wa('Hola Reycar, busco: ' + q)}" target="_blank" rel="noopener" style="text-decoration:underline">pregúntanos por WhatsApp</a>.</div>`;
     return;
   }
   sDrop.innerHTML =
@@ -1112,7 +1112,7 @@ document.addEventListener('error', (e) => {
   const im = e.target;
   if (im.tagName === 'IMG' && !im.dataset.fb && im.closest('.pc__img,.gal__main')) {
     im.dataset.fb = 1;
-    im.replaceWith(Object.assign(document.createElement('span'), { className: 'ph', textContent: 'Reycars' }));
+    im.replaceWith(Object.assign(document.createElement('span'), { className: 'ph', textContent: 'Reycar' }));
   }
 }, true);
 

@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────
-   Reycars Store — rediseño
+   Reycar Store — rediseño
    Identidad: negro, rojo del logo y dorado de la corona.
    Estructura de tienda (buscador, categorías, tarjetas con botón visible)
    sobrio: fondos lisos, rojo y dorado solo como acento, casi sin movimiento.
@@ -20,7 +20,6 @@
   --shadow:0 20px 40px -26px rgba(80,20,20,.45);
   --r:12px; --r-s:8px;
   --f:'Archivo',system-ui,-apple-system,sans-serif;
-  --f-logo:'Orbitron','Archivo',system-ui,sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
   --wrap:1360px; --gut:clamp(16px,3vw,32px);
   --ease:cubic-bezier(.2,.7,.2,1);
@@ -106,8 +105,9 @@ a:hover .arrow,button:hover .arrow{transform:translateX(4px)}
 .hd__burger{display:none;width:42px;height:42px;place-items:center;margin-left:-8px}
 .logo{display:flex;align-items:center;gap:11px}
 .logo img{width:44px;height:auto}
-.logo b{display:block;font:800 21px/1 var(--f-logo);letter-spacing:.06em}
-.logo small{display:block;margin-top:4px;font:500 9.5px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.logo__txt{display:flex;flex-direction:column;align-items:flex-start}
+.logo__wm{display:block;height:19px;aspect-ratio:/;fill:currentColor}
+.logo small{display:block;margin-top:6px;font:500 9.5px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
 .hd__search{position:relative;display:flex;width:100%;max-width:640px;justify-self:center}
 .hd__search input{flex:1;min-width:0;height:46px;padding:0 16px;border:1.5px solid var(--line2);border-right:0;border-radius:var(--r-s) 0 0 var(--r-s);background:var(--surface);color:var(--ink);font:400 15px var(--f);-webkit-appearance:none;appearance:none;transition:border-color .2s}
 .hd__search input::placeholder{color:var(--faint)}
@@ -574,7 +574,7 @@ a.perk:hover b{color:var(--red-t)}
   body.has-sticky .ft{padding-bottom:90px}
 }
 @media (max-width:560px){
-  .logo b{font-size:18px}
+  .logo__wm{height:16px}
   .logo small{display:none}
   .hd__carttxt small{display:none}
   .vit__main{grid-template-columns:1fr;min-height:0;padding:24px 20px 20px}
@@ -622,7 +622,7 @@ a.perk:hover b{color:var(--red-t)}
   .hd__burger,.hd__cart{display:none!important}
   .hd__theme{width:40px;height:40px;border-radius:50%}
   .logo img{width:38px}
-  .logo b{font-size:19px}
+  .logo__wm{height:17px}
   .hd__search input{height:44px;padding-left:18px;border-radius:99px 0 0 99px;font-size:15px}
   .hd__search button{width:52px;height:44px;border-radius:0 99px 99px 0}
   .cats{border-top:0}
