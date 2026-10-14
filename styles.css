@@ -774,7 +774,7 @@ a.perk:hover b{color:var(--red-t)}
   background:#0b0a0a}
 .stage__copy{position:relative;z-index:2}
 .stage h1{margin:0 0 20px;font-size:clamp(48px,4.6vw,78px)}
-.stage h1 .gold{color:#e9b84a}
+.stage h1 .gold{color:#e9b84a;background:linear-gradient(180deg,#fbe39a 8%,#e9b84a 48%,#b9831f 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .stage p{max-width:440px;margin-bottom:26px;color:rgba(255,255,255,.76);font-size:16.5px}
 .stage__cta{display:flex;flex-wrap:wrap;gap:10px}
 .btn--glass{border:1.5px solid rgba(255,255,255,.28);color:#fff}
@@ -862,7 +862,27 @@ a.perk:hover b{color:var(--red-t)}
 .stage .cf__s{width:min(280px,40%);margin-left:calc(min(280px,40%) / -2)}
 
 .crest{position:relative;width:clamp(240px,27vw,390px);aspect-ratio:768/786}
-.crest__logo{display:block;width:100%;height:100%;object-fit:contain}
+.an--crest{animation:crestIn 1.3s var(--ease) both,crestFloat 7s ease-in-out 1.3s infinite}
+@keyframes crestIn{from{opacity:0;transform:scale(.84);filter:blur(10px)}}
+@keyframes crestFloat{50%{transform:translateY(-9px)}}
+.crest__tilt{position:absolute;inset:0;transform:perspective(1000px) rotateX(var(--ry,0deg)) rotateY(var(--rx,0deg));transition:transform .35s var(--ease);-webkit-box-reflect:below 2px linear-gradient(transparent 66%,rgba(255,255,255,.2))}
+.crest__logo{position:relative;z-index:2;display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 18px 40px rgba(0,0,0,.65))}
+/* tubo de neón que sigue la silueta del escudo + dos destellos que lo recorren */
+.crest__neon{position:absolute;inset:0;z-index:1;width:100%;height:100%;overflow:visible}
+.neon{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.neon--tube{stroke:#ff2a37;stroke-width:5;opacity:.75;animation:neonFlicker 7s linear infinite}
+.neon--run{stroke:#fff0c2;stroke-width:8;stroke-dasharray:14 86;animation:neonRun 4.4s linear infinite}
+.neon--run2{stroke:#ff4a55;stroke-width:7;stroke-dasharray:9 91;animation-delay:-2.2s}
+@keyframes neonRun{from{stroke-dashoffset:0}to{stroke-dashoffset:-100}}
+@keyframes neonFlicker{0%,9%,12%,14%,60%,63%,100%{opacity:.75}10%,13%,61%{opacity:.28}}
+/* reflejos: brillo que barre el logo y un punto de luz que sigue al mouse, recortados a la silueta */
+.crest__shine,.crest__spec{position:absolute;inset:0;z-index:3;pointer-events:none;-webkit-mask:url(assets/reycars-crest.webp) center/contain no-repeat;mask:url(assets/reycars-crest.webp) center/contain no-repeat}
+.crest__shine{background:linear-gradient(115deg,transparent 42%,rgba(255,255,255,.95) 50%,transparent 58%);background-size:320% 100%;background-position:120% 0;mix-blend-mode:screen;animation:crestShine 6s ease-in-out 1.9s infinite}
+@keyframes crestShine{0%{background-position:120% 0}40%,100%{background-position:-20% 0}}
+.crest__spec{background:radial-gradient(circle at var(--sx,50%) var(--sy,30%),rgba(255,255,255,.8),rgba(255,255,255,0) 30%);mix-blend-mode:overlay;opacity:0;transition:opacity .4s}
+.crest.is-lit .crest__spec{opacity:1}
+.crest__floor{position:absolute;left:6%;right:6%;bottom:-12%;height:18%;border-radius:50%;background:radial-gradient(closest-side,rgba(228,35,47,.65),rgba(228,35,47,0));filter:blur(10px);animation:floorPulse 4.4s ease-in-out infinite}
+@keyframes floorPulse{50%{opacity:.5;transform:scaleX(.9)}}
 
 @media (max-width:1024px){
   .stage__top{grid-template-columns:auto minmax(0,1fr);gap:32px}
