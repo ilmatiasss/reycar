@@ -406,8 +406,6 @@ function crestHTML() {
           </filter>
         </defs>
         <g transform="translate(383 400) scale(1.055) translate(-383 -400)" filter="url(#neonGlow)">
-          <path class="neon neon--halo" d="${SHIELD}"/>
-          <path class="neon neon--halo neon--halo2" d="${SHIELD}"/>
           <path class="neon neon--tube" d="${SHIELD}"/>
           <path class="neon neon--run" d="${SHIELD}" pathLength="100"/>
           <path class="neon neon--run neon--run2" d="${SHIELD}" pathLength="100"/>
@@ -967,10 +965,25 @@ function route() {
 /* ───────── carrusel de la portada ───────── */
 const reduceMotion = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
 const cf = { i: 0, n: 0, timer: null, paused: false };
+const cfMobile = () => matchMedia('(max-width: 820px)').matches;   // en celular el carrusel se desliza con el dedo
+// marca la diapositiva activa (puntos, accesibilidad)
+function cfMark(root, slides) {
+  slides.forEach((s, k) => {
+    s.classList.toggle('is-on', k === cf.i);
+    s.setAttribute('aria-hidden', k !== cf.i);
+  });
+  $$('.cf__dots button', root).forEach((b, k) => b.classList.toggle('on', k === cf.i));
+}
 function cfSet(i) {
   const root = $('#cf'); if (!root) return;
   const slides = $$('.cf__s', root);
   cf.n = slides.length; cf.i = ((i % cf.n) + cf.n) % cf.n;
+  if (cfMobile()) {
+    const tr = $('.cf__track', root), s = slides[cf.i];
+    cfMark(root, slides);
+    if (tr && s && !cf.fromScroll) tr.scrollTo({ left: s.offsetLeft - (tr.clientWidth - s.offsetWidth) / 2, behavior: 'smooth' });
+    return;
+  }
   slides.forEach((s, k) => {
     let d = k - cf.i;
     if (d > cf.n / 2) d -= cf.n;
@@ -991,7 +1004,7 @@ function cfSet(i) {
 }
 function cfPlay() {
   clearInterval(cf.timer);
-  if (reduceMotion.matches || !$('#cf')) return;
+  if (reduceMotion.matches || !$('#cf') || cfMobile()) return;
   cf.timer = setInterval(() => { if (!cf.paused && !document.hidden) cfSet(cf.i + 1); }, 5500);
 }
 function cfInit() {
@@ -999,6 +1012,19 @@ function cfInit() {
   const root = $('#cf'); if (!root) return;
   cf.paused = false;
   cfSet(0); cfPlay();
+  // celular: al deslizar se actualizan los puntos; al cambiar entre celular y escritorio se reacomoda
+  const tr = $('.cf__track', root);
+  if (tr) tr.addEventListener('scroll', () => {
+    if (!cfMobile()) return;
+    clearTimeout(cf.st);
+    cf.st = setTimeout(() => {
+      const slides = $$('.cf__s', root), mid = tr.scrollLeft + tr.clientWidth / 2;
+      let best = 0, bd = Infinity;
+      slides.forEach((el, k) => { const d = Math.abs(el.offsetLeft + el.offsetWidth / 2 - mid); if (d < bd) { bd = d; best = k; } });
+      cf.i = best; cfMark(root, slides);
+    }, 60);
+  }, { passive: true });
+  matchMedia('(max-width: 820px)').addEventListener('change', () => { cfSet(cf.i); cfPlay(); });
   root.addEventListener('mouseenter', () => { cf.paused = true; });
   root.addEventListener('mouseleave', () => { cf.paused = false; });
   root.addEventListener('focusin', () => { cf.paused = true; });
@@ -1007,12 +1033,13 @@ function cfInit() {
   let x0 = null;
   root.addEventListener('pointerdown', (e) => { x0 = e.clientX; });
   root.addEventListener('pointerup', (e) => {
-    if (x0 === null) return;
+    if (x0 === null || cfMobile()) return;
     const dx = e.clientX - x0; x0 = null;
     if (Math.abs(dx) > 40) { cf.swiped = true; setTimeout(() => { cf.swiped = false; }, 350); cfSet(cf.i + (dx < 0 ? 1 : -1)); cfPlay(); }
   });
   // un clic en un producto lateral lo trae al centro en vez de abrir la ficha
   root.addEventListener('click', (e) => {
+    if (cfMobile()) return;
     if (cf.swiped) { cf.swiped = false; e.preventDefault(); e.stopPropagation(); return; }
     const s = e.target.closest('.cf__s');
     if (s && !s.classList.contains('is-on')) { e.preventDefault(); e.stopPropagation(); cfSet(+s.dataset.i); cfPlay(); }
