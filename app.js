@@ -202,7 +202,7 @@ function drawCart() {
   body.innerHTML = ids.map((id) => {
     const p = byId.get(+id), q = cart[id];
     return `<div class="ci">
-      <a class="ci__img" href="#/producto/${p.s}" data-action="close-cart">${p.img ? `<img src="${p.img}" alt="">` : ''}</a>
+      <a class="ci__img" href="#/producto/${p.s}" data-action="close-cart">${p.img ? `<img src="${thumb(p)}" alt="">` : ''}</a>
       <div class="ci__b">
         <small>${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</small>
         <a href="#/producto/${p.s}" data-action="close-cart">${esc(p.t)}</a>
@@ -327,8 +327,11 @@ function drawCalc(resetRange) {
     ? `Se usa <b>puro</b>: ${fmtMl(y.prod)} de producto.`
     : `Mezcla: <b>${fmtMl(y.prod)}</b> de producto + <b>${fmtMl(y.water)}</b> de agua.`;
 }
+// miniatura chica (≈300 px) para íconos y lista de resultados; [0] ≈600 px para tarjetas y carrusel; [1] ≈1024 px para la ficha
+const thumb = (p) => (p.im && p.im[0] ? U(p.im[0][2] || p.im[0][0]) : null);
+const srcset = (p, sizes) => (p.im[0][2] && p.im[0][2] !== p.im[0][0] ? ` srcset="${U(p.im[0][2])} 300w, ${p.img} 600w" sizes="${sizes}"` : '');
 const img = (p, big) => (p.img
-  ? `<img src="${big && p.im[0][1] ? U(p.im[0][1]) : p.img}" alt="${esc(p.t)}" loading="lazy" decoding="async">`
+  ? `<img src="${big && p.im[0][1] ? U(p.im[0][1]) : p.img}"${big ? '' : srcset(p, '(max-width: 820px) 46vw, 260px')} alt="${esc(p.t)}" loading="lazy" decoding="async">`
   : `<span class="ph">${esc(p.b || 'Reycar')}</span>`);
 
 function card(p) {
@@ -403,6 +406,8 @@ function crestHTML() {
           </filter>
         </defs>
         <g transform="translate(383 400) scale(1.055) translate(-383 -400)" filter="url(#neonGlow)">
+          <path class="neon neon--halo" d="${SHIELD}"/>
+          <path class="neon neon--halo neon--halo2" d="${SHIELD}"/>
           <path class="neon neon--tube" d="${SHIELD}"/>
           <path class="neon neon--run" d="${SHIELD}" pathLength="100"/>
           <path class="neon neon--run neon--run2" d="${SHIELD}" pathLength="100"/>
@@ -411,12 +416,42 @@ function crestHTML() {
       <img class="crest__logo" src="assets/reycars-crest.webp" alt="Reycar Detailing Center" width="768" height="786" fetchpriority="high">
       <span class="crest__shine" aria-hidden="true"></span>
       <span class="crest__spec" aria-hidden="true"></span>
+      <span class="crest__runs" aria-hidden="true"><span class="runs__in">
+        <i class="run"></i><i class="run run--2"></i>
+      </span></span>
     </div>
   </div>`;
 }
 // inclinación 3D y reflejo que siguen al mouse (solo con mouse y sin "reducir movimiento")
+// La luz que recorre el escudo se anima solo con 'transform' (lo resuelve la tarjeta gráfica, sin redibujar nada):
+// se toman puntos del contorno y se arman los cuadros clave una sola vez.
+function runKeyframes(crest) {
+  const path = $('.neon--tube', crest);
+  if (!path || $('#runKF')) return;
+  try {
+    const len = path.getTotalLength(), N = 120, pts = [];
+    for (let k = 0; k <= N; k++) pts.push(path.getPointAtLength((len * k) / N));
+    let prev = 0, off = 0;
+    const frames = pts.map((p, k) => {
+      const q = pts[Math.min(k + 1, N)], o = pts[Math.max(k - 1, 0)];
+      let a = (Math.atan2(q.y - o.y, q.x - o.x) * 180) / Math.PI + off;
+      while (a - prev > 180) { off -= 360; a -= 360; }
+      while (a - prev < -180) { off += 360; a += 360; }
+      prev = a;
+      return `${((k / N) * 100).toFixed(2)}%{transform:translate(${p.x.toFixed(1)}px,${p.y.toFixed(1)}px) rotate(${a.toFixed(1)}deg)}`;
+    });
+    const st = document.createElement('style'); st.id = 'runKF';
+    st.textContent = `@keyframes runAlong{${frames.join('')}}`;
+    document.head.appendChild(st);
+  } catch (e) { /* sin luz que recorre: queda el contorno fijo */ }
+}
 function crestInit() {
   const stage = $('#stage'), crest = $('#crest');
+  if (crest) {
+    const fit = () => crest.style.setProperty('--cs', (crest.clientWidth / 768).toFixed(4));
+    fit(); window.addEventListener('resize', fit, { passive: true });
+    runKeyframes(crest);
+  }
   if (!stage || !crest || reduceMotion.matches || !matchMedia('(hover: hover)').matches) return;
   stage.addEventListener('pointermove', (e) => {
     const r = crest.getBoundingClientRect();
@@ -467,7 +502,7 @@ function viewHome() {
       <div class="cf an" id="cf" style="--d:.55s" aria-roledescription="carrusel" aria-label="Productos destacados">
         <div class="cf__track">${showcase.map((p, i) => `
           <article class="cf__s" data-i="${i}" aria-roledescription="producto ${i + 1} de ${showcase.length}">
-            <a class="cf__tile" href="#/producto/${p.s}" tabindex="-1"><img src="${U(p.im[0][1] || p.im[0][0])}" alt="${esc(p.t)}"></a>
+            <a class="cf__tile" href="#/producto/${p.s}" tabindex="-1"><img src="${p.img}"${srcset(p, '(max-width: 820px) 58vw, 300px')} alt="${esc(p.t)}" decoding="async"></a>
             <div class="cf__cap">
               <span class="cf__brand">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</span>
               <a class="cf__name" href="#/producto/${p.s}">${esc(p.t)}</a>
@@ -501,9 +536,6 @@ function viewHome() {
     ${perksBar()}
   </section>
 
-  <div class="marquee" aria-label="Marcas disponibles">
-    <div class="marquee__track">${BRANDS.map((b) => `<a href="#/tienda?b=${encodeURIComponent(b.name)}">${esc(b.name)}</a>`).join('')}</div>
-  </div>
 
   <section class="sec wrap">
     <div class="sh rv">
@@ -585,7 +617,7 @@ function viewServices() {
       const inherited = !st.length && !course && fallback;
       if (inherited) st = steps(fallback.d, 10);
       return `<article class="svc__c">
-        <a class="svc__img${p.img ? '' : ' svc__img--ph'}" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${p.img ? `<img src="${U(p.im[0][1])}" alt="" loading="lazy">` : 'Reycar · Detailing Center'}</a>
+        <a class="svc__img${p.img ? '' : ' svc__img--ph'}" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${p.img ? `<img src="${p.img}" alt="" loading="lazy">` : 'Reycar · Detailing Center'}</a>
         <div class="svc__b">
           <span class="mono mono--red">${course ? 'Curso presencial · 6 días' : vehicleOf(p)}</span>
           <h3>${esc(p.t)}</h3>
@@ -769,7 +801,7 @@ function viewProduct(slug) {
           ${ys ? `<span class="gal__yield">${ico('drop')}Rinde ${ys.label}</span>` : ''}
           ${p.img ? `<span class="gal__zoom" aria-hidden="true">${ico('zoom')}Ampliar</span>` : ''}
         </div>
-        ${p.im.length > 1 ? `<div class="gal__thumbs">${p.im.map((im, i) => `<button class="${i ? '' : 'on'}" data-action="gal" data-i="${i}" aria-label="Ver foto ${i + 1}"><img src="${U(im[0])}" alt=""></button>`).join('')}</div>` : ''}
+        ${p.im.length > 1 ? `<div class="gal__thumbs">${p.im.map((im, i) => `<button class="${i ? '' : 'on'}" data-action="gal" data-i="${i}" aria-label="Ver foto ${i + 1}"><img src="${U(im[2] || im[0])}" alt=""></button>`).join('')}</div>` : ''}
       </div>
       <div class="info">
         <div class="info__top">
@@ -809,7 +841,7 @@ function viewProduct(slug) {
     ${same.length ? `<section class="sec"><div class="sh"><h2 class="cond">También en ${esc(g.name)}</h2><a class="sh__link" href="#/tienda?g=${g.id}">Ver todo ${arrow}</a></div><div class="grid grid--row">${same.map(card).join('')}</div></section>` : ''}
   </section>
   <div class="sticky-buy" id="stickyBuy" aria-hidden="true">
-    ${p.img ? `<span class="sb__img"><img src="${p.img}" alt=""></span>` : ''}
+    ${p.img ? `<span class="sb__img"><img src="${thumb(p)}" alt=""></span>` : ''}
     <span class="sb__t"><small>${esc(p.b || g.name)}</small><b>${esc(p.t)}</b></span>
     <b class="sb__p">${clp(web(p))}</b>
     <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}" tabindex="-1"${out ? ' disabled' : ''}>${ico('bag')} ${out ? 'Agotado' : 'Agregar'}</button>
@@ -950,6 +982,7 @@ function cfSet(i) {
     s.style.opacity = [1, 0.9, 0.55, 0.22, 0][ad];
     s.style.zIndex = 10 - ad;
     s.style.pointerEvents = ad > 1 ? 'none' : 'auto';
+    s.style.visibility = ad > 2 ? 'hidden' : '';
     s.classList.toggle('is-on', d === 0);
     s.setAttribute('aria-hidden', d !== 0);
     $$('a,button', s).forEach((el) => { el.tabIndex = d === 0 && !el.classList.contains('cf__tile') ? 0 : -1; });
@@ -1082,7 +1115,7 @@ function drawSearch(q) {
   }
   sDrop.innerHTML =
     (gs.length || bs.length ? `<div class="sh-l">Ir a</div>${gs.map((g) => `<a class="sr sr--text" href="#/tienda?g=${g.id}"><div class="sr__t">${hi(g.name, q)}</div><span class="sr__s">Categoría · ${g.count}</span></a>`).join('')}${bs.map((b) => `<a class="sr sr--text" href="#/tienda?b=${encodeURIComponent(b.name)}"><div class="sr__t">${hi(b.name, q)}</div><span class="sr__s">Marca · ${b.n}</span></a>`).join('')}` : '') +
-    (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="#/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${p.img}" alt="">` : ''}</span><div><div class="sr__t">${hi(p.t, q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
+    (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="#/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${thumb(p)}" alt="">` : ''}</span><div><div class="sr__t">${hi(p.t, q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
     (all.length > top.length ? `<a class="sr sr--text" href="#/tienda?q=${encodeURIComponent(q)}"><div class="sr__t">Ver los ${all.length} resultados ${arrow}</div></a>` : '');
 }
 function openSearch() { drawSearch(sInput.value); sDrop.hidden = false; }
@@ -1214,6 +1247,26 @@ syncStock().then((ok) => {
   route();
   setInterval(() => { if (!document.hidden) syncStock(4000).then((o) => { if (o) fitCartToStock(); }); }, STOCK_EVERY);
 });
+/* si un equipo en modo completo anda lento (menos de ~38 cuadros por segundo), pasa solo al modo liviano */
+(function watchFps() {
+  const root = document.documentElement;
+  if (root.dataset.perf !== 'full' || reduceMotion.matches) return;
+  setTimeout(() => {
+    if (document.hidden) return;
+    let last = performance.now(), start = last, t = [];
+    const f = (n) => {
+      t.push(n - last); last = n;
+      if (n - start < 2500) { requestAnimationFrame(f); return; }
+      t = t.slice(5).sort((x, y) => x - y);
+      if (t.length && t[Math.floor(t.length / 2)] > 26) {
+        root.dataset.perf = 'lite';
+        try { localStorage.setItem('reycar-perf', 'lite'); } catch (e) { /* modo privado */ }
+      }
+    };
+    requestAnimationFrame(f);
+  }, 1500);
+})();
+
 /* Solo para el panel de pruebas (?track=debug): muestra cómo viajaría una compra confirmada.
    En la tienda real, Purchase se dispara desde el servidor cuando el pago ya está confirmado. */
 window.__reycarSimulatePurchase = () => {

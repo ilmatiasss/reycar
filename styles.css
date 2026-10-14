@@ -192,11 +192,6 @@ a:hover .arrow,button:hover .arrow{transform:translateX(4px)}
 .perk span{display:block;font-size:13px;color:var(--muted);line-height:1.35}
 a.perk:hover b{color:var(--red-t)}
 
-/* marcas */
-.marquee{margin-top:clamp(40px,5vw,64px);border-block:1px solid var(--line);padding:22px 0}
-.marquee__track{display:flex;flex-wrap:wrap;justify-content:center;gap:10px 32px;padding-inline:var(--gut)}
-.marquee a{font:700 14px/1.2 var(--f);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap;transition:color .2s}
-.marquee a:hover{color:var(--ink)}
 
 /* secciones */
 .sec{padding-top:clamp(52px,6vw,84px)}
@@ -738,8 +733,6 @@ a.perk:hover b{color:var(--red-t)}
   .perk b{font-size:13px}
   .perk .ico{width:20px;height:20px}
 
-  .marquee{margin-top:30px;padding:14px 0}
-  .marquee a{gap:26px;padding-right:26px;font-size:21px}
 
   /* tarjetas de producto */
   .grid,.grid--4{gap:10px}
@@ -1000,6 +993,7 @@ a.perk:hover b{color:var(--red-t)}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition-duration:.01ms!important}
+  .crest__runs{display:none!important}
   .rv{opacity:1;transform:none}
 }
 
@@ -1024,9 +1018,33 @@ body.is-catalog .cats{display:none}
   body.is-catalog .hd__main{grid-template-columns:auto minmax(0,1fr) auto auto auto}
 }
 
-/* marcas en el celular: más chicas y alineadas a la izquierda */
-@media (max-width:820px){
-  .marquee{padding:16px 0}
-  .marquee__track{justify-content:flex-start;gap:8px 18px}
-  .marquee a{font-size:12px;letter-spacing:.06em}
-}
+/* ═════════════════════════════════════════════
+   MODO LIVIANO (html[data-perf="lite"])
+   Mismo diseño y misma animación del logo, pero sin lo que un equipo modesto
+   tiene que recalcular en cada cuadro: desenfoques, reflejos, mezclas y sombras grandes.
+   Se activa solo en celulares y equipos modestos (ver el script del <head>) o con ?perf=lite.
+   ═════════════════════════════════════════════ */
+.neon--halo{display:none;stroke:#ff2a37;stroke-width:16;opacity:.16}
+.neon--halo2{stroke-width:9;opacity:.28}
+:root[data-perf="lite"] .neon--halo{display:inline}
+:root[data-perf="lite"] .neon--run{display:none}
+/* luz que recorre el escudo: dos puntos que se desplazan sobre el contorno (no obliga a redibujar el trazo) */
+.crest__runs{display:none}
+:root[data-perf="lite"] .crest__runs{display:block;position:absolute;left:0;top:0;width:768px;height:786px;z-index:1;pointer-events:none;transform-origin:0 0;transform:scale(var(--cs,.4))}
+.runs__in{position:absolute;inset:0;transform-origin:0 0;transform:translate(383px,400px) scale(1.055) translate(-383px,-400px)}
+.run{position:absolute;left:-150px;top:-8px;width:150px;height:16px;border-radius:8px;background:linear-gradient(90deg,rgba(255,240,194,0),rgba(255,240,194,.95));transform-origin:100% 50%;animation:runAlong 4.4s linear infinite;will-change:transform}
+.run--2{left:-100px;top:-7px;width:100px;height:14px;background:linear-gradient(90deg,rgba(255,74,85,0),rgba(255,74,85,.95));animation-delay:-2.2s}
+:root[data-perf="lite"] .crest__neon g{filter:none}
+:root[data-perf="lite"] .neon--tube{animation:none;opacity:.95}
+:root[data-perf="lite"] .crest{will-change:transform}
+:root[data-perf="lite"] .an--crest{animation:rise .5s var(--ease) both,crestFloat 7s ease-in-out .5s infinite}
+:root[data-perf="lite"] .crest__tilt{-webkit-box-reflect:none;transform:none}
+:root[data-perf="lite"] .crest__shine,:root[data-perf="lite"] .crest__spec{display:none}
+:root[data-perf="lite"] .crest__floor{filter:none;animation:none;opacity:.6}
+:root[data-perf="lite"] .crest__logo{filter:none}
+:root[data-perf="lite"] body::before{display:none}
+:root[data-perf="lite"] .hd{background:var(--bg);backdrop-filter:none;-webkit-backdrop-filter:none}
+:root[data-perf="lite"] .offer,:root[data-perf="lite"] .sticky-buy{backdrop-filter:none;-webkit-backdrop-filter:none}
+:root[data-perf="lite"] .cf__tile{background:#fff;box-shadow:0 10px 20px -12px rgba(0,0,0,.65)}
+:root[data-perf="lite"] .cf__tile img,:root[data-perf="lite"] .pc__img img,:root[data-perf="lite"] .step__tile img,:root[data-perf="lite"] .gal__main img,:root[data-perf="lite"] .sb__img img{mix-blend-mode:normal}
+:root[data-perf="lite"] .pc__img,:root[data-perf="lite"] .step__tile,:root[data-perf="lite"] .gal__main{background:var(--tile)}

@@ -94,11 +94,11 @@ const short = (u) => (u && u.startsWith(PRE) ? u.slice(PRE.length) : u);
 // Usa el srcset sin recorte (las miniaturas cuadradas del sitio actual cortan los productos)
 const pick = (img, w) => {
   if (!img) return null;
-  const set = (img.srcset || '').split(',').map((x) => x.trim().split(/s+/))
+  const set = (img.srcset || '').split(',').map((x) => x.trim().split(/\s+/))
     .filter((a) => a[1] && a[1].endsWith('w')).map(([u, x]) => [u, parseInt(x, 10)]).sort((a, b) => a[1] - b[1]);
   if (!set.length && w <= 600) {
     // sin versiones intermedias: usa la miniatura 600x600 en vez del original (a veces 2048px)
-    const t = (img.thumbnail_srcset || '').split(',').map((x) => x.trim().split(/s+/)[0]).find((u) => /-600x600./.test(u));
+    const t = (img.thumbnail_srcset || '').split(',').map((x) => x.trim().split(/\s+/)[0]).find((u) => /-600x600./.test(u));
     if (t) return short(t);
   }
   const hit = set.find(([, x]) => x >= w);
@@ -118,7 +118,8 @@ const products = raw.map((p) => {
     b: brand === 'Masshine' ? 'Maxshine' : brand, // el sitio tiene ambas grafías de la misma marca
     g: groupOf(p),
     c: [...new Set(p.categories.map((c) => decode(c.name)).filter((n) => !/^(Cuidado Exterior|Sin categor)/i.test(n)))].slice(0, 2),
-    im: imgs.slice(0, 4).map((i) => [pick(i, 600), pick(i, 1024)]),
+    // [600 px para tarjetas y carrusel, 1024 px para la ficha y el zoom, 300 px para pantallas chicas]
+    im: imgs.slice(0, 4).map((i) => [pick(i, 600), pick(i, 1024), pick(i, 300)]),
     stk: maxQty && maxQty < 100 ? maxQty : null,
     d: fullText(plain(p.description)),
     sku: p.sku || '',
