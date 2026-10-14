@@ -913,6 +913,7 @@ function route() {
   const name = seg[0] || 'home';
   closeSearch(); closeOverlay('#mobileMenu', true); closeOverlay('#drawer', true);
   document.body.classList.remove('filters-open');
+  document.body.classList.toggle('is-catalog', name === 'tienda');
   if (typeof showHeader === 'function') showHeader();
 
   if (name === 'tienda' && lastRoute === 'tienda' && $('#shopRoot')) {

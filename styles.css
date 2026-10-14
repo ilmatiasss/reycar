@@ -1025,3 +1025,18 @@ body.sticky-on .bnav{transform:translateY(150%)}
 .pc__add[disabled],.btn[disabled]{opacity:.5;cursor:not-allowed;pointer-events:none}
 .stock--out{color:var(--muted)}
 .stock--out i{background:var(--muted)}
+
+/* catálogo: las categorías ya están en el panel de filtros, así que no se repiten arriba */
+.hd__util{display:none}
+.hd__util a{font:600 14px var(--f);white-space:nowrap;color:var(--ink2)}
+.hd__util a:hover{color:var(--red-t)}
+.hd__util a.hd__svc{color:var(--red-t)}
+body.is-catalog .cats{display:none}
+@media (min-width:821px){
+  body.is-catalog .hd__util{display:flex;gap:22px}
+  body.is-catalog .hd__main{grid-template-columns:auto minmax(0,1fr) auto auto auto auto}
+  body.is-catalog .filters{top:96px;max-height:calc(100vh - 116px)}
+}
+@media (min-width:821px) and (max-width:1240px){
+  body.is-catalog .hd__main{grid-template-columns:auto minmax(0,1fr) auto auto auto}
+}
