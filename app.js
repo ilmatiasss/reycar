@@ -346,50 +346,11 @@ const steps = (d, n = 12) => (d || '').split('\n').map((l) => l.trim())
   .map((l) => l.replace(/^\*\s*/, '').replace(/2 Vald[eé]s/i, '2 baldes').replace(/^./, (c) => c.toUpperCase())).slice(0, n);
 const vehicleOf = (p) => (/SUV|camioneta/i.test(p.n) ? 'Camioneta · SUV XL' : /sed[aá]n|hatch/i.test(p.n) ? 'Sedán · Hatchback' : 'Servicio en taller');
 
-/* ───────── logo grande con neón por el borde y reflejos (portada) ─────────
-   El contorno sigue la silueta del escudo dorado, medida sobre assets/reycars-crest.webp (768×786). */
-const SHIELD = 'M383 30 C330 30 290 36 257 42 C150 58 100 110 97 190 L97 540 C98 590 140 630 230 680 C290 712 355 750 383 771 C411 750 476 712 536 680 C626 630 668 590 669 540 L669 190 C666 110 616 58 509 42 C476 36 436 30 383 30 Z';
+/* ───────── logo grande de la portada ───────── */
 function crestHTML() {
-  return `<div class="crest an an--crest" id="crest" style="--d:.05s">
-    <span class="crest__floor" aria-hidden="true"></span>
-    <div class="crest__tilt">
-      <svg class="crest__neon" viewBox="0 0 768 786" aria-hidden="true" focusable="false">
-        <defs>
-          <filter id="neonGlow" x="-25%" y="-25%" width="150%" height="150%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b1"/>
-            <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="b2"/>
-            <feMerge><feMergeNode in="b2"/><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
-        </defs>
-        <g transform="translate(383 400) scale(1.055) translate(-383 -400)" filter="url(#neonGlow)">
-          <path class="neon neon--tube" d="${SHIELD}"/>
-          <path class="neon neon--run" d="${SHIELD}" pathLength="100"/>
-          <path class="neon neon--run neon--run2" d="${SHIELD}" pathLength="100"/>
-        </g>
-      </svg>
-      <img class="crest__logo" src="assets/reycars-crest.webp" alt="Reycars Detailing Center" width="768" height="786" fetchpriority="high">
-      <span class="crest__shine" aria-hidden="true"></span>
-      <span class="crest__spec" aria-hidden="true"></span>
-    </div>
+  return `<div class="crest an" id="crest">
+    <img class="crest__logo" src="assets/reycars-crest.webp" alt="Reycars Detailing Center" width="768" height="786" fetchpriority="high">
   </div>`;
-}
-// inclinación 3D y reflejo que siguen al mouse (solo con mouse y sin "reducir movimiento")
-function crestInit() {
-  const stage = $('#stage'), crest = $('#crest');
-  if (!stage || !crest || reduceMotion.matches || !matchMedia('(hover: hover)').matches) return;
-  stage.addEventListener('pointermove', (e) => {
-    const r = crest.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
-    crest.style.setProperty('--rx', `${Math.max(-1, Math.min(1, px - 0.5)) * 16}deg`);
-    crest.style.setProperty('--ry', `${Math.max(-1, Math.min(1, 0.5 - py)) * 12}deg`);
-    crest.style.setProperty('--sx', `${Math.round(px * 100)}%`);
-    crest.style.setProperty('--sy', `${Math.round(py * 100)}%`);
-    crest.classList.add('is-lit');
-  });
-  stage.addEventListener('pointerleave', () => {
-    ['--rx', '--ry'].forEach((k) => crest.style.setProperty(k, '0deg'));
-    crest.classList.remove('is-lit');
-  });
 }
 
 /* ───────── vistas ───────── */
@@ -461,7 +422,7 @@ function viewHome() {
   </section>
 
   <div class="marquee" aria-label="Marcas disponibles">
-    <div class="marquee__track">${[...BRANDS, ...BRANDS].map((b, i) => `<a href="#/tienda?b=${encodeURIComponent(b.name)}"${i >= BRANDS.length ? ' tabindex="-1" aria-hidden="true"' : ''}>${esc(b.name)}</a>`).join('')}</div>
+    <div class="marquee__track">${BRANDS.map((b) => `<a href="#/tienda?b=${encodeURIComponent(b.name)}">${esc(b.name)}</a>`).join('')}</div>
   </div>
 
   <section class="sec wrap">
@@ -892,13 +853,12 @@ function route() {
   window.scrollTo(0, 0);
   observeReveals();
   cfInit();
-  crestInit();
   if (name === 'producto' && pdp.p) { calcInit(pdp.p); pdpInit(); }
 }
 
-/* ───────── carrusel 3D de la portada ───────── */
+/* ───────── carrusel de la portada (manual) ───────── */
 const reduceMotion = window.matchMedia ? matchMedia('(prefers-reduced-motion: reduce)') : { matches: false };
-const cf = { i: 0, n: 0, timer: null, paused: false };
+const cf = { i: 0, n: 0, paused: false };
 function cfSet(i) {
   const root = $('#cf'); if (!root) return;
   const slides = $$('.cf__s', root);
@@ -910,7 +870,7 @@ function cfSet(i) {
     const ad = Math.min(Math.abs(d), 4);
     const x = Math.sign(d) * [0, 74, 138, 194, 240][ad];
     const sc = [1, 0.8, 0.66, 0.54, 0.45][ad];
-    s.style.transform = `translateX(${x}%) scale(${sc}) rotateY(${d === 0 ? 0 : d > 0 ? -26 : 26}deg)`;
+    s.style.transform = `translateX(${x}%) scale(${sc})`;
     s.style.opacity = [1, 0.9, 0.55, 0.22, 0][ad];
     s.style.zIndex = 10 - ad;
     s.style.pointerEvents = ad > 1 ? 'none' : 'auto';
@@ -920,16 +880,10 @@ function cfSet(i) {
   });
   $$('.cf__dots button', root).forEach((b, k) => b.classList.toggle('on', k === cf.i));
 }
-function cfPlay() {
-  clearInterval(cf.timer);
-  if (reduceMotion.matches || !$('#cf')) return;
-  cf.timer = setInterval(() => { if (!cf.paused && !document.hidden) cfSet(cf.i + 1); }, 3600);
-}
 function cfInit() {
-  clearInterval(cf.timer);
   const root = $('#cf'); if (!root) return;
   cf.paused = false;
-  cfSet(0); cfPlay();
+  cfSet(0);
   root.addEventListener('mouseenter', () => { cf.paused = true; });
   root.addEventListener('mouseleave', () => { cf.paused = false; });
   root.addEventListener('focusin', () => { cf.paused = true; });
@@ -940,13 +894,13 @@ function cfInit() {
   root.addEventListener('pointerup', (e) => {
     if (x0 === null) return;
     const dx = e.clientX - x0; x0 = null;
-    if (Math.abs(dx) > 40) { cf.swiped = true; setTimeout(() => { cf.swiped = false; }, 350); cfSet(cf.i + (dx < 0 ? 1 : -1)); cfPlay(); }
+    if (Math.abs(dx) > 40) { cf.swiped = true; setTimeout(() => { cf.swiped = false; }, 350); cfSet(cf.i + (dx < 0 ? 1 : -1)); }
   });
   // un clic en un producto lateral lo trae al centro en vez de abrir la ficha
   root.addEventListener('click', (e) => {
     if (cf.swiped) { cf.swiped = false; e.preventDefault(); e.stopPropagation(); return; }
     const s = e.target.closest('.cf__s');
-    if (s && !s.classList.contains('is-on')) { e.preventDefault(); e.stopPropagation(); cfSet(+s.dataset.i); cfPlay(); }
+    if (s && !s.classList.contains('is-on')) { e.preventDefault(); e.stopPropagation(); cfSet(+s.dataset.i); }
   }, true);
 }
 
@@ -1103,8 +1057,8 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'theme': toggleTheme(); break;
-    case 'cf': cfSet(cf.i + +t.dataset.d); cfPlay(); break;
-    case 'cf-go': cfSet(+t.dataset.i); cfPlay(); break;
+    case 'cf': cfSet(cf.i + +t.dataset.d); break;
+    case 'cf-go': cfSet(+t.dataset.i); break;
     case 'calc-opt': if (calc) calcPick(+t.dataset.i); break;
     case 'lightbox': openLightbox(); break;
     case 'close-lightbox': closeLightbox(); break;
