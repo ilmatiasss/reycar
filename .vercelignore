@@ -1,4 +1,4 @@
-# Solo se publica el sitio: index.html, styles.css, app.js, tracking.js, data/products.js, data/dilutions.js y assets/
+# Se publica: index.html, styles.css, app.js, tracking.js, api/, lib/, data/products.js, data/dilutions.js y assets/
 .claude
 .shots
 data/p*.json
