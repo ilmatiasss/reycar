@@ -4,7 +4,7 @@
 
 const P = window.PRODUCTS;
 const G = window.GROUPS;
-const DISC = 0.05;               // descuento web que el sitio actual ya muestra en todos los productos
+const DISC = 0;                  // descuento web (ej. 0.05); en 0 no se muestra insignia ni precio tachado
 const WA = '56963555437';
 const IMG_BASE = 'https://reycarstore.cl/wp-content/uploads/';
 const PAGE = 24;
@@ -16,6 +16,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clp = (n) => '$' + Math.round(n).toLocaleString('es-CL');
 const web = (p) => Math.round(p.p * (1 - DISC));
+const was = (p) => (DISC ? `<s>${clp(p.p)}</s>` : '');
 const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const U = (u) => (u && !/^https?:/.test(u) ? IMG_BASE + u : u);
 const wa = (msg) => `https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
@@ -344,12 +345,12 @@ function card(p) {
   const low = out ? '<span class="pc__stock pc__stock--out">Agotado</span>' : p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '';
   const ys = yieldSummary(p);
   return `<article class="pc">
-    <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}<span class="pc__off">-${DISC * 100}%</span>${low}${ys ? `<span class="pc__yield">${ico('drop')}Rinde ${ys.label}</span>` : ''}</a>
+    <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}${DISC ? `<span class="pc__off">-${DISC * 100}%</span>` : ''}${low}${ys ? `<span class="pc__yield">${ico('drop')}Rinde ${ys.label}</span>` : ''}</a>
     <div class="pc__body">
       <span class="pc__brand">${esc(p.b || gById.get(p.g).name)}</span>
       <a class="pc__name" href="#/producto/${p.s}">${esc(p.t)}</a>
       ${p.spec ? `<span class="pc__spec">${esc(p.spec)}</span>` : ''}
-      <div class="pc__price"><b>${clp(web(p))}</b><s>${clp(p.p)}</s></div>
+      <div class="pc__price"><b>${clp(web(p))}</b>${was(p)}</div>
       <button class="pc__add" data-action="add" data-id="${p.id}"${out ? ' disabled' : ''} aria-label="${out ? 'Agotado' : 'Agregar al carro'}: ${esc(p.t)}">${ico('bag')}<span class="pc__addt">${out ? 'Agotado' : ADD_LABEL}</span></button>
     </div>
   </article>`;
@@ -502,7 +503,7 @@ function viewHome() {
             <a class="btn btn--red" href="#/tienda">Ver la tienda ${arrow}</a>
             <a class="btn btn--glass" href="#/asesoria">Servicios de taller</a>
           </div>
-          <span class="stage__badge an" style="--d:.71s"><b>−${DISC * 100}%</b> precio web en todo el catálogo</span>
+          ${DISC ? `<span class="stage__badge an" style="--d:.71s"><b>−${DISC * 100}%</b> precio web en todo el catálogo</span>` : ''}
         </div>
       </div>
       <div class="cf an" id="cf" style="--d:.55s" aria-roledescription="carrusel" aria-label="Productos destacados">
@@ -512,7 +513,7 @@ function viewHome() {
             <div class="cf__cap">
               <span class="cf__brand">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</span>
               <a class="cf__name" href="#/producto/${p.s}">${esc(p.t)}</a>
-              <div class="cf__row"><b>${clp(web(p))}</b><s>${clp(p.p)}</s><button class="cf__add" data-action="add" data-id="${p.id}" aria-label="Agregar al carro: ${esc(p.t)}">${ico('plus')}</button></div>
+              <div class="cf__row"><b>${clp(web(p))}</b>${was(p)}<button class="cf__add" data-action="add" data-id="${p.id}" aria-label="Agregar al carro: ${esc(p.t)}">${ico('plus')}</button></div>
             </div>
           </article>`).join('')}
         </div>
@@ -584,7 +585,7 @@ function viewHome() {
         ${svc.map((p) => `<div class="offer">
           <span class="mono mono--gold">${vehicleOf(p)}</span>
           <h3>${esc(p.t)}</h3>
-          <div class="offer__price"><b>${clp(web(p))}</b><s>${clp(p.p)}</s></div>
+          <div class="offer__price"><b>${clp(web(p))}</b>${was(p)}</div>
           <div class="offer__row"><a class="btn btn--red" href="${wa(`Hola Reycar, quiero agendar: ${p.t}`)}" target="_blank" rel="noopener">Agendar por WhatsApp</a><a class="offer__link" href="#/producto/${p.s}">Ver detalle</a></div>
         </div>`).join('')}
         ${course ? `<a class="offer offer--course" href="#/producto/${course.s}"><div><span class="mono">Curso presencial · 6 días</span><b>Aprende detailing profesional</b></div><span class="p">${clp(web(course))} ${arrow}</span></a>` : ''}
@@ -627,7 +628,7 @@ function viewServices() {
         <div class="svc__b">
           <span class="mono mono--red">${course ? 'Curso presencial · 6 días' : vehicleOf(p)}</span>
           <h3>${esc(p.t)}</h3>
-          <div class="svc__price"><b>${clp(web(p))}</b><s>${clp(p.p)}</s></div>
+          <div class="svc__price"><b>${clp(web(p))}</b>${was(p)}</div>
           ${st.length ? `${inherited ? '<p class="svc__txt">Mismo proceso que el servicio sedán, para vehículos grandes:</p>' : ''}<ol class="svc__steps">${st.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
           <div class="svc__cta">
             <a class="btn btn--red btn--sm" href="${wa(`Hola Reycar, quiero ${course ? 'reservar un cupo en' : 'agendar'}: ${p.t}`)}" target="_blank" rel="noopener">${course ? 'Reservar cupo' : 'Agendar'} por WhatsApp</a>
@@ -834,7 +835,7 @@ function viewProduct(slug) {
       <div class="gal">
         <div class="gal__main${p.img ? ' gal__main--zoom' : ''}" id="galMain"${p.img ? ' data-action="lightbox" role="button" tabindex="0" aria-label="Ampliar foto"' : ''}>
           <div class="gal__img" id="galImg">${p.img ? `<img src="${U(p.im[0][1])}" alt="${esc(p.t)}" fetchpriority="high">` : `<span class="ph">${esc(p.b || 'Reycar')}</span>`}</div>
-          <div class="gal__tags"><span class="gal__tag gal__tag--off">−${DISC * 100}% web</span>${p.spec ? `<span class="gal__tag">${esc(p.spec)}</span>` : ''}</div>
+          <div class="gal__tags">${DISC ? `<span class="gal__tag gal__tag--off">−${DISC * 100}% web</span>` : ''}${p.spec ? `<span class="gal__tag">${esc(p.spec)}</span>` : ''}</div>
           ${ys ? `<span class="gal__yield">${ico('drop')}Rinde ${ys.label}</span>` : ''}
           ${p.img ? `<span class="gal__zoom" aria-hidden="true">${ico('zoom')}Ampliar</span>` : ''}
         </div>
@@ -848,8 +849,8 @@ function viewProduct(slug) {
         </div>
         <h1>${esc(p.t)}</h1>
         <div class="info__price">
-          <span class="info__now">${clp(web(p))}</span><s class="info__was">${clp(p.p)}</s><span class="info__save">Ahorras ${clp(p.p - web(p))}</span>
-          <span class="info__note">Precio web con ${DISC * 100}% de descuento</span>
+          <span class="info__now">${clp(web(p))}</span>${DISC ? `<s class="info__was">${clp(p.p)}</s><span class="info__save">Ahorras ${clp(p.p - web(p))}</span>
+          <span class="info__note">Precio web con ${DISC * 100}% de descuento</span>` : ''}
         </div>
         <div class="stock${out ? ' stock--out' : low ? ' stock--low' : ''}"><i></i>${out ? 'Agotado por ahora' : low ? (p.stk === 1 ? 'Última unidad disponible' : `Quedan ${p.stk} unidades`) : 'En stock'}</div>
         <div class="buy">
