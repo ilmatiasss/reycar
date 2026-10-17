@@ -1082,3 +1082,94 @@ body.is-catalog .cats{display:none}
 .mm__list .mm__h{display:flex;justify-content:space-between;align-items:baseline;margin-top:18px;padding:0 2px 8px;border-bottom:1px solid var(--line2);font:600 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--gold)}
 .mm__list .mm__h:first-child{margin-top:4px}
 .mm__list .mm__h small{font:600 12px var(--f);letter-spacing:0;text-transform:none;color:var(--red-t)}
+
+/* ═════════════════════════════════════════════
+   FORMATOS (un producto, varios tamaños)
+   ═════════════════════════════════════════════ */
+.pc__fmts{display:flex;flex-wrap:wrap;gap:4px}
+.pc__fmts button{min-height:24px;padding:2px 7px;border:1px solid var(--line2);border-radius:4px;background:var(--surface);font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.03em;color:var(--ink2);transition:border-color .15s,background .15s,color .15s}
+.pc__fmts button:hover{border-color:var(--ink)}
+.pc__fmts button.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.fmt{padding:16px 0 4px}
+.fmt__l{display:block;margin-bottom:10px;font:500 11px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.fmt__l b{color:var(--ink);font-weight:600}
+.fmt__opts{display:flex;flex-wrap:wrap;gap:8px}
+.fmt__opts a{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:92px;padding:9px 14px;border:1.5px solid var(--line2);border-radius:8px;background:var(--surface);transition:border-color .15s}
+.fmt__opts a b{font-size:15px;font-weight:700}
+.fmt__opts a em{font:500 12px var(--mono);font-style:normal;color:var(--muted)}
+.fmt__opts a:hover{border-color:var(--ink)}
+.fmt__opts a.on{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
+.fmt__opts a.on em{color:var(--ink)}
+@media (max-width:560px){ .pc__fmts button{min-height:28px;padding:3px 8px} }
+/* hoja de subcategorías: primer enlace "Ver todo" destacado */
+.mm__list a.mm__all{font-weight:700;color:var(--red-t)}
+.mm__list a.mm__all small{color:var(--faint)}
+#catSheetBody .mm__list > a:not(.mm__all){font-weight:500}
+/* portada en celular sin carrusel: el banner termina en los botones */
+@media (max-width:820px){ .stage{padding-bottom:28px} }
+
+/* ═════════════════════════════════════════════
+   MOTOR CLEAN (marca destacada: inicio, página propia, fichas y catálogo)
+   colores tomados de su logo: magenta y verde
+   ═════════════════════════════════════════════ */
+:root{--mc-pink:#e8009c;--mc-pink-d:#c4007f;--mc-green:#3fe02c}
+.mcb{position:relative;overflow:hidden;padding:clamp(22px,3vw,36px);border:1px solid rgba(255,255,255,.07);border-radius:var(--r);background:#151215;color:#fff}
+.mcb::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,var(--mc-pink) 0 50%,var(--mc-green) 50% 100%)}
+.mcb__head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:18px 28px}
+.mcb__logo{display:grid;place-items:center;width:clamp(96px,9vw,124px);aspect-ratio:1;padding:12px;border-radius:14px;background:#fff}
+.mcb__logo img{width:100%;height:100%;object-fit:contain}
+.mcb__kicker{font:600 11px var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mc-green)}
+.mcb h1,.mcb h2{margin:6px 0 8px;font-size:clamp(30px,3.2vw,46px);color:#fff}
+.mcb p{max-width:580px;font-size:15.5px;color:rgba(255,255,255,.72)}
+.mcb .btn.mcb__btn{background:var(--mc-pink);border-color:var(--mc-pink);color:#fff}
+.mcb .btn.mcb__btn:hover{background:var(--mc-pink-d);border-color:var(--mc-pink-d)}
+.mcb__cats{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 18px}
+.mcb__cats a{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;border:1px solid rgba(255,255,255,.18);border-radius:99px;font-size:13.5px;font-weight:600;color:#fff;transition:border-color .15s}
+.mcb__cats a small{font-size:12px;color:rgba(255,255,255,.55)}
+.mcb__cats a:hover{border-color:var(--mc-pink)}
+.mcb__row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.mcb .pc{color:var(--ink)}
+.mcb--hero{margin-bottom:22px}
+.mcb__stats{display:flex;gap:26px;margin:0}
+.mcb__stats dt{font-size:32px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.mcb__stats div:nth-child(1) dt{color:var(--mc-pink)}
+.mcb__stats div:nth-child(3) dt{color:var(--mc-green)}
+.mcb__stats dd{margin:5px 0 0;font:500 11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.6)}
+.mc__nav{margin-top:0}
+/* franja en fichas Motor Clean y en el catálogo filtrado por la marca */
+.mcstrip{display:flex;align-items:center;gap:12px;margin:14px 0;padding:10px 16px 10px 10px;border-left:4px solid var(--mc-pink);border-radius:10px;background:#151215;color:#fff;transition:background .15s}
+.mcstrip:hover{background:#221b22}
+.mcstrip__logo{flex:none;display:grid;place-items:center;width:48px;height:48px;padding:4px;border-radius:8px;background:#fff}
+.mcstrip__logo img{width:100%;height:100%;object-fit:contain}
+.mcstrip__t{flex:1;display:flex;flex-direction:column;gap:1px;font-size:13px;color:rgba(255,255,255,.7)}
+.mcstrip__t b{font-size:15px;color:#fff}
+/* acceso en la barra y en el menú */
+.cats a.cats__mc{color:var(--mc-pink-d)}
+.cats a.cats__mc::before{content:"";flex:none;width:8px;height:8px;margin-right:7px;border-radius:50%;background:linear-gradient(135deg,var(--mc-pink) 50%,var(--mc-green) 50%)}
+.mm__links a.mm__mc{color:var(--mc-pink-d)}
+@media (max-width:820px){
+  .cats a.cats__mc{border-color:rgba(232,0,156,.5)}
+  .mcb{padding:22px 18px 18px;border-radius:10px}
+  .mcb__head{grid-template-columns:auto minmax(0,1fr);gap:14px 16px}
+  .mcb__logo{grid-row:span 2;width:76px;padding:8px;border-radius:10px}
+  .mcb h1,.mcb h2{font-size:28px;margin:4px 0 0}
+  .mcb p,.mcb .mcb__btn,.mcb__stats{grid-column:1 / -1}
+  .mcb__copy{display:contents}
+  .mcb__copy > :not(p){grid-column:2}
+  .mcb__kicker{align-self:end}
+  .mcb h1,.mcb h2{align-self:start}
+  .mcb p{font-size:14.5px}
+  .mcb .mcb__btn{width:100%}
+  .mcb__stats{gap:20px}
+  .mcb__stats dt{font-size:26px}
+  .mcb__cats{flex-wrap:nowrap;overflow-x:auto;margin:18px -18px 14px;padding:0 18px;scrollbar-width:none}
+  .mcb__cats::-webkit-scrollbar{display:none}
+  .mcb__cats a{flex:none}
+  .mcb__row{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:48%;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -18px;padding:0 18px 4px;scroll-padding-inline:18px;scrollbar-width:none}
+  .mcb__row::-webkit-scrollbar{display:none}
+  .mcb__row > .pc{scroll-snap-align:start}
+}
+/* la columna de resultados no se ensancha por la fila de filtros (que se desliza en celular) */
+.shop > *{min-width:0}
+@media (max-width:820px){ .toolbar > *{min-width:0;max-width:100%} }
+@media (max-width:820px){ .cats a.cats__mc.on{background:var(--mc-pink);border-color:var(--mc-pink);color:#fff} }

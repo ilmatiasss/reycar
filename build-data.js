@@ -66,7 +66,8 @@ const fixName = (n) => n
   .replace(/\s*Sedanhatchback/i, ' Sedán / Hatchback')
   .replace(/camioneta xlSuv Xl/i, 'camioneta XL / SUV XL')
   .replace(/^Ceramico exterior/i, 'Cerámico exterior')
-  .replace(/curso de iniciacion de 6 dias/i, 'curso de iniciación de 6 días');
+  .replace(/curso de iniciacion de 6 dias/i, 'curso de iniciación de 6 días')
+  .replace(/\bmotor ?clean(?![a-z])/gi, 'Motor Clean').replace(/Motor Clean(?=\d)/g, 'Motor Clean ');
 
 // descripción completa (con tope) cortada en un final de frase, nunca a mitad de palabra
 const fullText = (t, max = 3500) => {
@@ -224,10 +225,68 @@ const products = raw.map((p) => {
   };
 }).filter((p) => p.p > 0);
 products.forEach((p) => { const sc = subOf(p.g, p.n); if (sc) p.sc = sc; });
+
+/* ── familias: el mismo producto en distintos formatos (1 L y 5 L, 3″ y 5″…) se muestra como uno solo ──
+   En el sitio actual cada formato es un producto aparte. Se agrupan los que, sin el tamaño ni la marca,
+   tienen las mismas palabras; FAM_EXTRA junta los que el sitio escribe distinto. Cada formato conserva
+   su id, SKU, precio y stock; el primero (el más chico) queda como cabeza: p.fam = id de la cabeza. */
+const SIZE_RX = [
+  /\(?\b\d+(?:[.,]\d+)?\s*(ml|cc|lts?|litros?|l|kg|grs?|gr|g|oz)\b\.?\)?/g,
+  /\b\d+(?:[.,]\d+)?\s*(″|"|“|”)(\s*x\s*\d+(?:[.,]\d+)?\s*(″|"|“|”)?)?/g,
+];
+const FAM_STOP = new Set(['de', 'del', 'la', 'el', 'y', 'para', 'con', 'x', 'en', 'formato']);
+const famWords = (p) => {
+  let s = plain_(p.n).replace(/[″"“”]/g, '"');
+  SIZE_RX.forEach((r) => { s = s.replace(r, ' '); });
+  const brandW = new Set(plain_(p.b || '').split(/\s+/));
+  return [...new Set(s.replace(/[()\-–,.+&]/g, ' ').split(/\s+/).filter((w) => w.length > 1 && !FAM_STOP.has(w) && !brandW.has(w) && w !== 'motor' && w !== 'clean'))].sort().join(' ');
+};
+// mismos productos con nombres distintos según el formato (revisados a mano)
+const FAM_EXTRA = [[2838, 2778], [2283, 874], [748, 746], [2790, 2763], [1137, 606]];
+const sizeMl = (n) => { // para ordenar formatos de menor a mayor
+  const s = plain_(n); let m;
+  if ((m = s.match(/(\d+(?:[.,]\d+)?)\s*(ml|cc)\b/))) return +m[1].replace(',', '.');
+  if ((m = s.match(/(\d+(?:[.,]\d+)?)\s*(litros?|lts?|l)\b/))) { const v = +m[1].replace(',', '.'); return v > 50 ? v : v * 1000; }
+  if ((m = s.match(/(\d+(?:[.,]\d+)?)\s*kg\b/))) return +m[1].replace(',', '.') * 1000;
+  if ((m = s.match(/(\d+(?:[.,]\d+)?)\s*(grs?|gr|g)\b/))) return +m[1].replace(',', '.');
+  if ((m = s.match(/(\d+(?:[.,]\d+)?)\s*oz\b/))) return +m[1].replace(',', '.') * 29.57;
+  if ((m = s.match(/(\d+(?:[.,]\d+)?)\s*(″|"|“|”)/))) return +m[1].replace(',', '.');
+  return 0;
+};
+const fams = new Map();
+products.forEach((p) => { const k = `${p.b}|${famWords(p)}`; if (!fams.has(k)) fams.set(k, []); fams.get(k).push(p); });
+const famOf = new Map();
+[...fams.values()].forEach((f) => f.forEach((p) => famOf.set(p.id, f)));
+FAM_EXTRA.forEach(([a, b]) => {
+  const fa = famOf.get(a), fb = famOf.get(b); if (!fa || !fb || fa === fb) return;
+  fb.forEach((p) => { fa.push(p); famOf.set(p.id, fa); }); fb.length = 0;
+});
+// la categoría de la familia: si sus formatos quedaron en categorías distintas, manda el uso del producto
+const famGroup = (f) => {
+  const gs = [...new Set(f.map((p) => p.g))]; if (gs.length === 1) return gs[0];
+  const n = plain_(f[0].n);
+  if (/tapiz/.test(n)) return 'interior';
+  if (/ferrico/.test(n)) return 'descontaminacion';
+  if (/apc|multiproposito/.test(n)) return 'lavado';
+  return f[0].g;
+};
+let famCount = 0;
+new Set(famOf.values()).forEach((f) => {
+  if (f.length < 2) return;
+  const sizes = f.map((p) => sizeMl(p.n));
+  if (new Set(sizes).size !== f.length || sizes.includes(0)) return; // mismo tamaño (p. ej. colores): no son formatos
+  f.sort((a, b) => sizeMl(a.n) - sizeMl(b.n));
+  const g = famGroup(f), brand = f.map((p) => p.b).find(Boolean) || '';
+  f.forEach((p) => { p.fam = f[0].id; p.g = g; p.b = brand; const sc = subOf(g, f[0].n); if (sc) p.sc = sc; else delete p.sc; });
+  famCount++;
+});
+console.log('Familias con varios formatos:', famCount, '·', products.filter((p) => p.fam).length, 'productos');
+const heads = products.filter((p) => !p.fam || p.fam === p.id);
+
 // subcategorías en orden de lista, solo las que tienen productos
 GROUPS.forEach((g) => {
   const list = SUBCATS[g.id]; if (!list) return;
-  const subs = list.map(([id, name]) => ({ id, name, n: products.filter((p) => p.g === g.id && p.sc === id).length })).filter((s) => s.n > 0);
+  const subs = list.map(([id, name]) => ({ id, name, n: heads.filter((p) => p.g === g.id && p.sc === id).length })).filter((s) => s.n > 0);
   if (subs.length > 1) g.subs = subs.sort((a, b) => b.n - a.n).map(({ id, name }) => ({ id, name }));
 });
 

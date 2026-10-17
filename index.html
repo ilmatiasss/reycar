@@ -147,6 +147,19 @@
   </aside>
 </div>
 
+<!-- Subcategorías al tocar una categoría de la barra (celular y tablet) -->
+<div class="drawer drawer--left" id="catSheet" hidden>
+  <div class="drawer__scrim" data-action="close-cats"></div>
+  <aside class="drawer__panel" role="dialog" aria-modal="true" aria-labelledby="catSheetTitle">
+    <span class="sheet-grip" aria-hidden="true"></span>
+    <div class="drawer__head">
+      <h3 id="catSheetTitle">Categoría</h3>
+      <button class="icon-btn" data-action="close-cats" aria-label="Cerrar"><svg class="ico" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="drawer__body" id="catSheetBody"></div>
+  </aside>
+</div>
+
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 

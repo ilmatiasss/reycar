@@ -2,7 +2,8 @@
 (() => {
 'use strict';
 
-const P = window.PRODUCTS;
+const ALL = window.PRODUCTS;      // cada formato por separado (id, SKU, precio y stock propios)
+const P = ALL.filter((p) => !p.fam || p.fam === p.id); // lo que se lista: un producto por familia de formatos
 const G = window.GROUPS;
 const DISC = 0;                  // descuento web (ej. 0.05); en 0 no se muestra insignia ni precio tachado
 const WA = '56963555437';
@@ -84,22 +85,38 @@ function niceName(raw) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// nombre de la familia: el de su formato más chico sin el tamaño ("Desengrasante 2000 Motor Clean")
+const stripSize = (t) => t.replace(UNIT_RX, ' ').replace(/(?<![\d.,])\d+(?:[.,]\d+)?\s*(″|"|“|”)(\s*x\s*\d+(?:[.,]\d+)?\s*(″|"|“|”)?)?/g, ' ').replace(/\(\s*\)/g, ' ').replace(/\s+/g, ' ').replace(/[\s\-–,]+$/, '').trim();
+// nombre a mostrar en listas: el de la familia si tiene varios formatos
+const ttl = (p) => { const h = p.fam ? byId.get(p.fam) : p; return h.ft || p.t; };
+const headOf = (p) => (p.fam ? byId.get(p.fam) : p);
+
 /* ───────── datos derivados ───────── */
-const byId = new Map(P.map((p) => [p.id, p]));
-const bySlug = new Map(P.map((p) => [p.s, p]));
+const byId = new Map(ALL.map((p) => [p.id, p]));
+const bySlug = new Map(ALL.map((p) => [p.s, p]));
 const gById = new Map(G.map((g) => [g.id, g]));
 G.forEach((g) => { g.count = 0; });
 // subcategorías: id → { id, name, g, count }
 const scById = new Map();
 G.forEach((g) => (g.subs || []).forEach((s) => { s.count = 0; s.g = g.id; scById.set(s.id, s); }));
-P.forEach((p) => {
-  gById.get(p.g).count++;
+ALL.forEach((p) => {
   const sc = p.sc && scById.get(p.sc);
-  if (sc) sc.count++;
   p._q = norm([p.n, p.b, gById.get(p.g).name, sc ? sc.name : '', p.c.join(' ')].join(' '));
   p.img = p.im && p.im[0] ? U(p.im[0][0]) : null;
   p.spec = specOf(p.n);
   p.t = niceName(p.n);
+});
+// familias: la cabeza (formato más chico) guarda todos sus formatos en p.vs y un nombre sin tamaño en p.ft
+ALL.forEach((p) => { if (p.fam && p.fam !== p.id) { const h = byId.get(p.fam); (h.vs = h.vs || [h]).push(p); } });
+P.forEach((p) => {
+  gById.get(p.g).count++;
+  const sc = p.sc && scById.get(p.sc);
+  if (sc) sc.count++;
+  if (p.vs) {
+    p.vs.sort((a, b) => a.p - b.p);
+    p.ft = stripSize(p.t);
+    p._q = norm(p.vs.map((v) => v.n).join(' ')) + ' ' + p._q;
+  }
 });
 const pById = new Map(PARENTS.map((x) => [x.id, x]));
 const parentOf = new Map(PARENTS.flatMap((x) => x.groups.map((id) => [id, x])));
@@ -166,12 +183,12 @@ async function syncStock(timeout = 1500) {
     const j = await r.json();
     if (j.source !== 'bsale' || !j.stock) return false;
     let hits = 0;
-    P.forEach((p) => {
+    ALL.forEach((p) => {
       const q = j.stock[String(p.sku)];
       if (q === undefined) return;          // no está en Bsale: conserva el stock del catálogo
       hits++; p.stk = q;
     });
-    console.info(`[stock] Bsale: ${hits} de ${P.length} productos coinciden por SKU${j.stale ? ' (datos con retraso)' : ''}`);
+    console.info(`[stock] Bsale: ${hits} de ${ALL.length} productos coinciden por SKU${j.stale ? ' (datos con retraso)' : ''}`);
     return true;
   } catch (e) { return false; }
 }
@@ -259,19 +276,36 @@ const img = (p, big) => (p.img
   ? `<img src="${big && p.im[0][1] ? U(p.im[0][1]) : p.img}"${big ? '' : srcset(p, '(max-width: 820px) 46vw, 260px')} alt="${esc(p.t)}" loading="lazy" decoding="async">`
   : `<span class="ph">${esc(p.b || 'Reycar')}</span>`);
 
+const stockTag = (p) => (p.stk === 0 ? '<span class="pc__stock pc__stock--out">Agotado</span>' : p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '');
+// selector de formato (1 L · 5 L…) en tarjetas y ficha
+const fmtBtns = (h, cur) => h.vs.map((v) => `<button class="${v === cur ? 'on' : ''}" data-action="card-fmt" data-id="${v.id}" aria-pressed="${v === cur}">${esc(v.spec)}</button>`).join('');
 function card(p) {
-  const out = p.stk === 0;
-  const low = out ? '<span class="pc__stock pc__stock--out">Agotado</span>' : p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '';
+  const out = p.stk === 0, h = headOf(p);
   return `<article class="pc">
-    <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}${DISC ? `<span class="pc__off">-${DISC * 100}%</span>` : ''}${low}</a>
+    <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}${DISC ? `<span class="pc__off">-${DISC * 100}%</span>` : ''}${stockTag(p)}</a>
     <div class="pc__body">
       <span class="pc__brand">${esc(p.b || gById.get(p.g).name)}</span>
-      <a class="pc__name" href="#/producto/${p.s}">${esc(p.t)}</a>
-      ${p.spec ? `<span class="pc__spec">${esc(p.spec)}</span>` : ''}
+      <a class="pc__name" href="#/producto/${p.s}">${esc(ttl(p))}</a>
+      ${h.vs ? `<div class="pc__fmts" role="group" aria-label="Formato">${fmtBtns(h, p)}</div>` : p.spec ? `<span class="pc__spec">${esc(p.spec)}</span>` : ''}
       <div class="pc__price"><b>${clp(web(p))}</b>${was(p)}</div>
       <button class="pc__add" data-action="add" data-id="${p.id}"${out ? ' disabled' : ''} aria-label="${out ? 'Agotado' : 'Agregar al carro'}: ${esc(p.t)}">${ico('bag')}<span class="pc__addt">${out ? 'Agotado' : ADD_LABEL}</span></button>
     </div>
   </article>`;
+}
+// cambiar de formato en una tarjeta: precio, foto, stock, enlace y botón pasan al formato elegido
+function cardFmt(b) {
+  const c = b.closest('.pc'), v = byId.get(+b.dataset.id); if (!c || !v) return;
+  $$('.pc__fmts button', c).forEach((x) => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+  $('.pc__price', c).innerHTML = `<b>${clp(web(v))}</b>${was(v)}`;
+  $$('a[href^="#/producto/"]', c).forEach((a) => { a.setAttribute('href', `#/producto/${v.s}`); });
+  const im = $('.pc__img img', c);
+  if (im && v.img) { im.removeAttribute('srcset'); im.src = v.img; }
+  const st = $('.pc__stock', c); if (st) st.remove();
+  $('.pc__img', c).insertAdjacentHTML('beforeend', stockTag(v));
+  const add = $('.pc__add', c), out = v.stk === 0;
+  add.dataset.id = v.id; add.disabled = out;
+  add.setAttribute('aria-label', `${out ? 'Agotado' : 'Agregar al carro'}: ${v.t}`);
+  $('.pc__addt', add).innerHTML = out ? 'Agotado' : ADD_LABEL;
 }
 const perksBar = () => `<div class="perks">
   <div class="perk">${ico('truck')}<div><b>Envíos a todo Chile</b><span>Despacho a todo el país</span></div></div>
@@ -301,9 +335,70 @@ const LOGOS = {
   'TRINIK': ['assets/brands/trinik.svg'], 'Professional Shine': ['assets/brands/professional-shine.jpg', 'tall'],
   'Soft 99': ['assets/brands/soft99.png'], 'Gtechniq': ['assets/brands/gtechniq.svg'],
 };
+/* ── Motor Clean: marca destacada con espacio propio (inicio, página, menú, fichas y catálogo) ── */
+const MC = 'Motor Clean', MC_LOGO = 'assets/brands/motor-clean.png';
+const mcAll = () => P.filter((p) => p.b === MC);
+const mcGroups = () => {
+  const c = {}; mcAll().forEach((p) => { c[p.g] = (c[p.g] || 0) + 1; });
+  return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([id, n]) => ({ g: gById.get(id), n }));
+};
+// los que tienen varios formatos primero, luego los con foto
+const mcSort = (l) => l.slice().sort((a, b) => (!!b.vs - !!a.vs) * 2 + (!!b.img - !!a.img));
+// selección para el inicio: va alternando categorías para mostrar la línea completa
+function mcPicks(n) {
+  const byG = mcGroups().map(({ g }) => mcSort(mcAll().filter((p) => p.g === g.id && p.img)));
+  const out = [];
+  for (let i = 0; out.length < n && i < 30; i++) byG.forEach((l) => { if (l[i] && out.length < n) out.push(l[i]); });
+  return out;
+}
+const mcStrip = () => `<a class="mcstrip" href="#/motor-clean"><span class="mcstrip__logo"><img src="${MC_LOGO}" alt=""></span><span class="mcstrip__t"><b>Línea Motor Clean</b><span>${mcAll().length} productos, muchos en formato de 1 L y 5 L</span></span>${arrow}</a>`;
+function mcHome() {
+  return `<section class="sec wrap">
+    <div class="mcb rv">
+      <div class="mcb__head">
+        <span class="mcb__logo"><img src="${MC_LOGO}" alt="Motor Clean"></span>
+        <div class="mcb__copy">
+          <span class="mcb__kicker">Marca destacada</span>
+          <h2 class="cond">Línea Motor Clean</h2>
+          <p>Shampoos, desengrasantes, renovadores de neumáticos, ceras y aromatizantes. Muchos en formato de 1 L y 5 L, para tu auto o para el taller.</p>
+        </div>
+        <a class="btn mcb__btn" href="#/motor-clean">Ver la línea completa ${arrow}</a>
+      </div>
+      <div class="mcb__cats">${mcGroups().map(({ g, n }) => `<a href="#/motor-clean?g=${g.id}">${esc(gName(g))}<small>${n}</small></a>`).join('')}</div>
+      <div class="mcb__row">${mcPicks(8).map(card).join('')}</div>
+    </div>
+  </section>`;
+}
+function viewMC(o) {
+  const gs = mcGroups(), cur = o.g && gs.find((x) => x.g.id === o.g);
+  const fams = mcAll().filter((p) => p.vs).length;
+  document.title = 'Motor Clean — Reycar Store';
+  return `<section class="page wrap view">
+    <div class="crumbs"><a href="#/">Inicio</a><a href="#/marcas">Marcas</a><span>Motor Clean</span></div>
+    <div class="mcb mcb--hero">
+      <div class="mcb__head">
+        <span class="mcb__logo"><img src="${MC_LOGO}" alt="Motor Clean"></span>
+        <div class="mcb__copy">
+          <span class="mcb__kicker">Marca destacada</span>
+          <h1 class="cond">Motor Clean</h1>
+          <p>Toda la línea en un solo lugar: lavado, interior, neumáticos, protección y vidrios. Elige el formato de 1 L o 5 L directamente en cada producto.</p>
+        </div>
+        <dl class="mcb__stats"><div><dt>${mcAll().length}</dt><dd>productos</dd></div><div><dt>${gs.length}</dt><dd>categorías</dd></div><div><dt>${fams}</dt><dd>con varios formatos</dd></div></dl>
+      </div>
+    </div>
+    <nav class="subnav mc__nav" aria-label="Categorías de Motor Clean">
+      <a class="${cur ? '' : 'on'}" href="#/motor-clean">Toda la línea <em>${mcAll().length}</em></a>
+      ${gs.map(({ g, n }) => `<a class="${cur && cur.g === g ? 'on' : ''}" href="#/motor-clean?g=${g.id}">${esc(gName(g))} <em>${n}</em></a>`).join('')}
+    </nav>
+    <div class="secs">${(cur ? [cur] : gs).map(({ g }) => {
+      const items = mcSort(mcAll().filter((p) => p.g === g.id));
+      return `<section class="secs__s"><div class="secs__h"><h2 class="cond">${esc(gName(g))}</h2><span class="count"><b>${items.length}</b> producto${items.length === 1 ? '' : 's'}</span></div><div class="grid grid--4">${items.map(card).join('')}</div></section>`;
+    }).join('')}</div>
+  </section>`;
+}
 const brandCell = (b, i = 0) => {
   const logo = LOGOS[b.name];
-  return `<a class="bc rv" style="--d:${(i % 6) * 0.05}s" href="#/tienda?b=${encodeURIComponent(b.name)}" aria-label="${esc(b.name)}, ${b.n} producto${b.n === 1 ? '' : 's'}">
+  return `<a class="bc rv" style="--d:${(i % 6) * 0.05}s" href="${b.name === MC ? '#/motor-clean' : `#/tienda?b=${encodeURIComponent(b.name)}`}" aria-label="${esc(b.name)}, ${b.n} producto${b.n === 1 ? '' : 's'}">
     <span class="bc__plate">${logo
       ? `<img class="bc__logo${logo[1] ? ' fx-' + logo[1] : ''}" src="${logo[0]}" alt="${esc(b.name)}" loading="lazy">`
       : `<span class="bc__word cond">${esc(b.name)}</span>`}</span>
@@ -423,13 +518,13 @@ function viewHome() {
           ${DISC ? `<span class="stage__badge an" style="--d:.71s"><b>−${DISC * 100}%</b> precio web en todo el catálogo</span>` : ''}
         </div>
       </div>
-      <div class="cf an" id="cf" style="--d:.55s" aria-roledescription="carrusel" aria-label="Productos destacados">
+      ${mobileMQ.matches ? '' : `<div class="cf an" id="cf" style="--d:.55s" aria-roledescription="carrusel" aria-label="Productos destacados">
         <div class="cf__track">${showcase.map((p, i) => `
           <article class="cf__s" data-i="${i}" aria-roledescription="producto ${i + 1} de ${showcase.length}">
             <a class="cf__tile" href="#/producto/${p.s}" tabindex="-1"><img src="${p.img}"${srcset(p, '(max-width: 820px) 58vw, 300px')} alt="${esc(p.t)}" decoding="async"></a>
             <div class="cf__cap">
               <span class="cf__brand">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</span>
-              <a class="cf__name" href="#/producto/${p.s}">${esc(p.t)}</a>
+              <a class="cf__name" href="#/producto/${p.s}">${esc(ttl(p))}</a>
               <div class="cf__row"><b>${clp(web(p))}</b>${was(p)}<button class="cf__add" data-action="add" data-id="${p.id}" aria-label="Agregar al carro: ${esc(p.t)}">${ico('plus')}</button></div>
             </div>
           </article>`).join('')}
@@ -437,7 +532,7 @@ function viewHome() {
         <button class="cf__nav cf__prev" data-action="cf" data-d="-1" aria-label="Producto anterior">‹</button>
         <button class="cf__nav cf__next" data-action="cf" data-d="1" aria-label="Producto siguiente">›</button>
         <div class="cf__dots">${showcase.map((_, i) => `<button data-action="cf-go" data-i="${i}" aria-label="Ver producto ${i + 1}"></button>`).join('')}</div>
-      </div>
+      </div>`}
     </div>
 
     <div class="promos">
@@ -459,6 +554,8 @@ function viewHome() {
     </div>
     ${perksBar()}
   </section>
+
+  ${mcHome()}
 
 
   <section class="sec wrap">
@@ -624,6 +721,7 @@ function drawShop() {
   root.innerHTML = `
     <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda">Tienda</a>${g ? catTrail(g, scx, true) : px ? `<span>${esc(px.name)}</span>` : o.q ? '<span>Búsqueda</span>' : ''}</div>
     <div class="ptitle"><h1 class="cond">${title}</h1><p>${esc(sub)}</p></div>
+    ${sel.length === 1 && sel[0] === MC ? mcStrip() : ''}
     ${g && g.subs ? `<nav class="subnav" aria-label="Subcategorías de ${esc(g.name)}">
       <a class="${!scx ? 'on' : ''}" href="#/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <em>${g.count}</em></a>
       ${g.subs.map((s) => `<a class="${scx && scx.id === s.id ? 'on' : ''}" href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <em>${s.count}</em></a>`).join('')}
@@ -748,10 +846,10 @@ function viewProduct(slug) {
   const p = bySlug.get(slug);
   if (!p) return `<section class="page wrap view"><div class="empty"><h3 class="cond">Producto no encontrado</h3><p>Puede que ya no esté disponible.</p><br><a class="btn btn--dark btn--sm" href="#/tienda">Ir a la tienda</a></div></section>`;
   pdp = { p, qty: 1 };
-  const g = gById.get(p.g);
+  const g = gById.get(p.g), h = headOf(p);
   const psc = p.sc && scById.get(p.sc);
   // misma subcategoría primero (lo que realmente se compara), luego misma marca
-  const same = P.filter((x) => x.id !== p.id && x.g === p.g && x.img).sort((a, b) => ((b.sc === p.sc) - (a.sc === p.sc)) * 2 + ((b.b === p.b) - (a.b === p.b))).slice(0, 5);
+  const same = P.filter((x) => x !== h && x.g === p.g && x.img).sort((a, b) => ((b.sc === p.sc) - (a.sc === p.sc)) * 2 + ((b.b === p.b) - (a.b === p.b))).slice(0, 5);
   const ri = ROUTE.indexOf(p.g);
   const nextG = ri >= 0 && ri < ROUTE.length - 1 ? gById.get(ROUTE[ri + 1]) : null;
   const next = nextG ? filterProducts({ g: nextG.id }).filter((x) => x.img && x.b).slice(0, 5) : [];
@@ -759,7 +857,7 @@ function viewProduct(slug) {
   const logo = LOGOS[p.b];
   document.title = `${p.t} — Reycar Store`;
   return `<section class="page wrap view">
-    <div class="crumbs"><a href="#/">Inicio</a>${catTrail(g, psc)}<span>${esc(p.t)}</span></div>
+    <div class="crumbs"><a href="#/">Inicio</a>${catTrail(g, psc)}<span>${esc(ttl(p))}</span></div>
     <a class="back" href="#/tienda?g=${g.id}${psc ? `&sc=${psc.id}` : ''}"><span aria-hidden="true">←</span> ${esc(psc ? psc.name : g.name)}</a>
     <div class="pdp">
       <div class="gal">
@@ -776,11 +874,13 @@ function viewProduct(slug) {
           <div class="info__meta">${p.b ? `<a class="info__brand" href="#/tienda?b=${encodeURIComponent(p.b)}">${esc(p.b)}</a>` : ''}<span class="mono">${esc(g.name)}${p.spec ? ' · ' + esc(p.spec) : ''}</span></div>
           <button class="info__share" data-action="share" aria-label="Compartir producto" title="Compartir">${ico('share')}</button>
         </div>
-        <h1>${esc(p.t)}</h1>
+        <h1>${esc(ttl(p))}</h1>
         <div class="info__price">
           <span class="info__now">${clp(web(p))}</span>${DISC ? `<s class="info__was">${clp(p.p)}</s><span class="info__save">Ahorras ${clp(p.p - web(p))}</span>
           <span class="info__note">Precio web con ${DISC * 100}% de descuento</span>` : ''}
         </div>
+        ${h.vs ? `<div class="fmt"><span class="fmt__l">Formato: <b>${esc(p.spec)}</b></span>
+          <div class="fmt__opts">${h.vs.map((v) => `<a class="${v === p ? 'on' : ''}" href="#/producto/${v.s}"${v === p ? ' aria-current="true"' : ''}><b>${esc(v.spec)}</b><em>${clp(web(v))}</em></a>`).join('')}</div></div>` : ''}
         <div class="stock${out ? ' stock--out' : low ? ' stock--low' : ''}"><i></i>${out ? 'Agotado por ahora' : low ? (p.stk === 1 ? 'Última unidad disponible' : `Quedan ${p.stk} unidades`) : 'En stock'}</div>
         <div class="buy">
           <div class="qty"><button data-action="pdp-qty" data-d="-1" aria-label="Menos">${ico('minus')}</button><output id="pdpQty">1</output><button data-action="pdp-qty" data-d="1" aria-label="Más">${ico('plus')}</button></div>
@@ -792,8 +892,9 @@ function viewProduct(slug) {
           <li>${ico('card')}<span><b>Paga con Webpay,</b> tarjetas de crédito o débito.</span></li>
           <li>${ico('shield')}<span><b>Producto original</b>${p.b ? ` ${esc(p.b)}` : ''}.</span></li>
         </ul>
+        ${p.b === MC ? mcStrip() : ''}
         <div class="acc">
-          <details open><summary>Descripción ${ico('plus')}</summary><div class="acc__body">${descHTML(p.d)}</div></details>
+          <details open><summary>Descripción ${ico('plus')}</summary><div class="acc__body">${descHTML(p.d || (h.vs || []).map((v) => v.d).find(Boolean) || '')}</div></details>
           <details><summary>Ficha técnica ${ico('plus')}</summary><div class="acc__body"><dl class="specs">
             ${p.b ? `<dt>Marca</dt><dd><a href="#/tienda?b=${encodeURIComponent(p.b)}">${esc(p.b)}</a></dd>` : ''}
             <dt>Categoría</dt><dd><a href="#/tienda?g=${g.id}">${esc(g.name)}</a></dd>
@@ -808,7 +909,7 @@ function viewProduct(slug) {
   </section>
   <div class="sticky-buy" id="stickyBuy" aria-hidden="true">
     ${p.img ? `<span class="sb__img"><img src="${thumb(p)}" alt=""></span>` : ''}
-    <span class="sb__t"><small>${esc(p.b || g.name)}</small><b>${esc(p.t)}</b></span>
+    <span class="sb__t"><small>${esc(p.b || g.name)}${h.vs ? ' · ' + esc(p.spec) : ''}</small><b>${esc(ttl(p))}</b></span>
     <b class="sb__p">${clp(web(p))}</b>
     <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}" tabindex="-1"${out ? ' disabled' : ''}>${ico('bag')} ${out ? 'Agotado' : 'Agregar'}</button>
   </div>`;
@@ -868,6 +969,23 @@ function shareProduct() {
 }
 
 /* ───────── navegación ───────── */
+// una categoría con sus subcategorías plegables (menú del celular y panel de categorías)
+const mmGroup = (g) => (g.subs
+  ? `<details><summary>${esc(g.name)}<small>${g.count}</small></summary><div class="mm__subs"><a href="#/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())}<small>${g.count}</small></a>${g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}</div></details>`
+  : `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`);
+// celular y tablet: tocar Cuidado exterior / interior / Accesorios abre sus subcategorías en vez de saltar a una página
+function openCatSheet(key) {
+  const x = pById.get(key);
+  const g = x ? (x.groups.length === 1 ? gById.get(x.groups[0]) : null) : gById.get(key);
+  const title = x ? x.name : g.name;
+  const body = !g
+    ? `<a class="mm__all" href="${pHref(x)}">Ver todo ${esc(x.short)}<small>${x.count}</small></a>${x.groups.map((id) => mmGroup(gById.get(id))).join('')}`
+    : `<a class="mm__all" href="#/tienda?g=${g.id}">Ver todo ${esc(title.toLowerCase())}<small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}`;
+  $('#catSheetTitle').textContent = title;
+  $('#catSheetBody').innerHTML = `<div class="mm"><nav class="mm__list" aria-label="${esc(title)}">${body}</nav></div>`;
+  openOverlay('#catSheet');
+}
+const wideMQ = window.matchMedia ? matchMedia('(min-width: 1101px)') : { matches: true };
 function buildChrome() {
   const subLinks = (g) => g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <small>${s.count}</small></a>`).join('');
   const ddItem = (g, label, attr) => (g.subs
@@ -881,23 +999,27 @@ function buildChrome() {
   const rest = G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios' && g.id !== 'cursos');
   $('#cats').innerHTML = PARENTS.map((x) => (x.groups.length > 1 ? megaItem(x) : ddItem(gById.get(x.groups[0]), x.name, `data-p="${x.id}"`))).join('')
     + rest.map((g) => ddItem(g, g.name, `data-g="${g.id}"`)).join('')
-    + `<a href="#/tienda" data-all="1">Todo el catálogo</a>`
+    + `<a href="#/tienda" data-all="1">Todo el catálogo</a><a class="cats__mc" href="#/motor-clean" data-r="motor-clean">Motor Clean</a>`
     + `<span class="cats__sp"></span><a href="#/marcas" data-r="marcas">Marcas</a><a class="cats__svc" href="#/asesoria" data-r="asesoria">Servicios de taller</a>`;
   $('#ftCats').insertAdjacentHTML('beforeend', PARENTS.map((x) => `<a href="${pHref(x)}">${esc(x.name)}</a>`).join('') + rest.map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="#/tienda">Todo el catálogo</a>');
   $$('#cats .cats__item').forEach((it) => {
-    it.addEventListener('click', (e) => { if (e.target.closest('a')) { it.classList.add('is-closed'); e.target.closest('a').blur(); } });
+    const top = it.firstElementChild;
+    // el nombre de la categoría no navega: en escritorio deja el panel abierto, en celular abre la hoja de subcategorías
+    top.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (wideMQ.matches) { it.classList.remove('is-closed'); top.focus(); } else openCatSheet(top.dataset.p || top.dataset.g);
+    });
+    it.addEventListener('click', (e) => { const a = e.target.closest('.cats__dd a'); if (a) { it.classList.add('is-closed'); a.blur(); } });
     it.addEventListener('mouseleave', () => it.classList.remove('is-closed'));
   });
   // menú del celular: categorías agrupadas por madre, cada una con sus subcategorías
-  const mmGroup = (g) => (g.subs
-    ? `<details><summary>${esc(g.name)}<small>${g.count}</small></summary><div class="mm__subs"><a href="#/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())}<small>${g.count}</small></a>${g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}</div></details>`
-    : `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`);
   $('#mobileMenuBody').innerHTML = `<div class="mm">
     <nav class="mm__list" aria-label="Categorías">
       ${PARENTS.map((x) => `<a class="mm__h" href="${pHref(x)}">${esc(x.name)}<small>Ver todo</small></a>${x.groups.map((id) => mmGroup(gById.get(id))).join('')}`).join('')}
       <span class="mm__h">Más</span>${G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios').map(mmGroup).join('')}
     </nav>
     <div class="mm__links">
+      <a class="mm__mc" href="#/motor-clean">Motor Clean <small>Marca destacada</small></a>
       <a href="#/tienda">Todo el catálogo <small>${P.length}</small></a>
       <a href="#/marcas">Marcas <small>${BRANDS.length}</small></a>
       <a class="mm__svc" href="#/asesoria">Servicios de taller <small>Quinta Normal</small></a>
@@ -927,7 +1049,8 @@ function route() {
   const [path, qs = ''] = h.slice(1).split('?');
   const seg = path.split('/').filter(Boolean);
   const name = seg[0] || 'home';
-  closeSearch(); closeOverlay('#mobileMenu', true); closeOverlay('#drawer', true);
+  if (document.activeElement && document.activeElement.closest('#cats')) document.activeElement.blur(); // cierra el panel de categorías
+  closeSearch(); closeOverlay('#mobileMenu', true); closeOverlay('#catSheet', true); closeOverlay('#drawer', true);
   document.body.classList.remove('filters-open');
   document.body.classList.toggle('is-catalog', name === 'tienda');
   if (typeof showHeader === 'function') showHeader();
@@ -936,18 +1059,20 @@ function route() {
     shop.params = parseQuery(qs); shop.shown = PAGE; drawShop(); window.scrollTo(0, 0); track('pageView'); return;
   }
   document.title = 'Reycar Store — Detailing automotriz profesional';
+  const fromFam = lastRoute === 'producto' && pdp.p ? headOf(pdp.p) : null, y = window.scrollY;
   let html;
   if (name === 'tienda') html = viewShop(parseQuery(qs));
   else if (name === 'producto') html = viewProduct(decodeURIComponent(seg[1] || ''));
   else if (name === 'marcas') html = viewBrands();
   else if (name === 'asesoria') html = viewServices();
+  else if (name === 'motor-clean') html = viewMC(parseQuery(qs));
   else html = viewHome();
   main.innerHTML = html;
   lastRoute = name;
   document.body.classList.toggle('has-sticky', name === 'producto');
   if (name === 'tienda') drawShop();
   markNav();
-  window.scrollTo(0, 0);
+  window.scrollTo(0, name === 'producto' && fromFam && pdp.p && headOf(pdp.p) === fromFam ? y : 0); // cambio de formato: no saltar arriba
   observeReveals();
   cfInit();
   crestInit();
@@ -1089,6 +1214,8 @@ window.addEventListener('resize', () => setHeader(head.classList.contains('hd--h
 // footer: acordeones cerrados en móvil, abiertos en escritorio
 function syncFooter() { $$('.ft__col').forEach((d) => { d.open = !mobileMQ.matches; }); }
 if (mobileMQ.addEventListener) mobileMQ.addEventListener('change', syncFooter);
+// el carrusel de la portada solo existe en pantallas grandes: al cruzar el límite se vuelve a dibujar el inicio
+if (mobileMQ.addEventListener) mobileMQ.addEventListener('change', () => { if (lastRoute === 'home') route(); });
 
 /* ───────── overlays ───────── */
 function openOverlay(sel) {
@@ -1138,7 +1265,7 @@ function drawSearch(q) {
   }
   sDrop.innerHTML =
     (gs.length || bs.length || ss.length ? `<div class="sh-l">Ir a</div>${ss.map((s) => `<a class="sr sr--text" href="#/tienda?g=${s.g}&sc=${s.id}"><div class="sr__t">${hi(s.name, q)}</div><span class="sr__s">${esc(gById.get(s.g).name)} · ${s.count}</span></a>`).join('')}${gs.map((g) => `<a class="sr sr--text" href="#/tienda?g=${g.id}"><div class="sr__t">${hi(g.name, q)}</div><span class="sr__s">Categoría · ${g.count}</span></a>`).join('')}${bs.map((b) => `<a class="sr sr--text" href="#/tienda?b=${encodeURIComponent(b.name)}"><div class="sr__t">${hi(b.name, q)}</div><span class="sr__s">Marca · ${b.n}</span></a>`).join('')}` : '') +
-    (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="#/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${thumb(p)}" alt="">` : ''}</span><div><div class="sr__t">${hi(p.t, q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
+    (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="#/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${thumb(p)}" alt="">` : ''}</span><div><div class="sr__t">${hi(ttl(p), q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.vs ? ' · ' + p.vs.map((v) => esc(v.spec)).join(' / ') : p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
     (all.length > top.length ? `<a class="sr sr--text" href="#/tienda?q=${encodeURIComponent(q)}"><div class="sr__t">Ver los ${all.length} resultados ${arrow}</div></a>` : '');
 }
 function openSearch() { drawSearch(sInput.value); sDrop.hidden = false; }
@@ -1174,6 +1301,7 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-action]'); if (!t) return;
   const a = t.dataset.action, id = +t.dataset.id;
   switch (a) {
+    case 'card-fmt': cardFmt(t); break;
     case 'add': {
       const p = addToCart(id);
       const lbl = t.querySelector('.pc__addt');
@@ -1209,6 +1337,7 @@ document.addEventListener('click', (e) => {
     case 'checkout': track('beginCheckout', cartItemsT()); toast('Prototipo: aquí se conecta al checkout'); break;
     case 'open-menu': openOverlay('#mobileMenu'); break;
     case 'close-menu': closeOverlay('#mobileMenu'); break;
+    case 'close-cats': closeOverlay('#catSheet'); break;
     case 'set-group': setParams({ g: t.dataset.g, sc: '', p: '' }); break;
     case 'set-parent': { const x = pById.get(t.dataset.p); setParams(x.groups.length > 1 ? { p: x.id, g: '', sc: '' } : { g: x.groups[0], p: '', sc: '' }); break; }
     case 'set-sub': setParams({ sc: t.dataset.sc }); break;
@@ -1247,7 +1376,7 @@ document.addEventListener('change', (e) => {
 document.addEventListener('keydown', (e) => {
   const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
   if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') || (e.key === '/' && !typing)) { e.preventDefault(); sInput.focus(); }
-  else if (e.key === 'Escape') { closeLightbox(); closeOverlay('#drawer'); closeOverlay('#mobileMenu'); const f = $('#filters'); if (f) f.classList.remove('open'); document.body.classList.remove('filters-open'); }
+  else if (e.key === 'Escape') { closeLightbox(); closeOverlay('#drawer'); closeOverlay('#mobileMenu'); closeOverlay('#catSheet'); const f = $('#filters'); if (f) f.classList.remove('open'); document.body.classList.remove('filters-open'); }
 });
 // fotos que no cargan -> placeholder
 document.addEventListener('error', (e) => {
