@@ -33,7 +33,6 @@ const ICONS = {
   filter: '<path d="M4 6h16M7 12h10M10 18h4"/>',
   zoom: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5M11 8v6M8 11h6"/>',
   share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>',
-  drop: '<path d="M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z"/><path d="M9.5 14.5a2.5 2.5 0 002.5 2.5"/>',
 };
 const ico = (n) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]}</svg>`;
 
@@ -233,106 +232,6 @@ function drawCart() {
 /* ───────── componentes ───────── */
 const ADD_LABEL = 'Agregar<span class="pc__addx"> al carro</span>'; // en móvil se acorta a "Agregar"
 
-/* ── calculadora de rendimiento: usa solo diluciones indicadas por el fabricante (data/dilutions.js) ── */
-const DIL = window.DILUTIONS || {};
-const MIX = {
-  spray5: { l: 'Pulverizador 500 ml', ml: 500, one: 'pulverizador', many: 'pulverizadores' },
-  spray1: { l: 'Pulverizador 1 L', ml: 1000, one: 'pulverizador', many: 'pulverizadores' },
-  foam: { l: 'Lanza de espuma 1 L', ml: 1000, one: 'carga de lanza', many: 'cargas de lanza' },
-  balde4: { l: 'Balde 4 L', ml: 4000, one: 'balde', many: 'baldes' },
-  balde10: { l: 'Balde 10 L', ml: 10000, one: 'balde', many: 'baldes' },
-  maq: { l: 'Máquina de tapiz 4 L', ml: 4000, one: 'carga de máquina', many: 'cargas de máquina' },
-};
-const WASH_MIX = ['foam', 'balde4', 'balde10'];
-const nOf = (o) => (o.ml ? o.water / o.ml : o.n != null ? o.n : o.min);
-const ratioTxt = (n) => (n === 0 ? 'Puro' : `1:${Math.round(n * 10) / 10}`);
-const fmtMl = (x) => (x >= 1000 ? `${(Math.round(x / 10) / 100).toLocaleString('es-CL')} L` : `${(x < 10 ? Math.round(x * 10) / 10 : Math.round(x)).toLocaleString('es-CL')} ml`);
-const optTxt = (o) => (o.ml ? `${o.ml} ml en ${fmtMl(o.water)}` : o.min != null ? `${ratioTxt(o.min)} a ${ratioTxt(o.max)}` : ratioTxt(o.n));
-// recipientes a ofrecer: los que indica el fabricante y, para completar, los de su mismo tipo de uso
-function mixKeys(d) {
-  const s = new Set(d.opts.map((o) => o.use));
-  const pool = [...s].some((k) => WASH_MIX.includes(k)) ? WASH_MIX : ['spray5', 'spray1'];
-  pool.forEach((k) => { if (s.size < 3) s.add(k); });
-  return Object.keys(MIX).filter((k) => s.has(k));
-}
-function yieldOf(p, n, mixKey) {
-  const d = DIL[p.id], mix = MIX[mixKey];
-  const prod = n === 0 ? mix.ml : mix.ml / (n + 1);
-  const uses = d.vol ? Math.floor(d.vol / prod) : null;
-  return { mix, prod, water: mix.ml - prod, uses, cost: uses ? web(p) / uses : null };
-}
-// rango de rendimiento entre los usos que indica el fabricante (sin contar el uso "puro"), para tarjetas y "Rinden más"
-const ysCache = new Map();
-function yieldSummary(p) {
-  if (ysCache.has(p.id)) return ysCache.get(p.id);
-  const d = DIL[p.id];
-  let r = null;
-  if (d && d.vol && d.kind === 'yield') r = { hi: d.max, label: `${d.min}–${d.max} autos` };
-  else if (d && d.vol) {
-    const uses = d.opts.flatMap((o) => (o.min != null ? [o.min, o.max] : [nOf(o)]).filter((n) => n > 0).map((n) => yieldOf(p, n, o.use).uses));
-    if (uses.length) {
-      const lo = Math.min(...uses), hi = Math.max(...uses), f = (x) => x.toLocaleString('es-CL');
-      r = { hi, label: lo === hi ? `${f(lo)} usos` : `${f(lo)}–${f(hi)} usos` };
-    }
-  }
-  ysCache.set(p.id, r);
-  return r;
-}
-function calcHTML(p) {
-  const d = DIL[p.id];
-  if (!d) return '';
-  const head = `<div class="calc__head"><span class="calc__ic">${ico('drop')}</span><div><b>¿Cuánto rinde?</b><span class="mono mono--gold">${d.kind === 'yield' ? 'Rendimiento indicado' : 'Dilución indicada'} por el fabricante</span></div></div>`;
-  const foot = `<details class="calc__src"><summary>Ver indicación del fabricante</summary><p>“${esc(d.src)}”</p></details>
-    <p class="calc__note">Cálculo referencial: el consumo real depende de la suciedad y de cómo apliques el producto.</p>`;
-  if (d.kind === 'yield') {
-    return `<section class="calc">${head}
-      <div class="calc__out"><div class="calc__big"><b>${d.min}–${d.max}</b><span>${d.unit} por envase de ${fmtMl(d.vol)}</span></div>
-      <div class="calc__cost"><b>${clp(web(p) / d.max)}–${clp(web(p) / d.min)}</b><span>por auto</span></div></div>${foot}</section>`;
-  }
-  return `<section class="calc" id="calc">${head}
-    ${d.opts.length > 1
-      ? `<span class="calc__lbl">Uso</span><div class="calc__opts" role="radiogroup" aria-label="Uso">${d.opts.map((o, i) => `<button role="radio" class="calc__opt" data-action="calc-opt" data-i="${i}">${esc(o.l)}<em>${optTxt(o)}</em></button>`).join('')}</div>`
-      : `<p class="calc__one">${esc(d.opts[0].l)} <em>${optTxt(d.opts[0])}</em></p>`}
-    <div class="calc__range" id="calcRange" hidden>
-      <span class="calc__lbl">Dilución <output id="calcN"></output></span>
-      <input type="range" id="calcSlider" step="1" aria-label="Dilución">
-      <div class="calc__ends"><span>Más concentrado</span><span>Más suave</span></div>
-    </div>
-    <span class="calc__lbl">Preparas</span>
-    <div class="calc__opts" id="calcMix">${mixKeys(d).map((k) => `<button class="calc__opt" data-action="calc-mix" data-k="${k}">${MIX[k].l}</button>`).join('')}</div>
-    <div class="calc__out" id="calcOut" aria-live="polite"></div>
-    <p class="calc__recipe" id="calcRecipe"></p>
-    ${foot}
-  </section>`;
-}
-let calc = null;
-function calcInit(p) {
-  const d = DIL[p.id];
-  calc = d && d.kind !== 'yield' && $('#calc') ? { p, d } : null;
-  if (calc) calcPick(0);
-}
-function calcPick(i) {
-  const o = calc.d.opts[i];
-  Object.assign(calc, { opt: i, n: nOf(o), mix: o.use });
-  drawCalc(true);
-}
-function drawCalc(resetRange) {
-  const { p, d } = calc, o = d.opts[calc.opt];
-  $$('#calc [data-action="calc-opt"]').forEach((b, k) => { b.classList.toggle('on', k === calc.opt); b.setAttribute('aria-checked', k === calc.opt); });
-  $$('#calcMix button').forEach((b) => b.classList.toggle('on', b.dataset.k === calc.mix));
-  const ranged = o.min != null, slider = $('#calcSlider');
-  $('#calcRange').hidden = !ranged;
-  if (ranged && resetRange) { slider.min = o.min; slider.max = o.max; slider.value = calc.n; }
-  if (ranged) $('#calcN').textContent = ratioTxt(calc.n);
-  const y = yieldOf(p, calc.n, calc.mix);
-  $('#calcOut').innerHTML = y.uses
-    ? `<div class="calc__big"><b>${y.uses.toLocaleString('es-CL')}</b><span>${y.uses === 1 ? y.mix.one : y.mix.many} de ${fmtMl(y.mix.ml)}</span></div>
-       <div class="calc__cost"><b>${y.cost < 1 ? 'menos de $1' : clp(y.cost)}</b><span>por ${y.mix.one}</span></div>`
-    : `<div class="calc__big"><span>El nombre del producto no indica el tamaño del envase: mostramos solo cómo prepararlo.</span></div>`;
-  $('#calcRecipe').innerHTML = calc.n === 0
-    ? `Se usa <b>puro</b>: ${fmtMl(y.prod)} de producto.`
-    : `Mezcla: <b>${fmtMl(y.prod)}</b> de producto + <b>${fmtMl(y.water)}</b> de agua.`;
-}
 // miniatura chica (≈300 px) para íconos y lista de resultados; [0] ≈600 px para tarjetas y carrusel; [1] ≈1024 px para la ficha
 const thumb = (p) => (p.im && p.im[0] ? U(p.im[0][2] || p.im[0][0]) : null);
 const srcset = (p, sizes) => (p.im[0][2] && p.im[0][2] !== p.im[0][0] ? ` srcset="${U(p.im[0][2])} 300w, ${p.img} 600w" sizes="${sizes}"` : '');
@@ -343,9 +242,8 @@ const img = (p, big) => (p.img
 function card(p) {
   const out = p.stk === 0;
   const low = out ? '<span class="pc__stock pc__stock--out">Agotado</span>' : p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '';
-  const ys = yieldSummary(p);
   return `<article class="pc">
-    <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}${DISC ? `<span class="pc__off">-${DISC * 100}%</span>` : ''}${low}${ys ? `<span class="pc__yield">${ico('drop')}Rinde ${ys.label}</span>` : ''}</a>
+    <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}${DISC ? `<span class="pc__off">-${DISC * 100}%</span>` : ''}${low}</a>
     <div class="pc__body">
       <span class="pc__brand">${esc(p.b || gById.get(p.g).name)}</span>
       <a class="pc__name" href="#/producto/${p.s}">${esc(p.t)}</a>
@@ -477,9 +375,8 @@ function crestInit() {
 
 /* ───────── vistas ───────── */
 let homeTab = 'feat';
-const HOME_TABS = { feat: 'Destacados', rinde: 'Rinden más', proteccion: 'Cerámicos y ceras', secado: 'Microfibras', pulido: 'Pulido', interior: 'Interior' };
+const HOME_TABS = { feat: 'Destacados', proteccion: 'Cerámicos y ceras', secado: 'Microfibras', pulido: 'Pulido', interior: 'Interior' };
 const tabItems = (t) => (t === 'feat' ? featured(10)
-  : t === 'rinde' ? P.filter((p) => p.img && yieldSummary(p)).sort((a, b) => yieldSummary(b).hi - yieldSummary(a).hi).slice(0, 10)
   : filterProducts({ g: t }).filter((p) => p.img).slice(0, 10));
 
 function viewHome() {
@@ -828,7 +725,7 @@ function viewProduct(slug) {
   const nextG = ri >= 0 && ri < ROUTE.length - 1 ? gById.get(ROUTE[ri + 1]) : null;
   const next = nextG ? filterProducts({ g: nextG.id }).filter((x) => x.img && x.b).slice(0, 5) : [];
   const out = p.stk === 0, low = p.stk > 0 && p.stk <= 5;
-  const ys = yieldSummary(p), logo = LOGOS[p.b];
+  const logo = LOGOS[p.b];
   document.title = `${p.t} — Reycar Store`;
   return `<section class="page wrap view">
     <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda?g=${g.id}">${esc(g.name)}</a>${psc ? `<a href="#/tienda?g=${g.id}&sc=${psc.id}">${esc(psc.name)}</a>` : ''}<span>${esc(p.t)}</span></div>
@@ -838,7 +735,6 @@ function viewProduct(slug) {
         <div class="gal__main${p.img ? ' gal__main--zoom' : ''}" id="galMain"${p.img ? ' data-action="lightbox" role="button" tabindex="0" aria-label="Ampliar foto"' : ''}>
           <div class="gal__img" id="galImg">${p.img ? `<img src="${U(p.im[0][1])}" alt="${esc(p.t)}" fetchpriority="high">` : `<span class="ph">${esc(p.b || 'Reycar')}</span>`}</div>
           <div class="gal__tags">${DISC ? `<span class="gal__tag gal__tag--off">−${DISC * 100}% web</span>` : ''}${p.spec ? `<span class="gal__tag">${esc(p.spec)}</span>` : ''}</div>
-          ${ys ? `<span class="gal__yield">${ico('drop')}Rinde ${ys.label}</span>` : ''}
           ${p.img ? `<span class="gal__zoom" aria-hidden="true">${ico('zoom')}Ampliar</span>` : ''}
         </div>
         ${p.im.length > 1 ? `<div class="gal__thumbs">${p.im.map((im, i) => `<button class="${i ? '' : 'on'}" data-action="gal" data-i="${i}" aria-label="Ver foto ${i + 1}"><img src="${U(im[2] || im[0])}" alt=""></button>`).join('')}</div>` : ''}
@@ -865,7 +761,6 @@ function viewProduct(slug) {
           <li>${ico('card')}<span><b>Paga con Webpay,</b> tarjetas de crédito o débito.</span></li>
           <li>${ico('shield')}<span><b>Producto original</b>${p.b ? ` ${esc(p.b)}` : ''}.</span></li>
         </ul>
-        ${calcHTML(p)}
         <div class="acc">
           <details open><summary>Descripción ${ico('plus')}</summary><div class="acc__body">${descHTML(p.d)}</div></details>
           <details><summary>Ficha técnica ${ico('plus')}</summary><div class="acc__body"><dl class="specs">
@@ -1008,7 +903,7 @@ function route() {
   observeReveals();
   cfInit();
   crestInit();
-  if (name === 'producto' && pdp.p) { calcInit(pdp.p); pdpInit(); }
+  if (name === 'producto' && pdp.p) pdpInit();
   track('pageView');
   if (name === 'producto' && pdp.p) track('viewItem', tItem(pdp.p));
 }
@@ -1255,11 +1150,9 @@ document.addEventListener('click', (e) => {
     case 'theme': toggleTheme(); break;
     case 'cf': cfSet(cf.i + +t.dataset.d); cfPlay(); break;
     case 'cf-go': cfSet(+t.dataset.i); cfPlay(); break;
-    case 'calc-opt': if (calc) calcPick(+t.dataset.i); break;
     case 'lightbox': openLightbox(); break;
     case 'close-lightbox': closeLightbox(); break;
     case 'share': shareProduct(); break;
-    case 'calc-mix': if (calc) { calc.mix = t.dataset.k; drawCalc(); } break;
     case 'open-cart': drawCart(); openOverlay('#drawer'); track('viewCart', cartItemsT()); break;
     case 'close-cart': closeOverlay('#drawer'); break;
     case 'qty': setQty(id, (cart[id] || 0) + +t.dataset.d); break;
@@ -1313,10 +1206,6 @@ document.addEventListener('error', (e) => {
     im.replaceWith(Object.assign(document.createElement('span'), { className: 'ph', textContent: 'Reycar' }));
   }
 }, true);
-
-document.addEventListener('input', (e) => {
-  if (e.target.id === 'calcSlider' && calc) { calc.n = +e.target.value; drawCalc(); }
-});
 window.addEventListener('hashchange', route);
 applyMode();
 buildChrome();
