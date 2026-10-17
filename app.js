@@ -754,6 +754,8 @@ function drawShop() {
   const f = $('.filters', root), bl = $('.brandlist', root);
   if (f) f.scrollTop = keep.f;
   if (bl) bl.scrollTop = keep.b;
+  const sn = $('.subnav', root), son = sn && $('.on', sn); // en celular la fila se desliza: dejar visible la subcategoría activa
+  if (son && sn.scrollWidth > sn.clientWidth) sn.scrollLeft = son.offsetLeft - sn.offsetLeft - 16;
   document.title = `${o.q ? 'Búsqueda: ' + o.q : scx ? scx.name + ' · ' + (g ? g.name : '') : g ? g.name : sel.length === 1 ? sel[0] : 'Tienda'} — Reycar Store`;
   markNav();
 }
@@ -830,7 +832,7 @@ function viewProduct(slug) {
   document.title = `${p.t} — Reycar Store`;
   return `<section class="page wrap view">
     <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda?g=${g.id}">${esc(g.name)}</a>${psc ? `<a href="#/tienda?g=${g.id}&sc=${psc.id}">${esc(psc.name)}</a>` : ''}<span>${esc(p.t)}</span></div>
-    <a class="back" href="#/tienda?g=${g.id}"><span aria-hidden="true">←</span> ${esc(g.name)}</a>
+    <a class="back" href="#/tienda?g=${g.id}${psc ? `&sc=${psc.id}` : ''}"><span aria-hidden="true">←</span> ${esc(psc ? psc.name : g.name)}</a>
     <div class="pdp">
       <div class="gal">
         <div class="gal__main${p.img ? ' gal__main--zoom' : ''}" id="galMain"${p.img ? ' data-action="lightbox" role="button" tabindex="0" aria-label="Ampliar foto"' : ''}>
