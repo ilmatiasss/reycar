@@ -280,6 +280,9 @@ new Set(famOf.values()).forEach((f) => {
   f.forEach((p) => { p.fam = f[0].id; p.g = g; p.b = brand; const sc = subOf(g, f[0].n); if (sc) p.sc = sc; else delete p.sc; });
   famCount++;
 });
+// encuadre de cada foto (scripts/img-fit.py): [zoom, dx %, dy %] o 'cover'/'frame' para fotos con fondo de color
+const FIT = fs.existsSync('data/imgfit.json') ? JSON.parse(fs.readFileSync('data/imgfit.json', 'utf8')) : {};
+products.forEach((p) => { if (FIT[p.id] && p.im.length) p.fz = FIT[p.id]; });
 console.log('Familias con varios formatos:', famCount, '·', products.filter((p) => p.fam).length, 'productos');
 const heads = products.filter((p) => !p.fam || p.fam === p.id);
 

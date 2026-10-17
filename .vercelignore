@@ -9,3 +9,5 @@ LEEME.md
 fetch-logos.js
 find-logos.js
 serve.js
+.img-cache/
+data/imgfit.json

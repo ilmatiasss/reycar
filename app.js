@@ -244,7 +244,7 @@ function drawCart() {
   body.innerHTML = ids.map((id) => {
     const p = byId.get(+id), q = cart[id];
     return `<div class="ci">
-      <a class="ci__img" href="#/producto/${p.s}" data-action="close-cart">${p.img ? `<img src="${thumb(p)}" alt="">` : ''}</a>
+      <a class="ci__img" href="#/producto/${p.s}" data-action="close-cart">${p.img ? `<img src="${thumb(p)}" alt=""${fit(p)}>` : ''}</a>
       <div class="ci__b">
         <small>${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</small>
         <a href="#/producto/${p.s}" data-action="close-cart">${esc(p.t)}</a>
@@ -269,12 +269,15 @@ function drawCart() {
 /* ───────── componentes ───────── */
 const ADD_LABEL = 'Agregar<span class="pc__addx"> al carro</span>'; // en móvil se acorta a "Agregar"
 
+// encuadre medido por scripts/img-fit.py: agranda y centra el producto para que todos se vean del mismo
+// tamaño (--z, --x, --y), o marca las fotos con fondo de color para mostrarlas a sangre ('cover') o enteras ('frame')
+const fit = (p) => { const f = p && p.fz; return !f ? '' : typeof f === 'string' ? ` data-fit="${f}"` : ` style="--z:${f[0]};--x:${f[1]}%;--y:${f[2]}%"`; };
 // miniatura chica (≈300 px) para íconos y lista de resultados; [0] ≈600 px para tarjetas y carrusel; [1] ≈1024 px para la ficha
 const thumb = (p) => (p.im && p.im[0] ? U(p.im[0][2] || p.im[0][0]) : null);
 const srcset = (p, sizes) => (p.im[0][2] && p.im[0][2] !== p.im[0][0] ? ` srcset="${U(p.im[0][2])} 300w, ${p.img} 600w" sizes="${sizes}"` : '');
 const img = (p, big) => (p.img
-  ? `<img src="${big && p.im[0][1] ? U(p.im[0][1]) : p.img}"${big ? '' : srcset(p, '(max-width: 820px) 46vw, 260px')} alt="${esc(p.t)}" loading="lazy" decoding="async">`
-  : `<span class="ph">${esc(p.b || 'Reycar')}</span>`);
+  ? `<img src="${big && p.im[0][1] ? U(p.im[0][1]) : p.img}"${big ? '' : srcset(p, '(max-width: 820px) 46vw, 260px')} alt="${esc(p.t)}" loading="lazy" decoding="async"${fit(p)}>`
+  : `<span class="ph"><img src="assets/reycars-crest.webp" alt="" loading="lazy"><small>Foto pronto</small></span>`);
 
 const stockTag = (p) => (p.stk === 0 ? '<span class="pc__stock pc__stock--out">Agotado</span>' : p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '');
 // selector de formato (1 L · 5 L…) en tarjetas y ficha
@@ -284,7 +287,7 @@ function card(p) {
   return `<article class="pc">
     <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}${DISC ? `<span class="pc__off">-${DISC * 100}%</span>` : ''}${stockTag(p)}</a>
     <div class="pc__body">
-      <span class="pc__brand">${esc(p.b || gById.get(p.g).name)}</span>
+      <span class="pc__brand">${p.b ? esc(p.b) : '&nbsp;'}</span>
       <a class="pc__name" href="#/producto/${p.s}">${esc(ttl(p))}</a>
       ${h.vs ? `<div class="pc__fmts" role="group" aria-label="Formato">${fmtBtns(h, p)}</div>` : p.spec ? `<span class="pc__spec">${esc(p.spec)}</span>` : ''}
       <div class="pc__price"><b>${clp(web(p))}</b>${was(p)}</div>
@@ -299,7 +302,12 @@ function cardFmt(b) {
   $('.pc__price', c).innerHTML = `<b>${clp(web(v))}</b>${was(v)}`;
   $$('a[href^="#/producto/"]', c).forEach((a) => { a.setAttribute('href', `#/producto/${v.s}`); });
   const im = $('.pc__img img', c);
-  if (im && v.img) { im.removeAttribute('srcset'); im.src = v.img; }
+  if (im && v.img) {
+    im.removeAttribute('srcset'); im.removeAttribute('style'); im.removeAttribute('data-fit'); im.src = v.img;
+    const f = v.fz;
+    if (typeof f === 'string') im.dataset.fit = f;
+    else if (f) im.style.cssText = `--z:${f[0]};--x:${f[1]}%;--y:${f[2]}%`;
+  }
   const st = $('.pc__stock', c); if (st) st.remove();
   $('.pc__img', c).insertAdjacentHTML('beforeend', stockTag(v));
   const add = $('.pc__add', c), out = v.stk === 0;
@@ -396,11 +404,13 @@ function viewMC(o) {
     }).join('')}</div>
   </section>`;
 }
+// logos de igual peso visual: misma superficie aproximada sin importar si son altos o muy anchos
+const LOGO_FIT = 'this.style.width=Math.round(Math.min(150,Math.sqrt(2900*this.naturalWidth/this.naturalHeight)))+\'px\'';
 const brandCell = (b, i = 0) => {
   const logo = LOGOS[b.name];
   return `<a class="bc rv" style="--d:${(i % 6) * 0.05}s" href="${b.name === MC ? '#/motor-clean' : `#/tienda?b=${encodeURIComponent(b.name)}`}" aria-label="${esc(b.name)}, ${b.n} producto${b.n === 1 ? '' : 's'}">
     <span class="bc__plate">${logo
-      ? `<img class="bc__logo${logo[1] ? ' fx-' + logo[1] : ''}" src="${logo[0]}" alt="${esc(b.name)}" loading="lazy">`
+      ? `<img class="bc__logo${logo[1] ? ' fx-' + logo[1] : ''}" src="${logo[0]}" alt="${esc(b.name)}" loading="lazy" onload="${LOGO_FIT}">`
       : `<span class="bc__word cond">${esc(b.name)}</span>`}</span>
     <span class="bc__meta"><b>${esc(b.name)}</b><span>${b.n} producto${b.n === 1 ? '' : 's'}</span></span>
   </a>`;
@@ -492,7 +502,7 @@ function crestInit() {
 let homeTab = 'feat';
 const HOME_TABS = { feat: 'Destacados', proteccion: 'Cerámicos y ceras', secado: 'Microfibras', pulido: 'Pulido', interior: 'Interior' };
 const tabItems = (t) => (t === 'feat' ? featured(10)
-  : filterProducts({ g: t }).filter((p) => p.img).slice(0, 10));
+  : (() => { const per = {}; return filterProducts({ g: t }).filter((p) => p.img && (per[p.b] = (per[p.b] || 0) + 1) <= 3).slice(0, 10); })());
 
 function viewHome() {
   const prot = gById.get('proteccion');
@@ -521,7 +531,7 @@ function viewHome() {
       ${mobileMQ.matches ? '' : `<div class="cf an" id="cf" style="--d:.55s" aria-roledescription="carrusel" aria-label="Productos destacados">
         <div class="cf__track">${showcase.map((p, i) => `
           <article class="cf__s" data-i="${i}" aria-roledescription="producto ${i + 1} de ${showcase.length}">
-            <a class="cf__tile" href="#/producto/${p.s}" tabindex="-1"><img src="${p.img}"${srcset(p, '(max-width: 820px) 58vw, 300px')} alt="${esc(p.t)}" decoding="async"></a>
+            <a class="cf__tile" href="#/producto/${p.s}" tabindex="-1"><img src="${p.img}"${srcset(p, '(max-width: 820px) 58vw, 300px')} alt="${esc(p.t)}" decoding="async"${fit(p)}></a>
             <div class="cf__cap">
               <span class="cf__brand">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</span>
               <a class="cf__name" href="#/producto/${p.s}">${esc(ttl(p))}</a>
@@ -570,7 +580,7 @@ function viewHome() {
           <span class="step__n">${String(i + 1).padStart(2, '0')}</span>
           <h3 class="cond">${esc(g.name)}</h3>
           <span class="step__b">${esc(g.blurb)}</span>
-          <span class="step__img">${p ? `<span class="step__tile"><img src="${p.img}" alt="" loading="lazy"></span>` : ''}</span>
+          <span class="step__img">${p ? `<span class="step__tile"><img src="${p.img}" alt="" loading="lazy"${fit(p)}></span>` : ''}</span>
           <span class="step__foot"><span>${g.count} productos</span>${arrow}</span>
         </a>`;
       }).join('')}
@@ -685,7 +695,7 @@ function filterProducts(o) {
   return list;
 }
 function viewShop(params) {
-  shop.params = params; shop.shown = PAGE;
+  shop.params = params; shop.shown = PAGE; shop.allBrands = false;
   return `<section class="page wrap view"><div id="shopRoot"></div></section>`;
 }
 function drawShop() {
@@ -706,6 +716,7 @@ function drawShop() {
   const bc = {}; filterProducts({ ...o, b: '' }).forEach((p) => { if (p.b) bc[p.b] = (bc[p.b] || 0) + 1; });
   const brandsCtx = Object.entries(bc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   sel.forEach((s) => { if (!bc[s]) brandsCtx.push([s, 0]); });
+  const shortBrands = !shop.allBrands && brandsCtx.length > 9 && !brandsCtx.slice(8).some(([b]) => sel.includes(b));
   const gc = {}; filterProducts({ ...o, g: '', p: '', sc: '' }).forEach((p) => { gc[p.g] = (gc[p.g] || 0) + 1; });
 
   const title = o.q ? `«${esc(o.q)}»` : scx ? esc(scx.name) : g ? esc(gName(g)) : px ? esc(px.name) : sel.length === 1 ? esc(sel[0]) : 'Catálogo';
@@ -715,7 +726,7 @@ function drawShop() {
   if (g) tags.push(['g', gName(g)]);
   if (scx) tags.push(['sc', scx.name]);
   sel.forEach((s) => tags.push(['b:' + s, s]));
-  if (o.q) tags.push(['q', `“${o.q}”`]);
+  if (o.q) tags.push(['q', `«${o.q}»`]);
   if (o.min || o.max) tags.push(['price', `${o.min ? clp(o.min) : '$0'} – ${o.max ? clp(o.max) : 'máx.'}`]);
 
   root.innerHTML = `
@@ -732,11 +743,12 @@ function drawShop() {
     <div class="shop">
       <div class="filters-scrim" data-action="close-filters"></div>
       <aside class="filters${keep.open ? ' open' : ''}" id="filters" aria-label="Filtros">
+        <span class="sheet-grip" aria-hidden="true"></span>
         <div class="filters__head">Filtros<button class="icon-btn" data-action="close-filters" aria-label="Cerrar filtros">${ico('close')}</button></div>
         <div>
           <h4>Categoría</h4>
           <div class="fl">
-            <button class="${!o.g ? 'on' : ''}" data-action="set-group" data-g="">Todas <em>${Object.values(gc).reduce((a, b) => a + b, 0)}</em></button>
+            <button class="${!o.g && !o.p ? 'on' : ''}" data-action="set-group" data-g="">Todas <em>${Object.values(gc).reduce((a, b) => a + b, 0)}</em></button>
             ${PARENTS.map((x) => `<button class="fl__p${(x.groups.length > 1 ? px === x : o.g === x.groups[0]) ? ' on' : ''}" data-action="set-parent" data-p="${x.id}">${esc(x.name)} <em>${x.groups.reduce((a, id) => a + (gc[id] || 0), 0)}</em></button>
               ${x.groups.length > 1 ? x.groups.map((id) => grpBtn(gById.get(id), 'fl__c')).join('') : ''}`).join('')}
             ${G.filter((x) => !parentOf.has(x.id)).map((x) => grpBtn(x)).join('')}
@@ -749,10 +761,11 @@ function drawShop() {
             ${g.subs.map((s) => `<button class="${scx && scx.id === s.id ? 'on' : ''}" data-action="set-sub" data-sc="${s.id}">${esc(s.name)} <em>${s.count}</em></button>`).join('')}
           </div>
         </div>` : ''}
-        <div>
+        ${brandsCtx.length ? `<div>
           <h4>Marca</h4>
-          <div class="brandlist">${brandsCtx.map(([b, n]) => `<label class="cb"><input type="checkbox" data-action="toggle-brand" value="${esc(b)}"${sel.includes(b) ? ' checked' : ''}>${esc(b)}<em>${n}</em></label>`).join('')}</div>
-        </div>
+          <div class="brandlist${shortBrands ? ' is-short' : ''}">${brandsCtx.map(([b, n]) => `<label class="cb"><input type="checkbox" data-action="toggle-brand" value="${esc(b)}"${sel.includes(b) ? ' checked' : ''}>${esc(b)}<em>${n}</em></label>`).join('')}</div>
+          ${shortBrands ? `<button class="brandmore" data-action="all-brands">Ver las ${brandsCtx.length} marcas</button>` : ''}
+        </div>` : ''}
         <div>
           <h4>Precio</h4>
           <div class="price"><input type="number" inputmode="numeric" min="0" step="1000" placeholder="Mín." value="${esc(o.min || '')}" data-price="min" aria-label="Precio mínimo"><span>–</span><input type="number" inputmode="numeric" min="0" step="1000" placeholder="Máx." value="${esc(o.max || '')}" data-price="max" aria-label="Precio máximo"></div>
@@ -782,7 +795,7 @@ function drawShop() {
   if (f) f.scrollTop = keep.f;
   if (bl) bl.scrollTop = keep.b;
   const sn = $('.subnav', root), son = sn && $('.on', sn); // en celular la fila se desliza: dejar visible la subcategoría activa
-  if (son && sn.scrollWidth > sn.clientWidth) sn.scrollLeft = son.offsetLeft - sn.offsetLeft - 16;
+  if (son && sn.scrollWidth > sn.clientWidth) sn.scrollLeft = son.offsetLeft - sn.offsetLeft - parseFloat(getComputedStyle(sn).paddingLeft);
   document.title = `${o.q ? 'Búsqueda: ' + o.q : scx ? scx.name + ' · ' + (g ? gName(g) : '') : g ? gName(g) : px ? px.name : sel.length === 1 ? sel[0] : 'Tienda'} — Reycar Store`;
   markNav();
 }
@@ -793,7 +806,7 @@ function drawSections(secs) {
   grid.innerHTML = secs.map(([name, href, items]) => {
     return `<section class="secs__s">
       <div class="secs__h"><h2 class="cond">${esc(name)}</h2><a class="sh__link" href="${href}">Ver ${items.length > 4 ? `los ${items.length}` : 'todo'} ${arrow}</a></div>
-      <div class="grid grid--4">${items.slice(0, 4).map(card).join('')}</div>
+      <div class="grid grid--4 grid--sec">${items.slice(0, 4).map(card).join('')}</div>
     </section>`;
   }).join('');
   more.innerHTML = '';
@@ -862,7 +875,7 @@ function viewProduct(slug) {
     <div class="pdp">
       <div class="gal">
         <div class="gal__main${p.img ? ' gal__main--zoom' : ''}" id="galMain"${p.img ? ' data-action="lightbox" role="button" tabindex="0" aria-label="Ampliar foto"' : ''}>
-          <div class="gal__img" id="galImg">${p.img ? `<img src="${U(p.im[0][1])}" alt="${esc(p.t)}" fetchpriority="high">` : `<span class="ph">${esc(p.b || 'Reycar')}</span>`}</div>
+          <div class="gal__img" id="galImg">${p.img ? `<img src="${U(p.im[0][1])}" alt="${esc(p.t)}" fetchpriority="high"${fit(p)}>` : `<span class="ph"><img src="assets/reycars-crest.webp" alt="" loading="lazy"><small>Foto pronto</small></span>`}</div>
           <div class="gal__tags">${DISC ? `<span class="gal__tag gal__tag--off">−${DISC * 100}% web</span>` : ''}${p.spec ? `<span class="gal__tag">${esc(p.spec)}</span>` : ''}</div>
           ${p.img ? `<span class="gal__zoom" aria-hidden="true">${ico('zoom')}Ampliar</span>` : ''}
         </div>
@@ -908,7 +921,7 @@ function viewProduct(slug) {
     ${same.length ? `<section class="sec"><div class="sh"><h2 class="cond">También en ${esc(g.name)}</h2><a class="sh__link" href="#/tienda?g=${g.id}">Ver todo ${arrow}</a></div><div class="grid grid--row">${same.map(card).join('')}</div></section>` : ''}
   </section>
   <div class="sticky-buy" id="stickyBuy" aria-hidden="true">
-    ${p.img ? `<span class="sb__img"><img src="${thumb(p)}" alt=""></span>` : ''}
+    ${p.img ? `<span class="sb__img"><img src="${thumb(p)}" alt=""${fit(p)}></span>` : ''}
     <span class="sb__t"><small>${esc(p.b || g.name)}${h.vs ? ' · ' + esc(p.spec) : ''}</small><b>${esc(ttl(p))}</b></span>
     <b class="sb__p">${clp(web(p))}</b>
     <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}" tabindex="-1"${out ? ' disabled' : ''}>${ico('bag')} ${out ? 'Agotado' : 'Agregar'}</button>
@@ -980,7 +993,7 @@ function openCatSheet(key) {
   const title = x ? x.name : g.name;
   const body = !g
     ? `<a class="mm__all" href="${pHref(x)}">Ver todo ${esc(x.short)}<small>${x.count}</small></a>${x.groups.map((id) => mmGroup(gById.get(id))).join('')}`
-    : `<a class="mm__all" href="#/tienda?g=${g.id}">Ver todo ${esc(title.toLowerCase())}<small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}`;
+    : `<a class="mm__all" href="#/tienda?g=${g.id}">Ver todo ${esc(x ? x.short : g.name.toLowerCase())}<small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}`;
   $('#catSheetTitle').textContent = title;
   $('#catSheetBody').innerHTML = `<div class="mm"><nav class="mm__list" aria-label="${esc(title)}">${body}</nav></div>`;
   openOverlay('#catSheet');
@@ -990,12 +1003,13 @@ function buildChrome() {
   const subLinks = (g) => g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <small>${s.count}</small></a>`).join('');
   const ddItem = (g, label, attr) => (g.subs
     ? `<div class="cats__item"><a href="#/tienda?g=${g.id}" ${attr} aria-haspopup="true">${esc(label)}</a>
-        <div class="cats__dd"><a class="cats__all" href="#/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <small>${g.count}</small></a>${subLinks(g)}</div></div>`
+        <div class="cats__dd"><a class="cats__all" href="#/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())} <small>${g.count}</small></a>${subLinks(g)}</div></div>`
     : `<a href="#/tienda?g=${g.id}" ${attr}>${esc(label)}</a>`);
   // escritorio: Cuidado exterior abre un panel con todas sus categorías y subcategorías en columnas
   const megaItem = (x) => `<div class="cats__item cats__item--mega"><a href="${pHref(x)}" data-p="${x.id}" aria-haspopup="true">${esc(x.name)}</a>
-      <div class="cats__dd cats__mega"><a class="cats__all" href="${pHref(x)}">Todo ${esc(x.short)} <small>${x.count}</small></a>
-        <div class="cats__cols">${x.groups.map((id) => { const g = gById.get(id); return `<div class="cats__col"><a class="cats__gh" href="#/tienda?g=${id}">${esc(g.name)} <small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="#/tienda?g=${id}&sc=${s.id}">${esc(s.name)}</a>`).join('')}</div>`; }).join('')}</div></div></div>`;
+      <div class="cats__dd cats__mega">
+        <div class="cats__cols">${x.groups.map((id) => { const g = gById.get(id); return `<div class="cats__col"><a class="cats__gh" href="#/tienda?g=${id}">${esc(g.name)} <small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="#/tienda?g=${id}&sc=${s.id}">${esc(s.name)}</a>`).join('')}</div>`; }).join('')}
+        <a class="cats__allcell" href="${pHref(x)}"><span>Ver todo</span><b>${esc(x.name)}</b><small>${x.count} productos ${arrow}</small></a></div></div></div>`;
   const rest = G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios' && g.id !== 'cursos');
   $('#cats').innerHTML = PARENTS.map((x) => (x.groups.length > 1 ? megaItem(x) : ddItem(gById.get(x.groups[0]), x.name, `data-p="${x.id}"`))).join('')
     + rest.map((g) => ddItem(g, g.name, `data-g="${g.id}"`)).join('')
@@ -1015,7 +1029,9 @@ function buildChrome() {
   // menú del celular: categorías agrupadas por madre, cada una con sus subcategorías
   $('#mobileMenuBody').innerHTML = `<div class="mm">
     <nav class="mm__list" aria-label="Categorías">
-      ${PARENTS.map((x) => `<a class="mm__h" href="${pHref(x)}">${esc(x.name)}<small>Ver todo</small></a>${x.groups.map((id) => mmGroup(gById.get(id))).join('')}`).join('')}
+      ${PARENTS.map((x) => `<a class="mm__h" href="${pHref(x)}">${esc(x.name)}<small>Ver todo</small></a>${x.groups.length === 1
+        ? (gById.get(x.groups[0]).subs || []).map((s) => `<a href="#/tienda?g=${x.groups[0]}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')
+        : x.groups.map((id) => mmGroup(gById.get(id))).join('')}`).join('')}
       <span class="mm__h">Más</span>${G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios').map(mmGroup).join('')}
     </nav>
     <div class="mm__links">
@@ -1029,10 +1045,11 @@ function buildChrome() {
 }
 function markNav() {
   const h = location.hash;
-  const g = (h.match(/[?&]g=([^&]+)/) || [])[1];
-  const pp = (h.match(/[?&]p=([^&]+)/) || [])[1] || (parentOf.get(g) || {}).id;
   const r = (h.match(/^#\/([^/?]+)/) || [])[1];
-  const shopping = r === 'tienda';
+  const prod = r === 'producto' ? bySlug.get(decodeURIComponent(h.split('/')[2] || '')) : null;
+  const g = (h.match(/[?&]g=([^&]+)/) || [])[1] || (prod && prod.g);
+  const pp = (h.match(/[?&]p=([^&]+)/) || [])[1] || (parentOf.get(g) || {}).id;
+  const shopping = r === 'tienda' || !!prod;
   $$('#cats > a, #cats > .cats__item > a').forEach((a) => a.classList.toggle('on', !!(
     (a.dataset.g && a.dataset.g === g && shopping) || (a.dataset.p && a.dataset.p === pp && shopping)
     || (a.dataset.all && shopping && !g && !pp) || (a.dataset.r && a.dataset.r === r))));
@@ -1111,7 +1128,8 @@ function cfSet(i) {
     const x = Math.sign(d) * [0, 74, 138, 194, 240][ad];
     const sc = [1, 0.8, 0.66, 0.54, 0.45][ad];
     s.style.transform = `translateX(${x}%) scale(${sc})`;
-    s.style.opacity = [1, 0.9, 0.55, 0.22, 0][ad];
+    s.style.opacity = ad > 2 ? 0 : 1;
+    s.style.filter = ['none', 'brightness(.9)', 'brightness(.6)', 'none', 'none'][ad];
     s.style.zIndex = 10 - ad;
     s.style.pointerEvents = ad > 1 ? 'none' : 'auto';
     s.style.visibility = ad > 2 ? 'hidden' : '';
@@ -1249,8 +1267,8 @@ function drawSearch(q) {
     sDrop.innerHTML = `<div class="sh-l">Búsquedas frecuentes</div>
       <div class="sugs">${['Shampoo', 'Cerámico', 'Microfibra', 'Pad', 'Compuesto', 'Aromatizante', 'Neumáticos', 'Meguiars', 'Koch'].map((s) => `<a href="#/tienda?q=${encodeURIComponent(s)}">${s}</a>`).join('')}</div>
       <div class="sh-l">Categorías</div>
-      ${PARENTS.filter((x) => x.groups.length > 1).map((x) => `<a class="sr sr--text" href="${pHref(x)}"><div class="sr__t">${esc(x.name)}</div><span class="sr__s">${x.count}</span></a>`).join('')}
-      ${ROUTE.map((id) => { const g = gById.get(id); return `<a class="sr sr--text" href="#/tienda?g=${id}"><div class="sr__t">${esc(g.name)}</div><span class="sr__s">${g.count}</span></a>`; }).join('')}`;
+      ${[...PARENTS.map((x) => [pHref(x), x.name, x.count]), ...G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios' && g.id !== 'cursos').map((g) => [`#/tienda?g=${g.id}`, g.name, g.count]), ['#/motor-clean', 'Motor Clean', mcAll().length]]
+        .map(([h, n, c]) => `<a class="sr sr--text" href="${h}"><div class="sr__t">${esc(n)}</div><span class="sr__s">${c}</span></a>`).join('')}`;
     return;
   }
   const all = filterProducts({ q });
@@ -1265,7 +1283,7 @@ function drawSearch(q) {
   }
   sDrop.innerHTML =
     (gs.length || bs.length || ss.length ? `<div class="sh-l">Ir a</div>${ss.map((s) => `<a class="sr sr--text" href="#/tienda?g=${s.g}&sc=${s.id}"><div class="sr__t">${hi(s.name, q)}</div><span class="sr__s">${esc(gById.get(s.g).name)} · ${s.count}</span></a>`).join('')}${gs.map((g) => `<a class="sr sr--text" href="#/tienda?g=${g.id}"><div class="sr__t">${hi(g.name, q)}</div><span class="sr__s">Categoría · ${g.count}</span></a>`).join('')}${bs.map((b) => `<a class="sr sr--text" href="#/tienda?b=${encodeURIComponent(b.name)}"><div class="sr__t">${hi(b.name, q)}</div><span class="sr__s">Marca · ${b.n}</span></a>`).join('')}` : '') +
-    (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="#/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${thumb(p)}" alt="">` : ''}</span><div><div class="sr__t">${hi(ttl(p), q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.vs ? ' · ' + p.vs.map((v) => esc(v.spec)).join(' / ') : p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
+    (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="#/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${thumb(p)}" alt=""${fit(p)}>` : ''}</span><div><div class="sr__t">${hi(ttl(p), q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.vs ? ' · ' + p.vs.map((v) => esc(v.spec)).join(' / ') : p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
     (all.length > top.length ? `<a class="sr sr--text" href="#/tienda?q=${encodeURIComponent(q)}"><div class="sr__t">Ver los ${all.length} resultados ${arrow}</div></a>` : '');
 }
 function openSearch() { drawSearch(sInput.value); sDrop.hidden = false; }
@@ -1314,7 +1332,7 @@ document.addEventListener('click', (e) => {
     case 'pdp-qty': pdp.qty = Math.max(1, Math.min(maxQty(pdp.p) || 1, pdp.qty + +t.dataset.d)); $('#pdpQty').textContent = pdp.qty; break;
     case 'gal': {
       const i = +t.dataset.i;
-      $('#galImg').innerHTML = `<img src="${U(pdp.p.im[i][1])}" alt="${esc(pdp.p.t)}">`;
+      $('#galImg').innerHTML = `<img src="${U(pdp.p.im[i][1])}" alt="${esc(pdp.p.t)}"${i ? '' : fit(pdp.p)}>`;
       $$('.gal__thumbs button').forEach((b, j) => b.classList.toggle('on', j === i));
       break;
     }
@@ -1353,6 +1371,7 @@ document.addEventListener('click', (e) => {
     }
     case 'clear-filters': setParams({ p: '', g: '', sc: '', b: '', q: '', min: '', max: '' }); break;
     case 'more': shop.shown += PAGE; drawResults(); break;
+    case 'all-brands': shop.allBrands = true; drawShop(); break;
     case 'open-filters': $('#filters').classList.add('open'); document.body.classList.add('filters-open'); break;
     case 'close-filters': $('#filters').classList.remove('open'); document.body.classList.remove('filters-open'); break;
     case 'focus-search': showHeader(); sInput.focus({ preventScroll: true }); openSearch(); break;
@@ -1389,6 +1408,12 @@ document.addEventListener('error', (e) => {
 window.addEventListener('hashchange', route);
 applyMode();
 buildChrome();
+// barra de categorías: el degradado de la derecha solo aparece si queda algo por deslizar
+const catsEl = $('#cats');
+const fadeCats = () => catsEl.classList.toggle('is-fade', catsEl.scrollWidth > catsEl.clientWidth + 2 && catsEl.scrollLeft + catsEl.clientWidth < catsEl.scrollWidth - 2);
+catsEl.addEventListener('scroll', fadeCats, { passive: true });
+window.addEventListener('resize', fadeCats);
+fadeCats();
 syncFooter();
 updateCartUI();
 // primero el stock real (máx. 1,5 s), luego se dibuja; después se refresca en silencio cada minuto
