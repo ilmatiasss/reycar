@@ -84,9 +84,14 @@ const byId = new Map(P.map((p) => [p.id, p]));
 const bySlug = new Map(P.map((p) => [p.s, p]));
 const gById = new Map(G.map((g) => [g.id, g]));
 G.forEach((g) => { g.count = 0; });
+// subcategorías: id → { id, name, g, count }
+const scById = new Map();
+G.forEach((g) => (g.subs || []).forEach((s) => { s.count = 0; s.g = g.id; scById.set(s.id, s); }));
 P.forEach((p) => {
   gById.get(p.g).count++;
-  p._q = norm([p.n, p.b, gById.get(p.g).name, p.c.join(' ')].join(' '));
+  const sc = p.sc && scById.get(p.sc);
+  if (sc) sc.count++;
+  p._q = norm([p.n, p.b, gById.get(p.g).name, sc ? sc.name : '', p.c.join(' ')].join(' '));
   p.img = p.im && p.im[0] ? U(p.im[0][0]) : null;
   p.spec = specOf(p.n);
   p.t = niceName(p.n);
@@ -373,14 +378,17 @@ const LOGOS = {
   'Rupes': ['assets/brands/rupes.png', 'tall'], 'VINTEX': ['assets/brands/vintex.webp', 'dark'],
   'DIMENSION CAR CARE': ['assets/brands/dimension-car-care.png', 'tall'], 'Shine Mate': ['assets/brands/shine-mate.svg', 'tall'],
   '3M': ['assets/brands/3m.svg'], 'Sonax': ['assets/brands/sonax.svg'],
+  'Motor Clean': ['assets/brands/motor-clean.png', 'tall'], 'SPTA': ['assets/brands/spta.png', 'dark'],
+  'TRINIK': ['assets/brands/trinik.svg'], 'Professional Shine': ['assets/brands/professional-shine.jpg', 'tall'],
+  'Soft 99': ['assets/brands/soft99.png'], 'Gtechniq': ['assets/brands/gtechniq.svg'],
 };
 const brandCell = (b, i = 0) => {
   const logo = LOGOS[b.name];
-  return `<a class="bc rv" style="--d:${(i % 6) * 0.05}s" href="#/tienda?b=${encodeURIComponent(b.name)}" aria-label="${esc(b.name)}, ${b.n} productos">
+  return `<a class="bc rv" style="--d:${(i % 6) * 0.05}s" href="#/tienda?b=${encodeURIComponent(b.name)}" aria-label="${esc(b.name)}, ${b.n} producto${b.n === 1 ? '' : 's'}">
     <span class="bc__plate">${logo
       ? `<img class="bc__logo${logo[1] ? ' fx-' + logo[1] : ''}" src="${logo[0]}" alt="${esc(b.name)}" loading="lazy">`
       : `<span class="bc__word cond">${esc(b.name)}</span>`}</span>
-    <span class="bc__meta"><b>${esc(b.name)}</b><span>${b.n} productos</span></span>
+    <span class="bc__meta"><b>${esc(b.name)}</b><span>${b.n} producto${b.n === 1 ? '' : 's'}</span></span>
   </a>`;
 };
 
@@ -641,6 +649,7 @@ const toQuery = (o) => { const u = new URLSearchParams(); Object.entries(o).forE
 function filterProducts(o) {
   let list = P;
   if (o.g) list = list.filter((p) => p.g === o.g);
+  if (o.sc) list = list.filter((p) => p.sc === o.sc);
   if (o.b) { const set = new Set(o.b.split(',')); list = list.filter((p) => set.has(p.b)); }
   if (o.q) { const toks = norm(o.q).split(/\s+/).filter(Boolean); list = list.filter((p) => toks.every((t) => p._q.includes(t))); }
   if (o.min) list = list.filter((p) => web(p) >= +o.min);
@@ -670,24 +679,32 @@ function drawShop() {
   const keep = { f: oldF ? oldF.scrollTop : 0, b: oldB ? oldB.scrollTop : 0, open: !!(oldF && oldF.classList.contains('open')) };
   const list = filterProducts(o);
   const g = o.g && gById.get(o.g);
+  const scx = o.sc && scById.get(o.sc);
   const sel = o.b ? o.b.split(',') : [];
+  // categoría grande sin otros filtros: se muestra por subcategoría (no 100 productos seguidos)
+  const landing = g && g.subs && !scx && !o.q && !o.b && !o.min && !o.max && !o.sort && g.count > 16;
 
   const bc = {}; filterProducts({ ...o, b: '' }).forEach((p) => { if (p.b) bc[p.b] = (bc[p.b] || 0) + 1; });
   const brandsCtx = Object.entries(bc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   sel.forEach((s) => { if (!bc[s]) brandsCtx.push([s, 0]); });
   const gc = {}; filterProducts({ ...o, g: '' }).forEach((p) => { gc[p.g] = (gc[p.g] || 0) + 1; });
 
-  const title = o.q ? `«${esc(o.q)}»` : g ? esc(g.name) : sel.length === 1 ? esc(sel[0]) : 'Catálogo';
-  const sub = o.q ? `Resultados de búsqueda.` : g ? g.blurb : sel.length === 1 ? 'Productos originales de la marca.' : `${P.length} productos de ${BRANDS.length} marcas.`;
+  const title = o.q ? `«${esc(o.q)}»` : scx ? esc(scx.name) : g ? esc(g.name) : sel.length === 1 ? esc(sel[0]) : 'Catálogo';
+  const sub = o.q ? `Resultados de búsqueda.` : scx ? `${scx.count} producto${scx.count === 1 ? '' : 's'} en ${g ? g.name : ''}.` : g ? g.blurb : sel.length === 1 ? 'Productos originales de la marca.' : `${P.length} productos de ${BRANDS.length} marcas.`;
   const tags = [];
   if (g) tags.push(['g', g.name]);
+  if (scx) tags.push(['sc', scx.name]);
   sel.forEach((s) => tags.push(['b:' + s, s]));
   if (o.q) tags.push(['q', `“${o.q}”`]);
   if (o.min || o.max) tags.push(['price', `${o.min ? clp(o.min) : '$0'} – ${o.max ? clp(o.max) : 'máx.'}`]);
 
   root.innerHTML = `
-    <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda">Tienda</a>${g ? `<span>${esc(g.name)}</span>` : o.q ? '<span>Búsqueda</span>' : ''}</div>
+    <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda">Tienda</a>${g && scx ? `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a><span>${esc(scx.name)}</span>` : g ? `<span>${esc(g.name)}</span>` : o.q ? '<span>Búsqueda</span>' : ''}</div>
     <div class="ptitle"><h1 class="cond">${title}</h1><p>${esc(sub)}</p></div>
+    ${g && g.subs ? `<nav class="subnav" aria-label="Subcategorías de ${esc(g.name)}">
+      <a class="${!scx ? 'on' : ''}" href="#/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <em>${g.count}</em></a>
+      ${g.subs.map((s) => `<a class="${scx && scx.id === s.id ? 'on' : ''}" href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <em>${s.count}</em></a>`).join('')}
+    </nav>` : ''}
     <div class="shop">
       <div class="filters-scrim" data-action="close-filters"></div>
       <aside class="filters${keep.open ? ' open' : ''}" id="filters" aria-label="Filtros">
@@ -699,6 +716,13 @@ function drawShop() {
             ${G.map((x) => `<button class="${o.g === x.id ? 'on' : ''}" data-action="set-group" data-g="${x.id}">${esc(x.name)} <em>${gc[x.id] || 0}</em></button>`).join('')}
           </div>
         </div>
+        ${g && g.subs ? `<div>
+          <h4>Subcategoría</h4>
+          <div class="fl">
+            <button class="${!scx ? 'on' : ''}" data-action="set-sub" data-sc="">Todas <em>${g.count}</em></button>
+            ${g.subs.map((s) => `<button class="${scx && scx.id === s.id ? 'on' : ''}" data-action="set-sub" data-sc="${s.id}">${esc(s.name)} <em>${s.count}</em></button>`).join('')}
+          </div>
+        </div>` : ''}
         <div>
           <h4>Marca</h4>
           <div class="brandlist">${brandsCtx.map(([b, n]) => `<label class="cb"><input type="checkbox" data-action="toggle-brand" value="${esc(b)}"${sel.includes(b) ? ' checked' : ''}>${esc(b)}<em>${n}</em></label>`).join('')}</div>
@@ -707,7 +731,7 @@ function drawShop() {
           <h4>Precio</h4>
           <div class="price"><input type="number" inputmode="numeric" min="0" step="1000" placeholder="Mín." value="${esc(o.min || '')}" data-price="min" aria-label="Precio mínimo"><span>–</span><input type="number" inputmode="numeric" min="0" step="1000" placeholder="Máx." value="${esc(o.max || '')}" data-price="max" aria-label="Precio máximo"></div>
         </div>
-        <div class="filters__apply"><button class="btn btn--dark" data-action="close-filters" id="applyBtn">Ver ${list.length} productos</button></div>
+        <div class="filters__apply"><button class="btn btn--dark" data-action="close-filters" id="applyBtn">Ver ${list.length} producto${list.length === 1 ? '' : 's'}</button></div>
       </aside>
       <div>
         <div class="toolbar">
@@ -716,7 +740,7 @@ function drawShop() {
             <label class="sort"><select data-action="sort" aria-label="Ordenar por">${Object.entries(SORTS).map(([k, v]) => `<option value="${k}"${(o.sort || 'rel') === k ? ' selected' : ''}>${v}</option>`).join('')}</select></label>
           </div>
           <div class="toolbar__l">
-            <span class="count"><b>${list.length}</b> productos</span>
+            <span class="count"><b>${list.length}</b> producto${list.length === 1 ? '' : 's'}</span>
             ${tags.map(([k, t]) => `<span class="tag">${esc(t)}<button data-action="rm-tag" data-k="${esc(k)}" aria-label="Quitar filtro ${esc(t)}">${ico('close')}</button></span>`).join('')}
             ${tags.length > 1 ? `<button class="tag tag--clear" data-action="clear-filters">Limpiar</button>` : ''}
           </div>
@@ -725,12 +749,25 @@ function drawShop() {
         <div class="more" id="more"></div>
       </div>
     </div>`;
-  drawResults(list);
+  if (landing) drawSections(g); else drawResults(list);
   const f = $('.filters', root), bl = $('.brandlist', root);
   if (f) f.scrollTop = keep.f;
   if (bl) bl.scrollTop = keep.b;
-  document.title = `${o.q ? 'Búsqueda: ' + o.q : g ? g.name : sel.length === 1 ? sel[0] : 'Tienda'} — Reycar Store`;
+  document.title = `${o.q ? 'Búsqueda: ' + o.q : scx ? scx.name + ' · ' + (g ? g.name : '') : g ? g.name : sel.length === 1 ? sel[0] : 'Tienda'} — Reycar Store`;
   markNav();
+}
+// página de una categoría grande: una sección por subcategoría con sus 4 productos destacados
+function drawSections(g) {
+  const grid = $('#grid'), more = $('#more'); if (!grid) return;
+  grid.className = 'secs';
+  grid.innerHTML = g.subs.map((s) => {
+    const items = filterProducts({ g: g.id, sc: s.id });
+    return `<section class="secs__s">
+      <div class="secs__h"><h2 class="cond">${esc(s.name)}</h2><a class="sh__link" href="#/tienda?g=${g.id}&sc=${s.id}">Ver ${items.length > 4 ? `los ${items.length}` : 'todo'} ${arrow}</a></div>
+      <div class="grid grid--4">${items.slice(0, 4).map(card).join('')}</div>
+    </section>`;
+  }).join('');
+  more.innerHTML = '';
 }
 function drawResults(list = filterProducts(shop.params)) {
   const grid = $('#grid'), more = $('#more'); if (!grid) return;
@@ -781,7 +818,9 @@ function viewProduct(slug) {
   if (!p) return `<section class="page wrap view"><div class="empty"><h3 class="cond">Producto no encontrado</h3><p>Puede que ya no esté disponible.</p><br><a class="btn btn--dark btn--sm" href="#/tienda">Ir a la tienda</a></div></section>`;
   pdp = { p, qty: 1 };
   const g = gById.get(p.g);
-  const same = P.filter((x) => x.id !== p.id && x.g === p.g && x.img).sort((a, b) => (b.b === p.b) - (a.b === p.b)).slice(0, 5);
+  const psc = p.sc && scById.get(p.sc);
+  // misma subcategoría primero (lo que realmente se compara), luego misma marca
+  const same = P.filter((x) => x.id !== p.id && x.g === p.g && x.img).sort((a, b) => ((b.sc === p.sc) - (a.sc === p.sc)) * 2 + ((b.b === p.b) - (a.b === p.b))).slice(0, 5);
   const ri = ROUTE.indexOf(p.g);
   const nextG = ri >= 0 && ri < ROUTE.length - 1 ? gById.get(ROUTE[ri + 1]) : null;
   const next = nextG ? filterProducts({ g: nextG.id }).filter((x) => x.img && x.b).slice(0, 5) : [];
@@ -789,7 +828,7 @@ function viewProduct(slug) {
   const ys = yieldSummary(p), logo = LOGOS[p.b];
   document.title = `${p.t} — Reycar Store`;
   return `<section class="page wrap view">
-    <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda?g=${g.id}">${esc(g.name)}</a><span>${esc(p.t)}</span></div>
+    <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda?g=${g.id}">${esc(g.name)}</a>${psc ? `<a href="#/tienda?g=${g.id}&sc=${psc.id}">${esc(psc.name)}</a>` : ''}<span>${esc(p.t)}</span></div>
     <a class="back" href="#/tienda?g=${g.id}"><span aria-hidden="true">←</span> ${esc(g.name)}</a>
     <div class="pdp">
       <div class="gal">
@@ -901,12 +940,21 @@ function shareProduct() {
 
 /* ───────── navegación ───────── */
 function buildChrome() {
-  $('#cats').innerHTML = G.filter((g) => g.id !== 'servicios' && g.id !== 'cursos').map((g) => `<a href="#/tienda?g=${g.id}" data-g="${g.id}">${esc(g.name)}</a>`).join('')
+  $('#cats').innerHTML = G.filter((g) => g.id !== 'servicios' && g.id !== 'cursos').map((g) => (g.subs
+    ? `<div class="cats__item"><a href="#/tienda?g=${g.id}" data-g="${g.id}" aria-haspopup="true">${esc(g.name)}</a>
+        <div class="cats__dd"><a class="cats__all" href="#/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <small>${g.count}</small></a>${g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <small>${s.count}</small></a>`).join('')}</div></div>`
+    : `<a href="#/tienda?g=${g.id}" data-g="${g.id}">${esc(g.name)}</a>`)).join('')
     + `<span class="cats__sp"></span><a href="#/marcas" data-r="marcas">Marcas</a><a class="cats__svc" href="#/asesoria" data-r="asesoria">Servicios de taller</a>`;
   $('#ftCats').insertAdjacentHTML('beforeend', G.filter((g) => ROUTE.includes(g.id)).map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="#/tienda">Todo el catálogo</a>');
+  $$('#cats .cats__item').forEach((it) => {
+    it.addEventListener('click', (e) => { if (e.target.closest('a')) { it.classList.add('is-closed'); e.target.closest('a').blur(); } });
+    it.addEventListener('mouseleave', () => it.classList.remove('is-closed'));
+  });
   // menú del celular: lista de categorías y accesos
   $('#mobileMenuBody').innerHTML = `<div class="mm">
-    <nav class="mm__list" aria-label="Categorías">${G.filter((g) => g.id !== 'servicios').map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`).join('')}</nav>
+    <nav class="mm__list" aria-label="Categorías">${G.filter((g) => g.id !== 'servicios').map((g) => (g.subs
+      ? `<details><summary>${esc(g.name)}<small>${g.count}</small></summary><div class="mm__subs"><a href="#/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())}<small>${g.count}</small></a>${g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}</div></details>`
+      : `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`)).join('')}</nav>
     <div class="mm__links">
       <a href="#/tienda">Todo el catálogo <small>${P.length}</small></a>
       <a href="#/marcas">Marcas <small>${BRANDS.length}</small></a>
@@ -1134,14 +1182,15 @@ function drawSearch(q) {
   const all = filterProducts({ q });
   const nq = norm(q);
   const gs = G.filter((g) => norm(g.name).includes(nq)).slice(0, 2);
+  const ss = [...scById.values()].filter((s) => norm(s.name).includes(nq)).slice(0, 3);
   const bs = BRANDS.filter((b) => norm(b.name).includes(nq)).slice(0, 2);
   const top = all.slice(0, 6);
-  if (!top.length && !gs.length && !bs.length) {
+  if (!top.length && !gs.length && !bs.length && !ss.length) {
     sDrop.innerHTML = `<div class="sempty"><b>Sin resultados para «${esc(q)}»</b>Prueba con otra palabra o <a href="${wa('Hola Reycar, busco: ' + q)}" target="_blank" rel="noopener" style="text-decoration:underline">pregúntanos por WhatsApp</a>.</div>`;
     return;
   }
   sDrop.innerHTML =
-    (gs.length || bs.length ? `<div class="sh-l">Ir a</div>${gs.map((g) => `<a class="sr sr--text" href="#/tienda?g=${g.id}"><div class="sr__t">${hi(g.name, q)}</div><span class="sr__s">Categoría · ${g.count}</span></a>`).join('')}${bs.map((b) => `<a class="sr sr--text" href="#/tienda?b=${encodeURIComponent(b.name)}"><div class="sr__t">${hi(b.name, q)}</div><span class="sr__s">Marca · ${b.n}</span></a>`).join('')}` : '') +
+    (gs.length || bs.length || ss.length ? `<div class="sh-l">Ir a</div>${ss.map((s) => `<a class="sr sr--text" href="#/tienda?g=${s.g}&sc=${s.id}"><div class="sr__t">${hi(s.name, q)}</div><span class="sr__s">${esc(gById.get(s.g).name)} · ${s.count}</span></a>`).join('')}${gs.map((g) => `<a class="sr sr--text" href="#/tienda?g=${g.id}"><div class="sr__t">${hi(g.name, q)}</div><span class="sr__s">Categoría · ${g.count}</span></a>`).join('')}${bs.map((b) => `<a class="sr sr--text" href="#/tienda?b=${encodeURIComponent(b.name)}"><div class="sr__t">${hi(b.name, q)}</div><span class="sr__s">Marca · ${b.n}</span></a>`).join('')}` : '') +
     (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="#/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${thumb(p)}" alt="">` : ''}</span><div><div class="sr__t">${hi(p.t, q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
     (all.length > top.length ? `<a class="sr sr--text" href="#/tienda?q=${encodeURIComponent(q)}"><div class="sr__t">Ver los ${all.length} resultados ${arrow}</div></a>` : '');
 }
@@ -1215,16 +1264,18 @@ document.addEventListener('click', (e) => {
     case 'checkout': track('beginCheckout', cartItemsT()); toast('Prototipo: aquí se conecta al checkout'); break;
     case 'open-menu': openOverlay('#mobileMenu'); break;
     case 'close-menu': closeOverlay('#mobileMenu'); break;
-    case 'set-group': setParams({ g: t.dataset.g }); break;
+    case 'set-group': setParams({ g: t.dataset.g, sc: '' }); break;
+    case 'set-sub': setParams({ sc: t.dataset.sc }); break;
     case 'rm-tag': {
       const k = t.dataset.k;
-      if (k === 'g') setParams({ g: '' });
+      if (k === 'g') setParams({ g: '', sc: '' });
+      else if (k === 'sc') setParams({ sc: '' });
       else if (k === 'q') setParams({ q: '' });
       else if (k === 'price') setParams({ min: '', max: '' });
       else { const b = k.slice(2); setParams({ b: (shop.params.b || '').split(',').filter((x) => x && x !== b).join(',') }); }
       break;
     }
-    case 'clear-filters': setParams({ g: '', b: '', q: '', min: '', max: '' }); break;
+    case 'clear-filters': setParams({ g: '', sc: '', b: '', q: '', min: '', max: '' }); break;
     case 'more': shop.shown += PAGE; drawResults(); break;
     case 'open-filters': $('#filters').classList.add('open'); document.body.classList.add('filters-open'); break;
     case 'close-filters': $('#filters').classList.remove('open'); document.body.classList.remove('filters-open'); break;

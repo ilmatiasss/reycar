@@ -1057,3 +1057,53 @@ body.is-catalog .cats{display:none}
   .stage .cf__tile{aspect-ratio:1/.9;border-radius:10px}
   .stage .cf__dots{position:static;margin-top:10px}
 }
+
+/* ═════════════════════════════════════════════
+   SUBCATEGORÍAS
+   ═════════════════════════════════════════════ */
+/* barra superior: menú desplegable por categoría (solo escritorio ancho; en pantallas menores la barra se desliza) */
+.cats__item{position:relative;display:flex}
+.cats__dd{display:none}
+@media (min-width:1101px){
+  .cats__in{overflow:visible}
+  .cats__item > a::after{content:"";width:6px;height:6px;margin:-3px 0 0 7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.55}
+  .cats__dd{position:absolute;top:100%;left:-6px;z-index:70;display:flex;flex-direction:column;min-width:260px;padding:8px;border:1px solid var(--line2);border-radius:var(--r);background:var(--surface);box-shadow:0 18px 40px -20px rgba(0,0,0,.45);visibility:hidden;opacity:0;transition:opacity .15s,visibility 0s .15s}
+  .cats__item:hover .cats__dd,.cats__item:focus-within .cats__dd{visibility:visible;opacity:1;transition-delay:0s}
+  .cats__item.is-closed .cats__dd{visibility:hidden;opacity:0}
+  .cats .cats__dd a{display:flex;justify-content:space-between;align-items:center;gap:16px;height:auto;margin:0;padding:9px 10px;border:0;border-radius:6px;font:500 14px var(--f);color:var(--ink2);white-space:nowrap}
+  .cats .cats__dd a:hover,.cats .cats__dd a:focus-visible{background:var(--surface2);color:var(--red-t)}
+  .cats .cats__dd a.cats__all{font-weight:700;color:var(--ink);border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:4px}
+  .cats__dd small{font-size:12px;color:var(--faint)}
+}
+/* catálogo: chips de subcategoría bajo el título */
+.subnav{display:flex;flex-wrap:wrap;gap:8px;margin:-6px 0 22px}
+.subnav a{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border:1px solid var(--line2);border-radius:99px;background:var(--surface);font-size:14px;font-weight:600;color:var(--ink2);white-space:nowrap}
+.subnav a em{font-style:normal;font-size:12px;font-weight:500;color:var(--faint)}
+.subnav a:hover{border-color:var(--ink);color:var(--ink)}
+.subnav a.on{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.subnav a.on em{color:inherit;opacity:.7}
+@media (max-width:820px){
+  .subnav{flex-wrap:nowrap;overflow-x:auto;margin:-4px calc(var(--gut) * -1) 16px;padding:0 var(--gut) 2px;scrollbar-width:none}
+  .subnav::-webkit-scrollbar{display:none}
+}
+/* categoría grande: secciones por subcategoría */
+.secs{display:flex;flex-direction:column;gap:34px}
+.secs__s .grid{margin-top:12px}
+.secs__h{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.secs__h h2{font-size:clamp(21px,2vw,26px)}
+.secs__h .sh__link{flex:none}
+/* menú del celular: categorías que se despliegan */
+.mm__list details{border-bottom:1px solid var(--line)}
+.mm__list summary{display:flex;justify-content:space-between;align-items:center;padding:14px 2px;font-weight:600;font-size:15.5px;list-style:none;cursor:pointer}
+.mm__list summary::-webkit-details-marker{display:none}
+.mm__list summary small{margin-left:auto;margin-right:12px}
+.mm__list summary::after{content:"";width:8px;height:8px;margin-top:-4px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:rotate(45deg);transition:transform .2s}
+.mm__list details[open] summary::after{transform:rotate(-135deg);margin-top:4px}
+.mm__subs{display:flex;flex-direction:column;padding:0 0 10px 12px;border-left:2px solid var(--red);margin:0 0 12px 2px}
+.mm__subs a{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;font-size:14.5px;font-weight:500;color:var(--ink2)}
+.mm__subs a:first-child{font-weight:700;color:var(--ink)}
+.mm__subs small{font:500 12px var(--f);color:var(--faint)}
+/* el envoltorio del menú no debe heredar el ajuste de "primer/último enlace" de la barra */
+.cats__item > a:first-child{padding-left:13px}
+.cats__in > .cats__item:first-child > a{padding-left:0}
+@media (max-width:820px){ .cats__item > a:first-child,.cats__in > .cats__item:first-child > a{padding:0 14px} }
