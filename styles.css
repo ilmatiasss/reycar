@@ -1064,3 +1064,21 @@ body.is-catalog .cats{display:none}
 .cats__item > a:first-child{padding-left:13px}
 .cats__in > .cats__item:first-child > a{padding-left:0}
 @media (max-width:820px){ .cats__item > a:first-child,.cats__in > .cats__item:first-child > a{padding:0 14px} }
+
+/* ═════════════════════════════════════════════
+   CATEGORÍAS MADRE (cuidado exterior / interior)
+   ═════════════════════════════════════════════ */
+@media (min-width:1101px){
+  .cats__mega{width:min(1000px,calc(100vw - 2 * var(--gut)));padding:10px 14px 14px}
+  .cats__cols{display:grid;grid-template-columns:repeat(4,1fr);gap:14px 20px;padding-top:4px}
+  .cats__col{display:flex;flex-direction:column}
+  .cats .cats__mega .cats__col a{padding:6px 8px;font-size:13.5px}
+  .cats .cats__mega a.cats__gh{margin-bottom:2px;font-weight:700;font-size:14px;color:var(--ink);justify-content:flex-start;gap:8px}
+}
+/* filtros: la madre arriba y sus categorías con sangría */
+.fl button.fl__p{font-weight:600;color:var(--ink)}
+.fl button.fl__c{padding-left:22px;font-size:14px}
+/* menú del celular: título de cada categoría madre */
+.mm__list .mm__h{display:flex;justify-content:space-between;align-items:baseline;margin-top:18px;padding:0 2px 8px;border-bottom:1px solid var(--line2);font:600 11.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--gold)}
+.mm__list .mm__h:first-child{margin-top:4px}
+.mm__list .mm__h small{font:600 12px var(--f);letter-spacing:0;text-transform:none;color:var(--red-t)}

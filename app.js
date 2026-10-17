@@ -9,6 +9,11 @@ const WA = '56963555437';
 const IMG_BASE = 'https://reycarstore.cl/wp-content/uploads/';
 const PAGE = 24;
 const ROUTE = ['lavado', 'secado', 'descontaminacion', 'pulido', 'proteccion', 'interior']; // orden del proceso
+// categorías madre: ordenan el menú, la tienda y las migas (cada categoría pertenece a una sola)
+const PARENTS = [
+  { id: 'exterior', name: 'Cuidado exterior', short: 'exterior', blurb: 'Lavado, descontaminación, pulido y protección para pintura, neumáticos, llantas y vidrios.', groups: ['lavado', 'secado', 'descontaminacion', 'pulido', 'proteccion', 'ruedas', 'vidrios'] },
+  { id: 'interior', name: 'Cuidado interior', short: 'interior', blurb: 'Limpieza y cuidado de tapices, cuero, plásticos y aromas del habitáculo.', groups: ['interior'] },
+];
 
 /* ───────── utilidades ───────── */
 const $ = (s, r = document) => r.querySelector(s);
@@ -96,6 +101,21 @@ P.forEach((p) => {
   p.spec = specOf(p.n);
   p.t = niceName(p.n);
 });
+const pById = new Map(PARENTS.map((x) => [x.id, x]));
+const parentOf = new Map(PARENTS.flatMap((x) => x.groups.map((id) => [id, x])));
+PARENTS.forEach((x) => { x.count = x.groups.reduce((a, id) => a + gById.get(id).count, 0); });
+// una categoría madre con una sola categoría lleva directo a ella
+const pHref = (x) => (x.groups.length > 1 ? `#/tienda?p=${x.id}` : `#/tienda?g=${x.groups[0]}`);
+// nombre visible de una categoría: si es la única de su madre, se muestra la madre ("Cuidado interior")
+const gName = (g) => { const x = parentOf.get(g.id); return x && x.groups.length === 1 ? x.name : g.name; };
+// migas de categoría: madre (si agrupa varias) › categoría › subcategoría; con `last` el último queda como texto
+function catTrail(g, sc, last) {
+  const x = parentOf.get(g.id), t = [];
+  if (x && x.groups.length > 1) t.push([pHref(x), x.name]);
+  t.push([`#/tienda?g=${g.id}`, gName(g)]);
+  if (sc) t.push([`#/tienda?g=${g.id}&sc=${sc.id}`, sc.name]);
+  return t.map(([h, n], i) => (last && i === t.length - 1 ? `<span>${esc(n)}</span>` : `<a href="${h}">${esc(n)}</a>`)).join('');
+}
 const brandCount = {};
 P.forEach((p) => { if (p.b) brandCount[p.b] = (brandCount[p.b] || 0) + 1; });
 const BRANDS = Object.entries(brandCount).map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
@@ -546,6 +566,7 @@ const toQuery = (o) => { const u = new URLSearchParams(); Object.entries(o).forE
 
 function filterProducts(o) {
   let list = P;
+  if (o.p) { const x = pById.get(o.p); if (x) list = list.filter((p) => x.groups.includes(p.g)); }
   if (o.g) list = list.filter((p) => p.g === o.g);
   if (o.sc) list = list.filter((p) => p.sc === o.sc);
   if (o.b) { const set = new Set(o.b.split(',')); list = list.filter((p) => set.has(p.b)); }
@@ -573,35 +594,42 @@ function viewShop(params) {
 function drawShop() {
   const o = shop.params;
   const root = $('#shopRoot'); if (!root) return;
+  const grpBtn = (x, c = '') => `<button class="${c}${o.g === x.id ? ' on' : ''}" data-action="set-group" data-g="${x.id}">${esc(x.name)} <em>${gc[x.id] || 0}</em></button>`;
   const oldF = $('.filters', root), oldB = $('.brandlist', root);
   const keep = { f: oldF ? oldF.scrollTop : 0, b: oldB ? oldB.scrollTop : 0, open: !!(oldF && oldF.classList.contains('open')) };
   const list = filterProducts(o);
   const g = o.g && gById.get(o.g);
   const scx = o.sc && scById.get(o.sc);
+  const px = !g && o.p && pById.get(o.p);
   const sel = o.b ? o.b.split(',') : [];
   // categoría grande sin otros filtros: se muestra por subcategoría (no 100 productos seguidos)
-  const landing = g && g.subs && !scx && !o.q && !o.b && !o.min && !o.max && !o.sort && g.count > 16;
+  const plain = !o.q && !o.b && !o.min && !o.max && !o.sort;
+  const landing = g && g.subs && !scx && plain && g.count > 16;
 
   const bc = {}; filterProducts({ ...o, b: '' }).forEach((p) => { if (p.b) bc[p.b] = (bc[p.b] || 0) + 1; });
   const brandsCtx = Object.entries(bc).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   sel.forEach((s) => { if (!bc[s]) brandsCtx.push([s, 0]); });
-  const gc = {}; filterProducts({ ...o, g: '' }).forEach((p) => { gc[p.g] = (gc[p.g] || 0) + 1; });
+  const gc = {}; filterProducts({ ...o, g: '', p: '', sc: '' }).forEach((p) => { gc[p.g] = (gc[p.g] || 0) + 1; });
 
-  const title = o.q ? `«${esc(o.q)}»` : scx ? esc(scx.name) : g ? esc(g.name) : sel.length === 1 ? esc(sel[0]) : 'Catálogo';
-  const sub = o.q ? `Resultados de búsqueda.` : scx ? `${scx.count} producto${scx.count === 1 ? '' : 's'} en ${g ? g.name : ''}.` : g ? g.blurb : sel.length === 1 ? 'Productos originales de la marca.' : `${P.length} productos de ${BRANDS.length} marcas.`;
+  const title = o.q ? `«${esc(o.q)}»` : scx ? esc(scx.name) : g ? esc(gName(g)) : px ? esc(px.name) : sel.length === 1 ? esc(sel[0]) : 'Catálogo';
+  const sub = o.q ? `Resultados de búsqueda.` : scx ? `${scx.count} producto${scx.count === 1 ? '' : 's'} en ${g ? g.name : ''}.` : g ? g.blurb : px ? px.blurb : sel.length === 1 ? 'Productos originales de la marca.' : `${P.length} productos de ${BRANDS.length} marcas.`;
   const tags = [];
-  if (g) tags.push(['g', g.name]);
+  if (px) tags.push(['p', px.name]);
+  if (g) tags.push(['g', gName(g)]);
   if (scx) tags.push(['sc', scx.name]);
   sel.forEach((s) => tags.push(['b:' + s, s]));
   if (o.q) tags.push(['q', `“${o.q}”`]);
   if (o.min || o.max) tags.push(['price', `${o.min ? clp(o.min) : '$0'} – ${o.max ? clp(o.max) : 'máx.'}`]);
 
   root.innerHTML = `
-    <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda">Tienda</a>${g && scx ? `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a><span>${esc(scx.name)}</span>` : g ? `<span>${esc(g.name)}</span>` : o.q ? '<span>Búsqueda</span>' : ''}</div>
+    <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda">Tienda</a>${g ? catTrail(g, scx, true) : px ? `<span>${esc(px.name)}</span>` : o.q ? '<span>Búsqueda</span>' : ''}</div>
     <div class="ptitle"><h1 class="cond">${title}</h1><p>${esc(sub)}</p></div>
     ${g && g.subs ? `<nav class="subnav" aria-label="Subcategorías de ${esc(g.name)}">
       <a class="${!scx ? 'on' : ''}" href="#/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <em>${g.count}</em></a>
       ${g.subs.map((s) => `<a class="${scx && scx.id === s.id ? 'on' : ''}" href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <em>${s.count}</em></a>`).join('')}
+    </nav>` : px ? `<nav class="subnav" aria-label="Categorías de ${esc(px.name)}">
+      <a class="on" href="${pHref(px)}">Todo ${esc(px.short)} <em>${px.count}</em></a>
+      ${px.groups.map((id) => { const x = gById.get(id); return `<a href="#/tienda?g=${id}">${esc(x.name)} <em>${x.count}</em></a>`; }).join('')}
     </nav>` : ''}
     <div class="shop">
       <div class="filters-scrim" data-action="close-filters"></div>
@@ -611,7 +639,9 @@ function drawShop() {
           <h4>Categoría</h4>
           <div class="fl">
             <button class="${!o.g ? 'on' : ''}" data-action="set-group" data-g="">Todas <em>${Object.values(gc).reduce((a, b) => a + b, 0)}</em></button>
-            ${G.map((x) => `<button class="${o.g === x.id ? 'on' : ''}" data-action="set-group" data-g="${x.id}">${esc(x.name)} <em>${gc[x.id] || 0}</em></button>`).join('')}
+            ${PARENTS.map((x) => `<button class="fl__p${(x.groups.length > 1 ? px === x : o.g === x.groups[0]) ? ' on' : ''}" data-action="set-parent" data-p="${x.id}">${esc(x.name)} <em>${x.groups.reduce((a, id) => a + (gc[id] || 0), 0)}</em></button>
+              ${x.groups.length > 1 ? x.groups.map((id) => grpBtn(gById.get(id), 'fl__c')).join('') : ''}`).join('')}
+            ${G.filter((x) => !parentOf.has(x.id)).map((x) => grpBtn(x)).join('')}
           </div>
         </div>
         ${g && g.subs ? `<div>
@@ -647,23 +677,24 @@ function drawShop() {
         <div class="more" id="more"></div>
       </div>
     </div>`;
-  if (landing) drawSections(g); else drawResults(list);
+  if (landing) drawSections(g.subs.map((s) => [s.name, `#/tienda?g=${g.id}&sc=${s.id}`, filterProducts({ g: g.id, sc: s.id })]));
+  else if (px && plain) drawSections(px.groups.map((id) => [gById.get(id).name, `#/tienda?g=${id}`, filterProducts({ g: id })]));
+  else drawResults(list);
   const f = $('.filters', root), bl = $('.brandlist', root);
   if (f) f.scrollTop = keep.f;
   if (bl) bl.scrollTop = keep.b;
   const sn = $('.subnav', root), son = sn && $('.on', sn); // en celular la fila se desliza: dejar visible la subcategoría activa
   if (son && sn.scrollWidth > sn.clientWidth) sn.scrollLeft = son.offsetLeft - sn.offsetLeft - 16;
-  document.title = `${o.q ? 'Búsqueda: ' + o.q : scx ? scx.name + ' · ' + (g ? g.name : '') : g ? g.name : sel.length === 1 ? sel[0] : 'Tienda'} — Reycar Store`;
+  document.title = `${o.q ? 'Búsqueda: ' + o.q : scx ? scx.name + ' · ' + (g ? gName(g) : '') : g ? gName(g) : px ? px.name : sel.length === 1 ? sel[0] : 'Tienda'} — Reycar Store`;
   markNav();
 }
-// página de una categoría grande: una sección por subcategoría con sus 4 productos destacados
-function drawSections(g) {
+// página de una categoría grande o madre: una sección por subcategoría (o categoría) con sus 4 productos destacados
+function drawSections(secs) {
   const grid = $('#grid'), more = $('#more'); if (!grid) return;
   grid.className = 'secs';
-  grid.innerHTML = g.subs.map((s) => {
-    const items = filterProducts({ g: g.id, sc: s.id });
+  grid.innerHTML = secs.map(([name, href, items]) => {
     return `<section class="secs__s">
-      <div class="secs__h"><h2 class="cond">${esc(s.name)}</h2><a class="sh__link" href="#/tienda?g=${g.id}&sc=${s.id}">Ver ${items.length > 4 ? `los ${items.length}` : 'todo'} ${arrow}</a></div>
+      <div class="secs__h"><h2 class="cond">${esc(name)}</h2><a class="sh__link" href="${href}">Ver ${items.length > 4 ? `los ${items.length}` : 'todo'} ${arrow}</a></div>
       <div class="grid grid--4">${items.slice(0, 4).map(card).join('')}</div>
     </section>`;
   }).join('');
@@ -728,7 +759,7 @@ function viewProduct(slug) {
   const logo = LOGOS[p.b];
   document.title = `${p.t} — Reycar Store`;
   return `<section class="page wrap view">
-    <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda?g=${g.id}">${esc(g.name)}</a>${psc ? `<a href="#/tienda?g=${g.id}&sc=${psc.id}">${esc(psc.name)}</a>` : ''}<span>${esc(p.t)}</span></div>
+    <div class="crumbs"><a href="#/">Inicio</a>${catTrail(g, psc)}<span>${esc(p.t)}</span></div>
     <a class="back" href="#/tienda?g=${g.id}${psc ? `&sc=${psc.id}` : ''}"><span aria-hidden="true">←</span> ${esc(psc ? psc.name : g.name)}</a>
     <div class="pdp">
       <div class="gal">
@@ -838,21 +869,34 @@ function shareProduct() {
 
 /* ───────── navegación ───────── */
 function buildChrome() {
-  $('#cats').innerHTML = G.filter((g) => g.id !== 'servicios' && g.id !== 'cursos').map((g) => (g.subs
-    ? `<div class="cats__item"><a href="#/tienda?g=${g.id}" data-g="${g.id}" aria-haspopup="true">${esc(g.name)}</a>
-        <div class="cats__dd"><a class="cats__all" href="#/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <small>${g.count}</small></a>${g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <small>${s.count}</small></a>`).join('')}</div></div>`
-    : `<a href="#/tienda?g=${g.id}" data-g="${g.id}">${esc(g.name)}</a>`)).join('')
+  const subLinks = (g) => g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <small>${s.count}</small></a>`).join('');
+  const ddItem = (g, label, attr) => (g.subs
+    ? `<div class="cats__item"><a href="#/tienda?g=${g.id}" ${attr} aria-haspopup="true">${esc(label)}</a>
+        <div class="cats__dd"><a class="cats__all" href="#/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <small>${g.count}</small></a>${subLinks(g)}</div></div>`
+    : `<a href="#/tienda?g=${g.id}" ${attr}>${esc(label)}</a>`);
+  // escritorio: Cuidado exterior abre un panel con todas sus categorías y subcategorías en columnas
+  const megaItem = (x) => `<div class="cats__item cats__item--mega"><a href="${pHref(x)}" data-p="${x.id}" aria-haspopup="true">${esc(x.name)}</a>
+      <div class="cats__dd cats__mega"><a class="cats__all" href="${pHref(x)}">Todo ${esc(x.short)} <small>${x.count}</small></a>
+        <div class="cats__cols">${x.groups.map((id) => { const g = gById.get(id); return `<div class="cats__col"><a class="cats__gh" href="#/tienda?g=${id}">${esc(g.name)} <small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="#/tienda?g=${id}&sc=${s.id}">${esc(s.name)}</a>`).join('')}</div>`; }).join('')}</div></div></div>`;
+  const rest = G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios' && g.id !== 'cursos');
+  $('#cats').innerHTML = PARENTS.map((x) => (x.groups.length > 1 ? megaItem(x) : ddItem(gById.get(x.groups[0]), x.name, `data-p="${x.id}"`))).join('')
+    + rest.map((g) => ddItem(g, g.name, `data-g="${g.id}"`)).join('')
+    + `<a href="#/tienda" data-all="1">Todo el catálogo</a>`
     + `<span class="cats__sp"></span><a href="#/marcas" data-r="marcas">Marcas</a><a class="cats__svc" href="#/asesoria" data-r="asesoria">Servicios de taller</a>`;
-  $('#ftCats').insertAdjacentHTML('beforeend', G.filter((g) => ROUTE.includes(g.id)).map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="#/tienda">Todo el catálogo</a>');
+  $('#ftCats').insertAdjacentHTML('beforeend', PARENTS.map((x) => `<a href="${pHref(x)}">${esc(x.name)}</a>`).join('') + rest.map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="#/tienda">Todo el catálogo</a>');
   $$('#cats .cats__item').forEach((it) => {
     it.addEventListener('click', (e) => { if (e.target.closest('a')) { it.classList.add('is-closed'); e.target.closest('a').blur(); } });
     it.addEventListener('mouseleave', () => it.classList.remove('is-closed'));
   });
-  // menú del celular: lista de categorías y accesos
+  // menú del celular: categorías agrupadas por madre, cada una con sus subcategorías
+  const mmGroup = (g) => (g.subs
+    ? `<details><summary>${esc(g.name)}<small>${g.count}</small></summary><div class="mm__subs"><a href="#/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())}<small>${g.count}</small></a>${g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}</div></details>`
+    : `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`);
   $('#mobileMenuBody').innerHTML = `<div class="mm">
-    <nav class="mm__list" aria-label="Categorías">${G.filter((g) => g.id !== 'servicios').map((g) => (g.subs
-      ? `<details><summary>${esc(g.name)}<small>${g.count}</small></summary><div class="mm__subs"><a href="#/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())}<small>${g.count}</small></a>${g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}</div></details>`
-      : `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`)).join('')}</nav>
+    <nav class="mm__list" aria-label="Categorías">
+      ${PARENTS.map((x) => `<a class="mm__h" href="${pHref(x)}">${esc(x.name)}<small>Ver todo</small></a>${x.groups.map((id) => mmGroup(gById.get(id))).join('')}`).join('')}
+      <span class="mm__h">Más</span>${G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios').map(mmGroup).join('')}
+    </nav>
     <div class="mm__links">
       <a href="#/tienda">Todo el catálogo <small>${P.length}</small></a>
       <a href="#/marcas">Marcas <small>${BRANDS.length}</small></a>
@@ -864,8 +908,12 @@ function buildChrome() {
 function markNav() {
   const h = location.hash;
   const g = (h.match(/[?&]g=([^&]+)/) || [])[1];
+  const pp = (h.match(/[?&]p=([^&]+)/) || [])[1] || (parentOf.get(g) || {}).id;
   const r = (h.match(/^#\/([^/?]+)/) || [])[1];
-  $$('#cats a').forEach((a) => a.classList.toggle('on', !!((a.dataset.g && a.dataset.g === g && r === 'tienda') || (a.dataset.r && a.dataset.r === r))));
+  const shopping = r === 'tienda';
+  $$('#cats > a, #cats > .cats__item > a').forEach((a) => a.classList.toggle('on', !!(
+    (a.dataset.g && a.dataset.g === g && shopping) || (a.dataset.p && a.dataset.p === pp && shopping)
+    || (a.dataset.all && shopping && !g && !pp) || (a.dataset.r && a.dataset.r === r))));
   // la categoría activa visible en la barra de chips (móvil)
   const on = $('#cats a.on');
   if (on) { const c = $('#cats'); c.scrollTo({ left: on.offsetLeft - 16, behavior: 'smooth' }); }
@@ -1074,6 +1122,7 @@ function drawSearch(q) {
     sDrop.innerHTML = `<div class="sh-l">Búsquedas frecuentes</div>
       <div class="sugs">${['Shampoo', 'Cerámico', 'Microfibra', 'Pad', 'Compuesto', 'Aromatizante', 'Neumáticos', 'Meguiars', 'Koch'].map((s) => `<a href="#/tienda?q=${encodeURIComponent(s)}">${s}</a>`).join('')}</div>
       <div class="sh-l">Categorías</div>
+      ${PARENTS.filter((x) => x.groups.length > 1).map((x) => `<a class="sr sr--text" href="${pHref(x)}"><div class="sr__t">${esc(x.name)}</div><span class="sr__s">${x.count}</span></a>`).join('')}
       ${ROUTE.map((id) => { const g = gById.get(id); return `<a class="sr sr--text" href="#/tienda?g=${id}"><div class="sr__t">${esc(g.name)}</div><span class="sr__s">${g.count}</span></a>`; }).join('')}`;
     return;
   }
@@ -1160,18 +1209,20 @@ document.addEventListener('click', (e) => {
     case 'checkout': track('beginCheckout', cartItemsT()); toast('Prototipo: aquí se conecta al checkout'); break;
     case 'open-menu': openOverlay('#mobileMenu'); break;
     case 'close-menu': closeOverlay('#mobileMenu'); break;
-    case 'set-group': setParams({ g: t.dataset.g, sc: '' }); break;
+    case 'set-group': setParams({ g: t.dataset.g, sc: '', p: '' }); break;
+    case 'set-parent': { const x = pById.get(t.dataset.p); setParams(x.groups.length > 1 ? { p: x.id, g: '', sc: '' } : { g: x.groups[0], p: '', sc: '' }); break; }
     case 'set-sub': setParams({ sc: t.dataset.sc }); break;
     case 'rm-tag': {
       const k = t.dataset.k;
       if (k === 'g') setParams({ g: '', sc: '' });
+      else if (k === 'p') setParams({ p: '' });
       else if (k === 'sc') setParams({ sc: '' });
       else if (k === 'q') setParams({ q: '' });
       else if (k === 'price') setParams({ min: '', max: '' });
       else { const b = k.slice(2); setParams({ b: (shop.params.b || '').split(',').filter((x) => x && x !== b).join(',') }); }
       break;
     }
-    case 'clear-filters': setParams({ g: '', sc: '', b: '', q: '', min: '', max: '' }); break;
+    case 'clear-filters': setParams({ p: '', g: '', sc: '', b: '', q: '', min: '', max: '' }); break;
     case 'more': shop.shown += PAGE; drawResults(); break;
     case 'open-filters': $('#filters').classList.add('open'); document.body.classList.add('filters-open'); break;
     case 'close-filters': $('#filters').classList.remove('open'); document.body.classList.remove('filters-open'); break;
