@@ -6,8 +6,10 @@
 <title>Reycar Store — Detailing automotriz profesional</title>
 <meta name="description" content="Productos originales de detailing automotriz: lavado, pulido, cerámicos, interior y más. Envíos a todo Chile.">
 <meta name="theme-color" content="#f6f3ef">
-<!-- propuesta de rediseño: no indexar en buscadores -->
-<meta name="robots" content="noindex, nofollow">
+<script>
+  /* solo la copia de prueba (*.vercel.app) se oculta de los buscadores; en el dominio real el sitio queda indexable */
+  if (/\.vercel\.app$/.test(location.hostname)) document.head.insertAdjacentHTML('beforeend', '<meta name="robots" content="noindex, nofollow">');
+</script>
 <script>
   // aplica el tema guardado antes de pintar (evita el destello claro/oscuro)
   (function () {
@@ -30,7 +32,7 @@
   d.dataset.perf = mode;
 })();
 </script>
-<link rel="icon" href="https://reycarstore.cl/wp-content/uploads/2026/06/logor.png">
+<link rel="icon" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap" rel="stylesheet">
@@ -48,7 +50,7 @@
     </button>
 
     <a class="logo" href="#/" aria-label="Reycar Store, inicio">
-      <img src="https://reycarstore.cl/wp-content/uploads/2026/06/logor.png" alt="" width="44" height="45">
+      <img src="assets/logo.png" alt="" width="44" height="45">
       <span class="logo__txt"><svg class="logo__wm" viewBox="0 0 627 91" aria-hidden="true" focusable="false"><use href="#rc-wm"/></svg><small>Detailing Center</small></span>
     </a>
 
@@ -87,7 +89,7 @@
     <div class="ft__grid">
       <div class="ft__brand">
         <a class="logo logo--inv" href="#/" aria-label="Reycar, inicio">
-          <img src="https://reycarstore.cl/wp-content/uploads/2026/06/logor.png" alt="" width="44" height="45">
+          <img src="assets/logo.png" alt="" width="44" height="45">
           <span class="logo__txt"><svg class="logo__wm" viewBox="0 0 627 91" aria-hidden="true" focusable="false"><use href="#rc-wm"/></svg><small>Detailing Center</small></span>
         </a>
         <p>Tienda y taller de detailing automotriz en Quinta Normal, Santiago. Productos originales y envíos a todo Chile.</p>
@@ -102,8 +104,6 @@
         <summary><h4>Ayuda</h4></summary>
         <a href="#/asesoria">Servicios de taller</a>
         <a href="#/marcas">Marcas</a>
-        <a href="https://reycarstore.cl/my-account/" target="_blank" rel="noopener">Mi cuenta</a>
-        <a href="https://reycarstore.cl/terminos-y-condiciones-2/" target="_blank" rel="noopener">Términos y condiciones</a>
       </details>
       <details class="ft__col" open>
         <summary><h4>Contacto</h4></summary>

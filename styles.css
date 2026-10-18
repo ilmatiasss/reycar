@@ -8,7 +8,7 @@
 :root{
   color-scheme:light;
   --bg:#f6f3ef; --surface:#ffffff; --surface2:#faf8f5;
-  --ink:#151313; --ink2:#34302e; --muted:#6f6863; --faint:#9e9690;
+  --ink:#151313; --ink2:#34302e; --muted:#6f6863; --faint:#736c65;
   --line:#e7e1da; --line2:#d3cbc3;
   --red:#d0181f; --red-h:#a8121a; --red-t:#c4161d;
   --gold:#8c6414; --gold-d:#c9962f; --gold-s:rgba(201,150,47,.16);
@@ -27,7 +27,7 @@
 :root[data-theme="dark"]{
   color-scheme:dark;
   --bg:#09090b; --surface:#141417; --surface2:#1a1a1f;
-  --ink:#f4f4f5; --ink2:#d6d6db; --muted:#a2a2ab; --faint:#72727c;
+  --ink:#f4f4f5; --ink2:#d6d6db; --muted:#a2a2ab; --faint:#8c8c96;
   --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.18);
   --red:#e4232f; --red-h:#ff4a55; --red-t:#ff5a64;
   --gold:#e9b84a; --gold-d:#e9b84a; --gold-s:rgba(233,184,74,.14);
@@ -42,7 +42,7 @@
   :root:not([data-theme="light"]){
     color-scheme:dark;
     --bg:#09090b; --surface:#141417; --surface2:#1a1a1f;
-    --ink:#f4f4f5; --ink2:#d6d6db; --muted:#a2a2ab; --faint:#72727c;
+    --ink:#f4f4f5; --ink2:#d6d6db; --muted:#a2a2ab; --faint:#8c8c96;
     --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.18);
     --red:#e4232f; --red-h:#ff4a55; --red-t:#ff5a64;
     --gold:#e9b84a; --gold-d:#e9b84a; --gold-s:rgba(233,184,74,.14);
@@ -172,7 +172,7 @@ a:hover .arrow,button:hover .arrow{transform:translateX(4px)}
 .vit__side{position:relative;isolation:isolate;display:flex;flex-direction:column;justify-content:space-between;gap:16px;padding:clamp(22px,2.4vw,30px);border-radius:var(--r);overflow:hidden;color:#fff;transition:transform .35s var(--ease)}
 .vit__side--red{background:var(--red)}
 .vit__side--dark{background:#0f0e0e;border:1px solid rgba(255,255,255,.08)}
-.vit__side .mono{color:rgba(255,255,255,.75)}
+.vit__side .mono{color:rgba(255,255,255,.92)}
 .vit__side--dark .mono{color:#e9b84a}
 .vit__side strong{display:block;font-size:clamp(34px,3.3vw,52px)}
 .vit__side strong em{font-style:normal;display:block;font-size:.5em;letter-spacing:.02em;opacity:.85;margin-bottom:6px}
@@ -320,7 +320,7 @@ a.perk:hover b{color:var(--red-t)}
 .ft__col > summary::-webkit-details-marker{display:none}
 .ft__col h4{font:500 11px var(--mono);text-transform:uppercase;letter-spacing:.1em;color:#e9b84a;margin:0 0 6px}
 .ft__col a:hover{color:#fff}
-.ft__bot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px 24px;margin-top:44px;padding-top:20px;border-top:1px solid #222;font:500 11.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:#7d7c77}
+.ft__bot{display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px 24px;margin-top:44px;padding-top:20px;border-top:1px solid #222;font:500 11.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:#8d8c87}
 
 /* ───────── Páginas interiores ───────── */
 .page{padding-top:22px}
@@ -393,7 +393,7 @@ a.perk:hover b{color:var(--red-t)}
 .info__now{font-size:clamp(36px,3.4vw,46px);font-weight:800;line-height:1;letter-spacing:-.015em;font-variant-numeric:tabular-nums}
 .info__was{font-size:16px;color:var(--faint)}
 .info__save{font:600 11.5px var(--mono);text-transform:uppercase;letter-spacing:.04em;color:#fff;background:var(--red);padding:4px 9px;border-radius:99px}
-.stock{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:14px;font-weight:600;color:#1f9150}
+.stock{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:14px;font-weight:600;color:#17783f}
 .stock i{width:8px;height:8px;border-radius:50%;background:currentColor}
 .stock--low{color:var(--red-t)}
 .buy{display:flex;gap:10px;margin-top:18px}
@@ -1112,7 +1112,7 @@ body.is-catalog .cats{display:none}
    MOTOR CLEAN (marca destacada: inicio, página propia, fichas y catálogo)
    colores tomados de su logo: magenta y verde
    ═════════════════════════════════════════════ */
-:root{--mc-pink:#e8009c;--mc-pink-d:#c4007f;--mc-green:#3fe02c}
+:root{--mc-pink:#d4008c;--mc-pink-d:#c4007f;--mc-green:#3fe02c}
 .mcb{position:relative;overflow:hidden;padding:clamp(22px,3vw,36px);border:1px solid rgba(255,255,255,.07);border-radius:var(--r);background:#151215;color:#fff}
 .mcb::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,var(--mc-pink) 0 50%,var(--mc-green) 50% 100%)}
 .mcb__head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:18px 28px}
@@ -1324,3 +1324,9 @@ img[data-fit="frame"]{border-radius:6px}
   .taller,.help{margin-top:44px}
 }
 @media (min-width:821px) and (max-width:1024px){ body.is-catalog .filters{top:0;max-height:none} }
+
+/* contraste: botón activo "Motor Clean" del celular también en modo oscuro (texto blanco sobre magenta) */
+@media (max-width:820px){ :root[data-mode="dark"] .cats a.cats__mc.on{color:#fff} }
+/* contraste en modo oscuro: "En stock" en verde claro y texto de la tarjeta roja en blanco */
+:root[data-mode="dark"] .stock:not(.stock--low):not(.stock--out){color:#3fbf72}
+.vit__side--red .mono{color:#fff}

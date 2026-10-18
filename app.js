@@ -7,7 +7,7 @@ const P = ALL.filter((p) => !p.fam || p.fam === p.id); // lo que se lista: un pr
 const G = window.GROUPS;
 const DISC = 0;                  // descuento web (ej. 0.05); en 0 no se muestra insignia ni precio tachado
 const WA = '56963555437';
-const IMG_BASE = 'https://reycarstore.cl/wp-content/uploads/';
+const IMG_BASE = 'assets/uploads/';   // fotos copiadas al proyecto con scripts/mirror-images.py (antes se leían del sitio anterior)
 const PAGE = 24;
 const ROUTE = ['lavado', 'secado', 'descontaminacion', 'pulido', 'proteccion', 'interior']; // orden del proceso
 // categorías madre: ordenan el menú, la tienda y las migas (cada categoría pertenece a una sola)
@@ -23,6 +23,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const clp = (n) => '$' + Math.round(n).toLocaleString('es-CL');
 const web = (p) => Math.round(p.p * (1 - DISC));
 const was = (p) => (DISC ? `<s>${clp(p.p)}</s>` : '');
+const safeDec = (s) => { try { return decodeURIComponent(s); } catch (e) { return s; } };
 const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const U = (u) => (u && !/^https?:/.test(u) ? IMG_BASE + u : u);
 const wa = (msg) => `https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;
@@ -86,7 +87,7 @@ function niceName(raw) {
 }
 
 // nombre de la familia: el de su formato más chico sin el tamaño ("Desengrasante 2000 Motor Clean")
-const stripSize = (t) => t.replace(UNIT_RX, ' ').replace(/(?<![\d.,])\d+(?:[.,]\d+)?\s*(″|"|“|”)(\s*x\s*\d+(?:[.,]\d+)?\s*(″|"|“|”)?)?/g, ' ').replace(/\(\s*\)/g, ' ').replace(/\s+/g, ' ').replace(/[\s\-–,]+$/, '').trim();
+const stripSize = (t) => t.replace(UNIT_RX, ' ').replace(/(^|[^\d.,])\d+(?:[.,]\d+)?\s*(″|"|“|”)(\s*x\s*\d+(?:[.,]\d+)?\s*(″|"|“|”)?)?/g, '$1 ').replace(/\(\s*\)/g, ' ').replace(/\s+/g, ' ').replace(/[\s\-–,]+$/, '').trim();
 // nombre a mostrar en listas: el de la familia si tiene varios formatos
 const ttl = (p) => { const h = p.fam ? byId.get(p.fam) : p; return h.ft || p.t; };
 const headOf = (p) => (p.fam ? byId.get(p.fam) : p);
@@ -143,10 +144,12 @@ function specOf(n) {
   if ((m = n.match(/(\d+(?:[.,]\d+)?)\s*(ml|cc)\b/i))) return `${m[1]} ml`;
   if ((m = n.match(/(\d+(?:[.,]\d+)?)\s*(litros?|lts?)\b/i)) || (m = n.match(/(\d+(?:[.,]\d+)?)\s*l\b\.?/i))) return parseFloat(m[1]) > 50 ? `${m[1]} ml` : `${m[1]} L`; // "500 L" en un frasco = 500 ml
   // medidas solo en paños/toallas o con "cm" explícito (en pads "5,5 x 1" son pulgadas)
-  if ((m = n.match(/(?<![\d.])(\d{2,3})\s*[x×]\s*(\d{2,3})\s*(cm)?/i)) && (m[3] || /toalla|pa[ñn]o|microfibra|towel/i.test(n))) return `${m[1]}×${m[2]} cm`;
+  if ((m = n.match(/(?:^|[^\d.])(\d{2,3})\s*[x×]\s*(\d{2,3})\s*(cm)?/i)) && (m[3] || /toalla|pa[ñn]o|microfibra|towel/i.test(n))) return `${m[1]}×${m[2]} cm`;
   if ((m = n.match(/(\d+(?:[.,]\d+)?)\s*(kg|gr?)\b/i))) return `${m[1]} ${/kg/i.test(m[2]) ? 'kg' : 'g'}`;
   if ((m = n.match(/(\d+(?:[.,]\d+)?)\s*oz\b/i))) return `${m[1]} oz`;
-  if ((m = n.match(/(?<![x×]\s?)(?<![\d.,])(\d+(?:[.,]\d+)?)\s*(″|"|“|”)/i))) return `${m[1]}″`;
+  // pulgadas, salvo en medidas "5,5 x 1,25″" (el número va tras una x) o dentro de otro número
+  m = [...n.matchAll(/(\d+(?:[.,]\d+)?)\s*(″|"|“|”)/gi)].find((x) => { const b = n.slice(0, x.index); return !/[x×]\s?$/i.test(b) && !/[\d.,]$/.test(b); });
+  if (m) return `${m[1]}″`;
   return '';
 }
 const pick = (rx, g) => P.find((p) => p.img && rx.test(p.n) && (!g || p.g === g));
@@ -178,7 +181,9 @@ const tItem = (p, qty = 1) => ({ id: `${p.sku}_${p.id}`, name: p.t, brand: p.b |
 const STOCK_EVERY = 60 * 1000;
 async function syncStock(timeout = 1500) {
   try {
-    const r = await fetch('/api/stock', { cache: 'no-store', signal: AbortSignal.timeout(timeout) });
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), timeout);
+    const r = await fetch('/api/stock', { cache: 'no-store', signal: ctl.signal });
+    clearTimeout(tm);
     if (!r.ok) return false;
     const j = await r.json();
     if (j.source !== 'bsale' || !j.stock) return false;
@@ -196,7 +201,13 @@ async function syncStock(timeout = 1500) {
 /* ───────── carro ───────── */
 let cart = {};
 try { cart = JSON.parse(localStorage.getItem('reycars-cart') || '{}'); } catch (e) { cart = {}; }
-Object.keys(cart).forEach((id) => { if (!byId.has(+id)) delete cart[id]; });
+// el carro guardado puede venir viejo o dañado: solo quedan productos que existen y cantidades enteras válidas
+if (!cart || typeof cart !== 'object' || Array.isArray(cart)) cart = {};
+Object.keys(cart).forEach((id) => {
+  const q = Math.floor(Number(cart[id]));
+  if (!byId.has(+id) || !(q >= 1)) delete cart[id]; else cart[id] = Math.min(q, 99);
+});
+try { localStorage.setItem('reycars-cart', JSON.stringify(cart)); } catch (e) { /* modo privado */ }
 // después de actualizar el stock: el carro nunca supera lo disponible
 function fitCartToStock() {
   let removed = 0;
@@ -334,7 +345,7 @@ const LOGOS = {
   'Meguiars': ['assets/brands/meguiars.png', 'tall'], 'Vonixx': ['assets/brands/vonixx.webp', 'dark'],
   'Maxshine': ['assets/brands/maxshine.png'], 'KochChemie': ['assets/brands/kochchemie.svg'],
   'Carpro': ['assets/brands/carpro.jpg', 'clip'], 'DIY': ['assets/brands/diy.png'],
-  'ReyCar': ['https://reycarstore.cl/wp-content/uploads/2026/06/logor.png', 'tall'],
+  'ReyCar': ['assets/logo.png', 'tall'],
   'Menzerna': ['assets/brands/menzerna.svg'], 'Lake Country': ['assets/brands/lake-country.svg', 'dark'],
   'Rupes': ['assets/brands/rupes.png', 'tall'], 'VINTEX': ['assets/brands/vintex.webp', 'dark'],
   'DIMENSION CAR CARE': ['assets/brands/dimension-car-care.png', 'tall'], 'Shine Mate': ['assets/brands/shine-mate.svg', 'tall'],
@@ -405,12 +416,12 @@ function viewMC(o) {
   </section>`;
 }
 // logos de igual peso visual: misma superficie aproximada sin importar si son altos o muy anchos
-const LOGO_FIT = 'this.style.width=Math.round(Math.min(150,Math.sqrt(2900*this.naturalWidth/this.naturalHeight)))+\'px\'';
+const fitLogo = (i) => { if (i.naturalWidth && i.naturalHeight) i.style.width = Math.round(Math.min(150, Math.sqrt(2900 * i.naturalWidth / i.naturalHeight))) + 'px'; };
 const brandCell = (b, i = 0) => {
   const logo = LOGOS[b.name];
   return `<a class="bc rv" style="--d:${(i % 6) * 0.05}s" href="${b.name === MC ? '#/motor-clean' : `#/tienda?b=${encodeURIComponent(b.name)}`}" aria-label="${esc(b.name)}, ${b.n} producto${b.n === 1 ? '' : 's'}">
     <span class="bc__plate">${logo
-      ? `<img class="bc__logo${logo[1] ? ' fx-' + logo[1] : ''}" src="${logo[0]}" alt="${esc(b.name)}" loading="lazy" onload="${LOGO_FIT}">`
+      ? `<img class="bc__logo${logo[1] ? ' fx-' + logo[1] : ''}" src="${logo[0]}" alt="${esc(b.name)}" loading="lazy">`
       : `<span class="bc__word cond">${esc(b.name)}</span>`}</span>
     <span class="bc__meta"><b>${esc(b.name)}</b><span>${b.n} producto${b.n === 1 ? '' : 's'}</span></span>
   </a>`;
@@ -1015,7 +1026,7 @@ function buildChrome() {
     + rest.map((g) => ddItem(g, g.name, `data-g="${g.id}"`)).join('')
     + `<a href="#/tienda" data-all="1">Todo el catálogo</a><a class="cats__mc" href="#/motor-clean" data-r="motor-clean">Motor Clean</a>`
     + `<span class="cats__sp"></span><a href="#/marcas" data-r="marcas">Marcas</a><a class="cats__svc" href="#/asesoria" data-r="asesoria">Servicios de taller</a>`;
-  $('#ftCats').insertAdjacentHTML('beforeend', PARENTS.map((x) => `<a href="${pHref(x)}">${esc(x.name)}</a>`).join('') + rest.map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="#/tienda">Todo el catálogo</a>');
+  $('#ftCats').insertAdjacentHTML('beforeend', PARENTS.map((x) => `<a href="${pHref(x)}">${esc(x.name)}</a>`).join('') + rest.map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="#/motor-clean">Motor Clean</a><a href="#/tienda">Todo el catálogo</a>');
   $$('#cats .cats__item').forEach((it) => {
     const top = it.firstElementChild;
     // el nombre de la categoría no navega: en escritorio deja el panel abierto, en celular abre la hoja de subcategorías
@@ -1046,7 +1057,7 @@ function buildChrome() {
 function markNav() {
   const h = location.hash;
   const r = (h.match(/^#\/([^/?]+)/) || [])[1];
-  const prod = r === 'producto' ? bySlug.get(decodeURIComponent(h.split('/')[2] || '')) : null;
+  const prod = r === 'producto' ? bySlug.get(safeDec(h.split('/')[2] || '')) : null;
   const g = (h.match(/[?&]g=([^&]+)/) || [])[1] || (prod && prod.g);
   const pp = (h.match(/[?&]p=([^&]+)/) || [])[1] || (parentOf.get(g) || {}).id;
   const shopping = r === 'tienda' || !!prod;
@@ -1079,7 +1090,7 @@ function route() {
   const fromFam = lastRoute === 'producto' && pdp.p ? headOf(pdp.p) : null, y = window.scrollY;
   let html;
   if (name === 'tienda') html = viewShop(parseQuery(qs));
-  else if (name === 'producto') html = viewProduct(decodeURIComponent(seg[1] || ''));
+  else if (name === 'producto') html = viewProduct(safeDec(seg[1] || ''));
   else if (name === 'marcas') html = viewBrands();
   else if (name === 'asesoria') html = viewServices();
   else if (name === 'motor-clean') html = viewMC(parseQuery(qs));
@@ -1089,6 +1100,7 @@ function route() {
   document.body.classList.toggle('has-sticky', name === 'producto');
   if (name === 'tienda') drawShop();
   markNav();
+  $$('.bc__logo').forEach((i) => { if (i.complete) fitLogo(i); }); // logos ya en caché
   window.scrollTo(0, name === 'producto' && fromFam && pdp.p && headOf(pdp.p) === fromFam ? y : 0); // cambio de formato: no saltar arriba
   observeReveals();
   cfInit();
@@ -1398,6 +1410,7 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') { closeLightbox(); closeOverlay('#drawer'); closeOverlay('#mobileMenu'); closeOverlay('#catSheet'); const f = $('#filters'); if (f) f.classList.remove('open'); document.body.classList.remove('filters-open'); }
 });
 // fotos que no cargan -> placeholder
+document.addEventListener('load', (e) => { if (e.target.classList && e.target.classList.contains('bc__logo')) fitLogo(e.target); }, true);
 document.addEventListener('error', (e) => {
   const im = e.target;
   if (im.tagName === 'IMG' && !im.dataset.fb && im.closest('.pc__img,.gal__main')) {

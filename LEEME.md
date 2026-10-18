@@ -57,3 +57,32 @@ hoy el prototipo no tiene checkout propio, por eso solo se simula en el panel de
 
 `build-data.js`, `fetch-logos.js` y `find-logos.js` generan `data/` y `assets/brands/` desde
 reycarstore.cl. No se publican (ver `.vercelignore`).
+
+Fotos: `python3 -I scripts/mirror-images.py` las copia a `assets/uploads/` (la tienda ya no las lee del
+sitio anterior). `python3 -I scripts/img-fit.py` mide el encuadre de cada una (`data/imgfit.json`) y
+`node build-data.js` lo incorpora. Si cambia el catálogo: `build-data.js` → `mirror-images.py` → `img-fit.py`
+→ `build-data.js`.
+
+## Salida a producción
+
+**Ya resuelto:** fotos y logo propios (sin depender del sitio anterior), encabezados de seguridad,
+buscadores bloqueados solo en `reycar.vercel.app` (en el dominio real el sitio es indexable), carro y
+direcciones a prueba de datos dañados, sin código que falle en iPhones con iOS antiguo, contraste de
+colores AA, medición lista (falta cargar los IDs).
+
+**Falta antes de vender (decisiones y datos del cliente):**
+
+1. **Cobro.** "Finalizar compra" es todavía una simulación: no hay pago ni pedido. Hace falta Webpay
+   Plus (código de comercio y llave de Transbank), cálculo de despacho, formulario de datos del cliente y
+   emisión de boleta/factura en Bsale. Alternativa para abrir antes: pedido por WhatsApp.
+2. **Direcciones y buscadores.** El sitio usa direcciones con `#` (`/#/producto/...`): Google no las indexa
+   bien y WhatsApp/Facebook no muestran foto ni nombre al compartir un producto. Para reemplazar la tienda
+   actual sin perder posicionamiento hace falta pasar a direcciones reales (`/producto/<nombre>`, las mismas
+   que hoy), con título, descripción y foto por producto, `sitemap.xml` y `robots.txt`.
+3. **Textos legales.** La página "Términos y condiciones" del sitio actual está vacía. Se necesitan los textos
+   (términos, privacidad, cambios y devoluciones, despacho) y los datos del proveedor (razón social y RUT).
+4. **Medición.** Cargar `metaPixelId` y `ga4Id` en `tracking.js`. `Purchase` debe salir desde el servidor al
+   confirmarse el pago (hoy solo se simula en `?track=debug`, y esa simulación no se envía a Meta ni a Google).
+5. **Bsale.** Cargar `BSALE_TOKEN` y correr `scripts/bsale-check.js` para confirmar que los SKU coinciden.
+   Los precios y productos son una copia del sitio actual: definir de dónde saldrán (Bsale) y cómo se actualizan.
+6. **Logos que faltan:** LovCars, Lincoln y Shine (hoy se muestran como texto).

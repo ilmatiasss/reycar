@@ -60,12 +60,14 @@
 
   /* ───────── envío ───────── */
   var uid = function (name) { return name + '.' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); };
-  function send(meta, ga) {
-    // meta: [nombre, datos] · ga: [nombre, datos]
+  function send(meta, ga, dry) {
+    // meta: [nombre, datos] · ga: [nombre, datos] · dry: solo registrar en el panel de pruebas, sin enviar a Meta ni Google
     var id = uid(meta ? meta[0] : ga[0]);
-    if (meta && typeof window.fbq === 'function') window.fbq('track', meta[0], meta[1] || {}, { eventID: id });
-    if (ga && typeof window.gtag === 'function') window.gtag('event', ga[0], ga[1] || {});
-    record(id, meta, ga);
+    if (!dry) {
+      if (meta && typeof window.fbq === 'function') window.fbq('track', meta[0], meta[1] || {}, { eventID: id });
+      if (ga && typeof window.gtag === 'function') window.gtag('event', ga[0], ga[1] || {});
+    }
+    record(id, meta, ga, dry);
   }
 
   /* ───────── datos de cada evento ───────── */
@@ -112,7 +114,8 @@
     purchase: function (order) {
       var items = order.items || [];
       send(['Purchase', metaBag(items, { num_items: items.reduce(function (a, i) { return a + (i.qty || 1); }, 0), order_id: order.id })],
-        ['purchase', gaBag(items, { transaction_id: order.id, shipping: order.shipping || 0 })]);
+        ['purchase', gaBag(items, { transaction_id: order.id, shipping: order.shipping || 0 })],
+        /^SIMULADO-/.test(String(order.id)));   // la compra simulada del panel de pruebas nunca se envía a Meta ni a Google
     },
     search: function (q) {
       send(['Search', { search_string: q }], ['search', { search_term: q }]);
@@ -147,8 +150,8 @@
 
   /* ───────── panel de pruebas (?track=debug) ───────── */
   var panel, list;
-  function record(id, meta, ga) {
-    var row = { id: id, time: new Date().toLocaleTimeString('es-CL'), meta: meta, ga: ga, sent: { meta: !!(meta && typeof window.fbq === 'function'), ga: !!(ga && typeof window.gtag === 'function') } };
+  function record(id, meta, ga, dry) {
+    var row = { id: id, time: new Date().toLocaleTimeString('es-CL'), meta: meta, ga: ga, sent: { meta: !dry && !!(meta && typeof window.fbq === 'function'), ga: !dry && !!(ga && typeof window.gtag === 'function') } };
     log.push(row); if (log.length > 200) log.shift();
     if (debug) draw(row);
   }
