@@ -7,7 +7,9 @@ const P = ALL.filter((p) => !p.fam || p.fam === p.id); // lo que se lista: un pr
 const G = window.GROUPS;
 const DISC = 0;                  // descuento web (ej. 0.05); en 0 no se muestra insignia ni precio tachado
 const WA = '56963555437';
-const IMG_BASE = 'assets/uploads/';   // fotos copiadas al proyecto con scripts/mirror-images.py (antes se leían del sitio anterior)
+// cómo se cierra la compra: 'whatsapp' (pedido con el detalle del carro) mientras se conecta el pago en línea (Klap)
+const CHECKOUT = 'whatsapp';
+const IMG_BASE = '/assets/uploads/';   // fotos copiadas al proyecto con scripts/mirror-images.py (antes se leían del sitio anterior)
 const PAGE = 24;
 const ROUTE = ['lavado', 'secado', 'descontaminacion', 'pulido', 'proteccion', 'interior']; // orden del proceso
 // categorías madre: ordenan el menú, la tienda y las migas (cada categoría pertenece a una sola)
@@ -123,15 +125,15 @@ const pById = new Map(PARENTS.map((x) => [x.id, x]));
 const parentOf = new Map(PARENTS.flatMap((x) => x.groups.map((id) => [id, x])));
 PARENTS.forEach((x) => { x.count = x.groups.reduce((a, id) => a + gById.get(id).count, 0); });
 // una categoría madre con una sola categoría lleva directo a ella
-const pHref = (x) => (x.groups.length > 1 ? `#/tienda?p=${x.id}` : `#/tienda?g=${x.groups[0]}`);
+const pHref = (x) => (x.groups.length > 1 ? `/tienda?p=${x.id}` : `/tienda?g=${x.groups[0]}`);
 // nombre visible de una categoría: si es la única de su madre, se muestra la madre ("Cuidado interior")
 const gName = (g) => { const x = parentOf.get(g.id); return x && x.groups.length === 1 ? x.name : g.name; };
 // migas de categoría: madre (si agrupa varias) › categoría › subcategoría; con `last` el último queda como texto
 function catTrail(g, sc, last) {
   const x = parentOf.get(g.id), t = [];
   if (x && x.groups.length > 1) t.push([pHref(x), x.name]);
-  t.push([`#/tienda?g=${g.id}`, gName(g)]);
-  if (sc) t.push([`#/tienda?g=${g.id}&sc=${sc.id}`, sc.name]);
+  t.push([`/tienda?g=${g.id}`, gName(g)]);
+  if (sc) t.push([`/tienda?g=${g.id}&sc=${sc.id}`, sc.name]);
   return t.map(([h, n], i) => (last && i === t.length - 1 ? `<span>${esc(n)}</span>` : `<a href="${h}">${esc(n)}</a>`)).join('');
 }
 const brandCount = {};
@@ -248,17 +250,17 @@ function drawCart() {
   const ids = Object.keys(cart);
   const body = $('#drawerBody'), foot = $('#drawerFoot');
   if (!ids.length) {
-    body.innerHTML = `<div class="cart-empty"><h4>Tu carro está vacío</h4><p>Agrega productos y aparecerán aquí.</p></div>`;
-    foot.innerHTML = `<a class="btn btn--dark btn--block" href="#/tienda" data-action="close-cart">Ir a la tienda</a>`;
+    body.innerHTML = `<div class="cart-empty"><h3>Tu carro está vacío</h3><p>Agrega productos y aparecerán aquí.</p></div>`;
+    foot.innerHTML = `<a class="btn btn--dark btn--block" href="/tienda" data-action="close-cart">Ir a la tienda</a>`;
     return;
   }
   body.innerHTML = ids.map((id) => {
     const p = byId.get(+id), q = cart[id];
     return `<div class="ci">
-      <a class="ci__img" href="#/producto/${p.s}" data-action="close-cart">${p.img ? `<img src="${thumb(p)}" alt=""${fit(p)}>` : ''}</a>
+      <a class="ci__img" href="/producto/${p.s}" data-action="close-cart">${p.img ? `<img src="${thumb(p)}" alt=""${fit(p)}>` : ''}</a>
       <div class="ci__b">
         <small>${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</small>
-        <a href="#/producto/${p.s}" data-action="close-cart">${esc(p.t)}</a>
+        <a href="/producto/${p.s}" data-action="close-cart">${esc(p.t)}</a>
         <div class="ci__row">
           <div class="qty qty--s">
             <button data-action="qty" data-id="${p.id}" data-d="-1" aria-label="Quitar uno">${ico('minus')}</button>
@@ -272,9 +274,9 @@ function drawCart() {
     </div>`;
   }).join('');
   foot.innerHTML = `
-    <div class="sum"><div>Subtotal<small>Envío calculado al finalizar la compra</small></div><b>${clp(cartTotal())}</b></div>
-    <button class="btn btn--red btn--block" data-action="checkout">Finalizar compra ${arrow}</button>
-    <div class="cart-perks"><span>Envíos a todo Chile</span><span>Webpay y tarjetas</span><span>Productos originales</span></div>`;
+    <div class="sum"><div>Subtotal<small>${CHECKOUT === 'whatsapp' ? 'Te confirmamos stock, despacho y pago por WhatsApp' : 'Envío calculado al finalizar la compra'}</small></div><b>${clp(cartTotal())}</b></div>
+    <button class="btn btn--red btn--block" data-action="checkout">${CHECKOUT === 'whatsapp' ? `${ico('chat')} Hacer pedido por WhatsApp` : `Finalizar compra ${arrow}`}</button>
+    <div class="cart-perks"><span>Envíos a todo Chile</span><span>Productos originales</span><span>Atención directa</span></div>`;
 }
 
 /* ───────── componentes ───────── */
@@ -288,7 +290,7 @@ const thumb = (p) => (p.im && p.im[0] ? U(p.im[0][2] || p.im[0][0]) : null);
 const srcset = (p, sizes) => (p.im[0][2] && p.im[0][2] !== p.im[0][0] ? ` srcset="${U(p.im[0][2])} 300w, ${p.img} 600w" sizes="${sizes}"` : '');
 const img = (p, big) => (p.img
   ? `<img src="${big && p.im[0][1] ? U(p.im[0][1]) : p.img}"${big ? '' : srcset(p, '(max-width: 820px) 46vw, 260px')} alt="${esc(p.t)}" loading="lazy" decoding="async"${fit(p)}>`
-  : `<span class="ph"><img src="assets/reycars-crest.webp" alt="" loading="lazy"><small>Foto pronto</small></span>`);
+  : `<span class="ph"><img src="/assets/reycars-crest.webp" alt="" loading="lazy"><small>Foto pronto</small></span>`);
 
 const stockTag = (p) => (p.stk === 0 ? '<span class="pc__stock pc__stock--out">Agotado</span>' : p.stk === 1 ? '<span class="pc__stock">Última unidad</span>' : '');
 // selector de formato (1 L · 5 L…) en tarjetas y ficha
@@ -296,10 +298,10 @@ const fmtBtns = (h, cur) => h.vs.map((v) => `<button class="${v === cur ? 'on' :
 function card(p) {
   const out = p.stk === 0, h = headOf(p);
   return `<article class="pc">
-    <a class="pc__img" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}${DISC ? `<span class="pc__off">-${DISC * 100}%</span>` : ''}${stockTag(p)}</a>
+    <a class="pc__img" href="/producto/${p.s}" tabindex="-1" aria-hidden="true">${img(p)}${DISC ? `<span class="pc__off">-${DISC * 100}%</span>` : ''}${stockTag(p)}</a>
     <div class="pc__body">
       <span class="pc__brand">${p.b ? esc(p.b) : '&nbsp;'}</span>
-      <a class="pc__name" href="#/producto/${p.s}">${esc(ttl(p))}</a>
+      <a class="pc__name" href="/producto/${p.s}">${esc(ttl(p))}</a>
       ${h.vs ? `<div class="pc__fmts" role="group" aria-label="Formato">${fmtBtns(h, p)}</div>` : p.spec ? `<span class="pc__spec">${esc(p.spec)}</span>` : ''}
       <div class="pc__price"><b>${clp(web(p))}</b>${was(p)}</div>
       <button class="pc__add" data-action="add" data-id="${p.id}"${out ? ' disabled' : ''} aria-label="${out ? 'Agotado' : 'Agregar al carro'}: ${esc(p.t)}">${ico('bag')}<span class="pc__addt">${out ? 'Agotado' : ADD_LABEL}</span></button>
@@ -311,7 +313,7 @@ function cardFmt(b) {
   const c = b.closest('.pc'), v = byId.get(+b.dataset.id); if (!c || !v) return;
   $$('.pc__fmts button', c).forEach((x) => { const on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
   $('.pc__price', c).innerHTML = `<b>${clp(web(v))}</b>${was(v)}`;
-  $$('a[href^="#/producto/"]', c).forEach((a) => { a.setAttribute('href', `#/producto/${v.s}`); });
+  $$('a[href^="/producto/"]', c).forEach((a) => { a.setAttribute('href', `/producto/${v.s}`); });
   const im = $('.pc__img img', c);
   if (im && v.img) {
     im.removeAttribute('srcset'); im.removeAttribute('style'); im.removeAttribute('data-fit'); im.src = v.img;
@@ -328,34 +330,34 @@ function cardFmt(b) {
 }
 const perksBar = () => `<div class="perks">
   <div class="perk">${ico('truck')}<div><b>Envíos a todo Chile</b><span>Despacho a todo el país</span></div></div>
-  <div class="perk">${ico('card')}<div><b>Webpay y tarjetas</b><span>Crédito y débito</span></div></div>
+  <div class="perk">${ico('card')}<div>${CHECKOUT === 'whatsapp' ? '<b>Pedido por WhatsApp</b><span>Te confirmamos stock y pago</span>' : '<b>Pago en línea</b><span>Tarjetas y billeteras digitales</span>'}</div></div>
   <div class="perk">${ico('shield')}<div><b>Productos originales</b><span>Marcas reconocidas</span></div></div>
   <a class="perk" href="${wa('Hola Reycar, necesito asesoría')}" target="_blank" rel="noopener">${ico('chat')}<div><b>Asesoría por WhatsApp</b><span>+56 9 6355 5437</span></div></a>
 </div>`;
 const helpBox = () => `<div class="help rv">
   <div>
     <span class="mono">Asesoría personalizada</span>
-    <h3 class="cond">¿No sabes qué producto usar?</h3>
+    <h2 class="cond">¿No sabes qué producto usar?</h2>
     <p>Cuéntanos qué auto tienes y qué quieres lograr. Te recomendamos la rutina por WhatsApp.</p>
   </div>
   <a class="btn btn--white" href="${wa('Hola Reycar, quisiera una recomendación de productos')}" target="_blank" rel="noopener">${ico('chat')} Escribir por WhatsApp</a>
 </div>`;
 // logos oficiales (fetch-logos.js). fx: 'dark' oscurece logos que vienen en blanco; 'clip' recorta el borde del archivo.
 const LOGOS = {
-  'Meguiars': ['assets/brands/meguiars.png', 'tall'], 'Vonixx': ['assets/brands/vonixx.webp', 'dark'],
-  'Maxshine': ['assets/brands/maxshine.png'], 'KochChemie': ['assets/brands/kochchemie.svg'],
-  'Carpro': ['assets/brands/carpro.jpg', 'clip'], 'DIY': ['assets/brands/diy.png'],
-  'ReyCar': ['assets/logo.png', 'tall'],
-  'Menzerna': ['assets/brands/menzerna.svg'], 'Lake Country': ['assets/brands/lake-country.svg', 'dark'],
-  'Rupes': ['assets/brands/rupes.png', 'tall'], 'VINTEX': ['assets/brands/vintex.webp', 'dark'],
-  'DIMENSION CAR CARE': ['assets/brands/dimension-car-care.png', 'tall'], 'Shine Mate': ['assets/brands/shine-mate.svg', 'tall'],
-  '3M': ['assets/brands/3m.svg'], 'Sonax': ['assets/brands/sonax.svg'],
-  'Motor Clean': ['assets/brands/motor-clean.png', 'tall'], 'SPTA': ['assets/brands/spta.png', 'dark'],
-  'TRINIK': ['assets/brands/trinik.svg'], 'Professional Shine': ['assets/brands/professional-shine.jpg', 'tall'],
-  'Soft 99': ['assets/brands/soft99.png'], 'Gtechniq': ['assets/brands/gtechniq.svg'],
+  'Meguiars': ['/assets/brands/meguiars.png', 'tall'], 'Vonixx': ['/assets/brands/vonixx.webp', 'dark'],
+  'Maxshine': ['/assets/brands/maxshine.png'], 'KochChemie': ['/assets/brands/kochchemie.svg'],
+  'Carpro': ['/assets/brands/carpro.jpg', 'clip'], 'DIY': ['/assets/brands/diy.png'],
+  'ReyCar': ['/assets/logo.png', 'tall'],
+  'Menzerna': ['/assets/brands/menzerna.svg'], 'Lake Country': ['/assets/brands/lake-country.svg', 'dark'],
+  'Rupes': ['/assets/brands/rupes.png', 'tall'], 'VINTEX': ['/assets/brands/vintex.webp', 'dark'],
+  'DIMENSION CAR CARE': ['/assets/brands/dimension-car-care.png', 'tall'], 'Shine Mate': ['/assets/brands/shine-mate.svg', 'tall'],
+  '3M': ['/assets/brands/3m.svg'], 'Sonax': ['/assets/brands/sonax.svg'],
+  'Motor Clean': ['/assets/brands/motor-clean.png', 'tall'], 'SPTA': ['/assets/brands/spta.png', 'dark'],
+  'TRINIK': ['/assets/brands/trinik.svg'], 'Professional Shine': ['/assets/brands/professional-shine.jpg', 'tall'],
+  'Soft 99': ['/assets/brands/soft99.png'], 'Gtechniq': ['/assets/brands/gtechniq.svg'],
 };
 /* ── Motor Clean: marca destacada con espacio propio (inicio, página, menú, fichas y catálogo) ── */
-const MC = 'Motor Clean', MC_LOGO = 'assets/brands/motor-clean.png';
+const MC = 'Motor Clean', MC_LOGO = '/assets/brands/motor-clean.png';
 const mcAll = () => P.filter((p) => p.b === MC);
 const mcGroups = () => {
   const c = {}; mcAll().forEach((p) => { c[p.g] = (c[p.g] || 0) + 1; });
@@ -370,7 +372,7 @@ function mcPicks(n) {
   for (let i = 0; out.length < n && i < 30; i++) byG.forEach((l) => { if (l[i] && out.length < n) out.push(l[i]); });
   return out;
 }
-const mcStrip = () => `<a class="mcstrip" href="#/motor-clean"><span class="mcstrip__logo"><img src="${MC_LOGO}" alt=""></span><span class="mcstrip__t"><b>Línea Motor Clean</b><span>${mcAll().length} productos, muchos en formato de 1 L y 5 L</span></span>${arrow}</a>`;
+const mcStrip = () => `<a class="mcstrip" href="/motor-clean"><span class="mcstrip__logo"><img src="${MC_LOGO}" alt=""></span><span class="mcstrip__t"><b>Línea Motor Clean</b><span>${mcAll().length} productos, muchos en formato de 1 L y 5 L</span></span>${arrow}</a>`;
 function mcHome() {
   return `<section class="sec wrap">
     <div class="mcb rv">
@@ -381,9 +383,9 @@ function mcHome() {
           <h2 class="cond">Línea Motor Clean</h2>
           <p>Shampoos, desengrasantes, renovadores de neumáticos, ceras y aromatizantes. Muchos en formato de 1 L y 5 L, para tu auto o para el taller.</p>
         </div>
-        <a class="btn mcb__btn" href="#/motor-clean">Ver la línea completa ${arrow}</a>
+        <a class="btn mcb__btn" href="/motor-clean">Ver la línea completa ${arrow}</a>
       </div>
-      <div class="mcb__cats">${mcGroups().map(({ g, n }) => `<a href="#/motor-clean?g=${g.id}">${esc(gName(g))}<small>${n}</small></a>`).join('')}</div>
+      <div class="mcb__cats">${mcGroups().map(({ g, n }) => `<a href="/motor-clean?g=${g.id}">${esc(gName(g))}<small>${n}</small></a>`).join('')}</div>
       <div class="mcb__row">${mcPicks(8).map(card).join('')}</div>
     </div>
   </section>`;
@@ -393,7 +395,7 @@ function viewMC(o) {
   const fams = mcAll().filter((p) => p.vs).length;
   document.title = 'Motor Clean — Reycar Store';
   return `<section class="page wrap view">
-    <div class="crumbs"><a href="#/">Inicio</a><a href="#/marcas">Marcas</a><span>Motor Clean</span></div>
+    <div class="crumbs"><a href="/">Inicio</a><a href="/marcas">Marcas</a><span>Motor Clean</span></div>
     <div class="mcb mcb--hero">
       <div class="mcb__head">
         <span class="mcb__logo"><img src="${MC_LOGO}" alt="Motor Clean"></span>
@@ -406,8 +408,8 @@ function viewMC(o) {
       </div>
     </div>
     <nav class="subnav mc__nav" aria-label="Categorías de Motor Clean">
-      <a class="${cur ? '' : 'on'}" href="#/motor-clean">Toda la línea <em>${mcAll().length}</em></a>
-      ${gs.map(({ g, n }) => `<a class="${cur && cur.g === g ? 'on' : ''}" href="#/motor-clean?g=${g.id}">${esc(gName(g))} <em>${n}</em></a>`).join('')}
+      <a class="${cur ? '' : 'on'}" href="/motor-clean">Toda la línea <em>${mcAll().length}</em></a>
+      ${gs.map(({ g, n }) => `<a class="${cur && cur.g === g ? 'on' : ''}" href="/motor-clean?g=${g.id}">${esc(gName(g))} <em>${n}</em></a>`).join('')}
     </nav>
     <div class="secs">${(cur ? [cur] : gs).map(({ g }) => {
       const items = mcSort(mcAll().filter((p) => p.g === g.id));
@@ -419,7 +421,7 @@ function viewMC(o) {
 const fitLogo = (i) => { if (i.naturalWidth && i.naturalHeight) i.style.width = Math.round(Math.min(150, Math.sqrt(2900 * i.naturalWidth / i.naturalHeight))) + 'px'; };
 const brandCell = (b, i = 0) => {
   const logo = LOGOS[b.name];
-  return `<a class="bc rv" style="--d:${(i % 6) * 0.05}s" href="${b.name === MC ? '#/motor-clean' : `#/tienda?b=${encodeURIComponent(b.name)}`}" aria-label="${esc(b.name)}, ${b.n} producto${b.n === 1 ? '' : 's'}">
+  return `<a class="bc rv" style="--d:${(i % 6) * 0.05}s" href="${b.name === MC ? '/motor-clean' : `/tienda?b=${encodeURIComponent(b.name)}`}" aria-label="${esc(b.name)}, ${b.n} producto${b.n === 1 ? '' : 's'}">
     <span class="bc__plate">${logo
       ? `<img class="bc__logo${logo[1] ? ' fx-' + logo[1] : ''}" src="${logo[0]}" alt="${esc(b.name)}" loading="lazy">`
       : `<span class="bc__word cond">${esc(b.name)}</span>`}</span>
@@ -454,7 +456,7 @@ function crestHTML() {
           <path class="neon neon--run neon--run2" d="${SHIELD}" pathLength="100"/>
         </g>
       </svg>
-      <img class="crest__logo" src="assets/reycars-crest.webp" alt="Reycar Detailing Center" width="768" height="786" fetchpriority="high">
+      <img class="crest__logo" src="/assets/reycars-crest.webp" alt="Reycar Detailing Center" width="768" height="786" fetchpriority="high">
       <span class="crest__shine" aria-hidden="true"></span>
       <span class="crest__spec" aria-hidden="true"></span>
       <span class="crest__runs" aria-hidden="true"><span class="runs__in">
@@ -533,8 +535,8 @@ function viewHome() {
           <h1 class="cond an" style="--d:.35s">Tu auto,<br>tratado como <span class="gold">Rey.</span></h1>
           <p class="an" style="--d:.47s">Productos originales de Meguiars, Carpro, Koch-Chemie, Vonixx y más, y el taller que los aplica. Envíos a todo Chile.</p>
           <div class="stage__cta an" style="--d:.59s">
-            <a class="btn btn--red" href="#/tienda">Ver la tienda ${arrow}</a>
-            <a class="btn btn--glass" href="#/asesoria">Servicios de taller</a>
+            <a class="btn btn--red" href="/tienda">Ver la tienda ${arrow}</a>
+            <a class="btn btn--glass" href="/asesoria">Servicios de taller</a>
           </div>
           ${DISC ? `<span class="stage__badge an" style="--d:.71s"><b>−${DISC * 100}%</b> precio web en todo el catálogo</span>` : ''}
         </div>
@@ -542,10 +544,10 @@ function viewHome() {
       ${mobileMQ.matches ? '' : `<div class="cf an" id="cf" style="--d:.55s" aria-roledescription="carrusel" aria-label="Productos destacados">
         <div class="cf__track">${showcase.map((p, i) => `
           <article class="cf__s" data-i="${i}" aria-roledescription="producto ${i + 1} de ${showcase.length}">
-            <a class="cf__tile" href="#/producto/${p.s}" tabindex="-1"><img src="${p.img}"${srcset(p, '(max-width: 820px) 58vw, 300px')} alt="${esc(p.t)}" decoding="async"${fit(p)}></a>
+            <a class="cf__tile" href="/producto/${p.s}" tabindex="-1"><img src="${p.img}"${srcset(p, '(max-width: 820px) 58vw, 300px')} alt="${esc(p.t)}" decoding="async"${fit(p)}></a>
             <div class="cf__cap">
               <span class="cf__brand">${esc(p.b || gById.get(p.g).name)}${p.spec ? ' · ' + esc(p.spec) : ''}</span>
-              <a class="cf__name" href="#/producto/${p.s}">${esc(ttl(p))}</a>
+              <a class="cf__name" href="/producto/${p.s}">${esc(ttl(p))}</a>
               <div class="cf__row"><b>${clp(web(p))}</b>${was(p)}<button class="cf__add" data-action="add" data-id="${p.id}" aria-label="Agregar al carro: ${esc(p.t)}">${ico('plus')}</button></div>
             </div>
           </article>`).join('')}
@@ -557,17 +559,17 @@ function viewHome() {
     </div>
 
     <div class="promos">
-      <a class="vit__side vit__side--light" href="#/tienda?g=proteccion">
+      <a class="vit__side vit__side--light" href="/tienda?g=proteccion">
         <span class="mono">Protección · ${prot.count} productos</span>
         <strong class="cond"><em>Ceras y cerámicos desde</em>${clp(minPrice('proteccion'))}</strong>
         <span class="vit__go">Que el brillo dure meses, no días ${arrow}</span>
       </a>
-      <a class="vit__side vit__side--red" href="#/tienda?g=secado">
+      <a class="vit__side vit__side--red" href="/tienda?g=secado">
         <span class="mono">Secado y microfibras</span>
         <strong class="cond"><em>Desde</em>${clp(minPrice('secado'))}</strong>
         <span class="vit__go">Toallas, paños y aplicadores ${arrow}</span>
       </a>
-      ${svc.length ? `<a class="vit__side vit__side--dark" href="#/asesoria">
+      ${svc.length ? `<a class="vit__side vit__side--dark" href="/asesoria">
         <span class="mono">Taller · Quinta Normal</span>
         <strong class="cond"><em>Cerámico aplicado desde</em>${clp(web(svc[0]))}</strong>
         <span class="vit__go">Ver servicios del taller ${arrow}</span>
@@ -582,12 +584,12 @@ function viewHome() {
   <section class="sec wrap">
     <div class="sh rv">
       <div><span class="mono mono--gold">El proceso, en orden</span><h2 class="cond">Compra por etapa</h2><p>Del lavado a la protección. Cada etapa con los productos que necesitas.</p></div>
-      <a class="sh__link" href="#/tienda">Ver todo el catálogo ${arrow}</a>
+      <a class="sh__link" href="/tienda">Ver todo el catálogo ${arrow}</a>
     </div>
     <div class="steps">
       ${ROUTE.map((id, i) => {
         const g = gById.get(id), p = stepImg(id);
-        return `<a class="step rv" style="--d:${i * 0.06}s" href="#/tienda?g=${id}">
+        return `<a class="step rv" style="--d:${i * 0.06}s" href="/tienda?g=${id}">
           <span class="step__n">${String(i + 1).padStart(2, '0')}</span>
           <h3 class="cond">${esc(g.name)}</h3>
           <span class="step__b">${esc(g.blurb)}</span>
@@ -596,7 +598,7 @@ function viewHome() {
         </a>`;
       }).join('')}
     </div>
-    <div class="steps__more"><span>Además</span>${more.map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`).join('')}</div>
+    <div class="steps__more"><span>Además</span>${more.map((g) => `<a href="/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`).join('')}</div>
   </section>
 
   <section class="sec wrap">
@@ -621,16 +623,16 @@ function viewHome() {
           <span class="mono mono--gold">${vehicleOf(p)}</span>
           <h3>${esc(p.t)}</h3>
           <div class="offer__price"><b>${clp(web(p))}</b>${was(p)}</div>
-          <div class="offer__row"><a class="btn btn--red" href="${wa(`Hola Reycar, quiero agendar: ${p.t}`)}" target="_blank" rel="noopener">Agendar por WhatsApp</a><a class="offer__link" href="#/producto/${p.s}">Ver detalle</a></div>
+          <div class="offer__row"><a class="btn btn--red" href="${wa(`Hola Reycar, quiero agendar: ${p.t}`)}" target="_blank" rel="noopener">Agendar por WhatsApp</a><a class="offer__link" href="/producto/${p.s}">Ver detalle</a></div>
         </div>`).join('')}
-        ${course ? `<a class="offer offer--course" href="#/producto/${course.s}"><div><span class="mono">Curso presencial · 6 días</span><b>Aprende detailing profesional</b></div><span class="p">${clp(web(course))} ${arrow}</span></a>` : ''}
+        ${course ? `<a class="offer offer--course" href="/producto/${course.s}"><div><span class="mono">Curso presencial · 6 días</span><b>Aprende detailing profesional</b></div><span class="p">${clp(web(course))} ${arrow}</span></a>` : ''}
       </div>
     </div>
   </section>` : ''}
 
   <section class="sec wrap">
-    <div class="sh rv"><div><span class="mono mono--gold">Originales</span><h2 class="cond">Marcas</h2></div><a class="sh__link" href="#/marcas">Ver las ${BRANDS.length} marcas ${arrow}</a></div>
-    <div class="brandgrid">${BRANDS.filter((b) => LOGOS[b.name]).slice(0, 11).map(brandCell).join('')}<a class="bc bc--all rv" style="--d:.25s" href="#/marcas"><span class="bc__plate"><span class="bc__word cond">Ver todas</span></span><span class="bc__meta"><b>${BRANDS.length} marcas</b><span>${arrow}</span></span></a></div>
+    <div class="sh rv"><div><span class="mono mono--gold">Originales</span><h2 class="cond">Marcas</h2></div><a class="sh__link" href="/marcas">Ver las ${BRANDS.length} marcas ${arrow}</a></div>
+    <div class="brandgrid">${BRANDS.filter((b) => LOGOS[b.name]).slice(0, 11).map(brandCell).join('')}<a class="bc bc--all rv" style="--d:.25s" href="/marcas"><span class="bc__plate"><span class="bc__word cond">Ver todas</span></span><span class="bc__meta"><b>${BRANDS.length} marcas</b><span>${arrow}</span></span></a></div>
     ${helpBox()}
   </section>
   </div>`;
@@ -639,7 +641,7 @@ function viewHome() {
 function viewBrands() {
   document.title = 'Marcas — Reycar Store';
   return `<section class="page wrap view">
-    <div class="crumbs"><a href="#/">Inicio</a><span>Marcas</span></div>
+    <div class="crumbs"><a href="/">Inicio</a><span>Marcas</span></div>
     <div class="ptitle"><h1 class="cond">Marcas</h1><p>${BRANDS.length} marcas de detailing automotriz, todas con productos originales.</p></div>
     <div class="brandgrid">${BRANDS.map(brandCell).join('')}</div>
     ${helpBox()}
@@ -651,7 +653,7 @@ function viewServices() {
   const items = [...P.filter((p) => p.g === 'servicios').sort((a, b) => a.p - b.p), ...P.filter((p) => p.g === 'cursos')];
   const fallback = items.find((p) => steps(p.d).length && p.g === 'servicios');
   return `<section class="page wrap view">
-    <div class="crumbs"><a href="#/">Inicio</a><span>Servicios</span></div>
+    <div class="crumbs"><a href="/">Inicio</a><span>Servicios</span></div>
     <div class="ptitle"><h1 class="cond">Servicios de taller</h1><p>Cerámicos aplicados por nuestro equipo en Quinta Normal y cursos para aprender el oficio.</p></div>
     <div class="svc">${items.map((p) => {
       const course = p.g === 'cursos';
@@ -659,15 +661,15 @@ function viewServices() {
       const inherited = !st.length && !course && fallback;
       if (inherited) st = steps(fallback.d, 10);
       return `<article class="svc__c">
-        <a class="svc__img${p.img ? '' : ' svc__img--ph'}" href="#/producto/${p.s}" tabindex="-1" aria-hidden="true">${p.img ? `<img src="${p.img}" alt="" loading="lazy">` : 'Reycar · Detailing Center'}</a>
+        <a class="svc__img${p.img ? '' : ' svc__img--ph'}" href="/producto/${p.s}" tabindex="-1" aria-hidden="true">${p.img ? `<img src="${p.img}" alt="" loading="lazy">` : 'Reycar · Detailing Center'}</a>
         <div class="svc__b">
           <span class="mono mono--red">${course ? 'Curso presencial · 6 días' : vehicleOf(p)}</span>
-          <h3>${esc(p.t)}</h3>
+          <h2 class="svc__t">${esc(p.t)}</h2>
           <div class="svc__price"><b>${clp(web(p))}</b>${was(p)}</div>
           ${st.length ? `${inherited ? '<p class="svc__txt">Mismo proceso que el servicio sedán, para vehículos grandes:</p>' : ''}<ol class="svc__steps">${st.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
           <div class="svc__cta">
             <a class="btn btn--red btn--sm" href="${wa(`Hola Reycar, quiero ${course ? 'reservar un cupo en' : 'agendar'}: ${p.t}`)}" target="_blank" rel="noopener">${course ? 'Reservar cupo' : 'Agendar'} por WhatsApp</a>
-            <a class="svc__link" href="#/producto/${p.s}">Ver detalle</a>
+            <a class="svc__link" href="/producto/${p.s}">Ver detalle</a>
           </div>
         </div>
       </article>`;
@@ -679,7 +681,7 @@ function viewServices() {
 /* ── catálogo ── */
 let shop = { params: {}, shown: PAGE };
 const SORTS = { rel: 'Relevancia', asc: 'Precio: menor a mayor', desc: 'Precio: mayor a menor', az: 'Nombre: A–Z' };
-const parseQuery = (qs) => { const o = {}; new URLSearchParams(qs).forEach((v, k) => { o[k] = v; }); return o; };
+const parseQuery = (qs) => { const o = {}; new URLSearchParams(qs).forEach((v, k) => { if (k !== 'perf' && k !== 'track') o[k] = v; }); return o; };
 const toQuery = (o) => { const u = new URLSearchParams(); Object.entries(o).forEach(([k, v]) => { if (v !== '' && v != null) u.set(k, v); }); const s = u.toString(); return s ? '?' + s : ''; };
 
 function filterProducts(o) {
@@ -741,15 +743,15 @@ function drawShop() {
   if (o.min || o.max) tags.push(['price', `${o.min ? clp(o.min) : '$0'} – ${o.max ? clp(o.max) : 'máx.'}`]);
 
   root.innerHTML = `
-    <div class="crumbs"><a href="#/">Inicio</a><a href="#/tienda">Tienda</a>${g ? catTrail(g, scx, true) : px ? `<span>${esc(px.name)}</span>` : o.q ? '<span>Búsqueda</span>' : ''}</div>
+    <div class="crumbs"><a href="/">Inicio</a><a href="/tienda">Tienda</a>${g ? catTrail(g, scx, true) : px ? `<span>${esc(px.name)}</span>` : o.q ? '<span>Búsqueda</span>' : ''}</div>
     <div class="ptitle"><h1 class="cond">${title}</h1><p>${esc(sub)}</p></div>
     ${sel.length === 1 && sel[0] === MC ? mcStrip() : ''}
     ${g && g.subs ? `<nav class="subnav" aria-label="Subcategorías de ${esc(g.name)}">
-      <a class="${!scx ? 'on' : ''}" href="#/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <em>${g.count}</em></a>
-      ${g.subs.map((s) => `<a class="${scx && scx.id === s.id ? 'on' : ''}" href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <em>${s.count}</em></a>`).join('')}
+      <a class="${!scx ? 'on' : ''}" href="/tienda?g=${g.id}">Todo ${esc(g.name.toLowerCase())} <em>${g.count}</em></a>
+      ${g.subs.map((s) => `<a class="${scx && scx.id === s.id ? 'on' : ''}" href="/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <em>${s.count}</em></a>`).join('')}
     </nav>` : px ? `<nav class="subnav" aria-label="Categorías de ${esc(px.name)}">
       <a class="on" href="${pHref(px)}">Todo ${esc(px.short)} <em>${px.count}</em></a>
-      ${px.groups.map((id) => { const x = gById.get(id); return `<a href="#/tienda?g=${id}">${esc(x.name)} <em>${x.count}</em></a>`; }).join('')}
+      ${px.groups.map((id) => { const x = gById.get(id); return `<a href="/tienda?g=${id}">${esc(x.name)} <em>${x.count}</em></a>`; }).join('')}
     </nav>` : ''}
     <div class="shop">
       <div class="filters-scrim" data-action="close-filters"></div>
@@ -757,7 +759,7 @@ function drawShop() {
         <span class="sheet-grip" aria-hidden="true"></span>
         <div class="filters__head">Filtros<button class="icon-btn" data-action="close-filters" aria-label="Cerrar filtros">${ico('close')}</button></div>
         <div>
-          <h4>Categoría</h4>
+          <h2>Categoría</h2>
           <div class="fl">
             <button class="${!o.g && !o.p ? 'on' : ''}" data-action="set-group" data-g="">Todas <em>${Object.values(gc).reduce((a, b) => a + b, 0)}</em></button>
             ${PARENTS.map((x) => `<button class="fl__p${(x.groups.length > 1 ? px === x : o.g === x.groups[0]) ? ' on' : ''}" data-action="set-parent" data-p="${x.id}">${esc(x.name)} <em>${x.groups.reduce((a, id) => a + (gc[id] || 0), 0)}</em></button>
@@ -766,19 +768,19 @@ function drawShop() {
           </div>
         </div>
         ${g && g.subs ? `<div>
-          <h4>Subcategoría</h4>
+          <h2>Subcategoría</h2>
           <div class="fl">
             <button class="${!scx ? 'on' : ''}" data-action="set-sub" data-sc="">Todas <em>${g.count}</em></button>
             ${g.subs.map((s) => `<button class="${scx && scx.id === s.id ? 'on' : ''}" data-action="set-sub" data-sc="${s.id}">${esc(s.name)} <em>${s.count}</em></button>`).join('')}
           </div>
         </div>` : ''}
         ${brandsCtx.length ? `<div>
-          <h4>Marca</h4>
+          <h2>Marca</h2>
           <div class="brandlist${shortBrands ? ' is-short' : ''}">${brandsCtx.map(([b, n]) => `<label class="cb"><input type="checkbox" data-action="toggle-brand" value="${esc(b)}"${sel.includes(b) ? ' checked' : ''}>${esc(b)}<em>${n}</em></label>`).join('')}</div>
           ${shortBrands ? `<button class="brandmore" data-action="all-brands">Ver las ${brandsCtx.length} marcas</button>` : ''}
         </div>` : ''}
         <div>
-          <h4>Precio</h4>
+          <h2>Precio</h2>
           <div class="price"><input type="number" inputmode="numeric" min="0" step="1000" placeholder="Mín." value="${esc(o.min || '')}" data-price="min" aria-label="Precio mínimo"><span>–</span><input type="number" inputmode="numeric" min="0" step="1000" placeholder="Máx." value="${esc(o.max || '')}" data-price="max" aria-label="Precio máximo"></div>
         </div>
         <div class="filters__apply"><button class="btn btn--dark" data-action="close-filters" id="applyBtn">Ver ${list.length} producto${list.length === 1 ? '' : 's'}</button></div>
@@ -799,8 +801,8 @@ function drawShop() {
         <div class="more" id="more"></div>
       </div>
     </div>`;
-  if (landing) drawSections(g.subs.map((s) => [s.name, `#/tienda?g=${g.id}&sc=${s.id}`, filterProducts({ g: g.id, sc: s.id })]));
-  else if (px && plain) drawSections(px.groups.map((id) => [gById.get(id).name, `#/tienda?g=${id}`, filterProducts({ g: id })]));
+  if (landing) drawSections(g.subs.map((s) => [s.name, `/tienda?g=${g.id}&sc=${s.id}`, filterProducts({ g: g.id, sc: s.id })]));
+  else if (px && plain) drawSections(px.groups.map((id) => [gById.get(id).name, `/tienda?g=${id}`, filterProducts({ g: id })]));
   else drawResults(list);
   const f = $('.filters', root), bl = $('.brandlist', root);
   if (f) f.scrollTop = keep.f;
@@ -835,8 +837,8 @@ function setParams(patch) {
   const next = { ...shop.params, ...patch };
   Object.keys(next).forEach((k) => { if (next[k] === '' || next[k] == null) delete next[k]; });
   shop.params = next; shop.shown = PAGE;
-  history.replaceState(null, '', '#/tienda' + toQuery(next));
-  drawShop();
+  history.replaceState(null, '', '/tienda' + toQuery(next));
+  drawShop(); setMeta('tienda');
 }
 
 /* ── ficha de producto ── */
@@ -857,18 +859,70 @@ function descHTML(d) {
     ul = []; ol = [];
   };
   const isHead = (l) => l.length <= 42 && !/[.!?]$/.test(l) && (/:\s*$/.test(l) || (isShout(l) && !/\d{3}/.test(l)));
-  d.split('\n').map((l) => l.trim()).filter(Boolean).forEach((l) => {
+  // la palabra "Descripción" suelta (viene en los textos del sitio anterior) ya es el título del acordeón
+  d.split('\n').map((l) => l.trim()).filter((l) => l && !/^descripci[oó]n\s*:?$/i.test(l)).forEach((l) => {
     if (/^\d{1,2}\s*[.)-]\s+/.test(l)) { if (ul.length) flush(); ol.push(l.replace(/^\d{1,2}\s*[.)-]\s+/, '')); }
     else if (/^[-•·–*]\s*/.test(l)) { if (ol.length) flush(); ul.push(l.replace(/^[-•·–*]\s*/, '')); }
-    else if (isHead(l)) { flush(); html += `<h4>${esc(calm(l.replace(/:\s*$/, '')))}</h4>`; }
+    else if (isHead(l)) { flush(); html += `<h3>${esc(calm(l.replace(/:\s*$/, '')))}</h3>`; }
     else { flush(); html += `<p>${esc(calm(l))}</p>`; }
   });
   flush();
   return html;
 }
+function view404() {
+  document.title = 'Página no encontrada — Reycar Store';
+  return `<section class="page wrap view"><div class="empty"><h1 class="cond">Página no encontrada</h1><p>La dirección no existe o el producto ya no está disponible.</p><br><a class="btn btn--dark btn--sm" href="/tienda">Ir a la tienda</a> <a class="btn btn--line btn--sm" href="/">Inicio</a></div></section>`;
+}
+// dirección pública de un producto (las variantes de formato apuntan a la del producto principal)
+const pUrl = (p) => `${location.origin}/producto/${p.s}`;
+const absImg = (p) => (p && p.im && p.im[0] ? new URL(U(p.im[0][1] || p.im[0][0]), location.origin).href : `${location.origin}/assets/reycars-crest.webp`);
+const DEFAULT_DESC = 'Productos originales de detailing automotriz: lavado, pulido, cerámicos, interior y más. Tienda y taller en Quinta Normal. Envíos a todo Chile.';
+function headTag(sel, make) { let el = document.head.querySelector(sel); if (!el) { el = make(); document.head.appendChild(el); } return el; }
+function setMetaTag(attr, key, val) {
+  const m = headTag(`meta[${attr}="${key}"]`, () => { const el = document.createElement('meta'); el.setAttribute(attr, key); return el; });
+  m.setAttribute('content', val);
+}
+// título, descripción, dirección canónica, vista previa al compartir y datos estructurados de cada página
+function setMeta(name) {
+  const p = name === 'producto' ? pdp.p : null;
+  const ok = (name === 'home' || VIEWS.includes(name)) && !(name === 'producto' && !p);
+  let desc = DEFAULT_DESC, img = absImg(null), canon = location.origin + curPath(), type = 'website', ld = null;
+  if (p) {
+    const h = headOf(p);
+    // misma fórmula que scripts/prerender.js: nombre, marca si no está en el nombre, formatos y el inicio del texto
+    const name = ttl(p), specs = h.vs ? h.vs.map((v) => v.spec) : [];
+    const text = String(p.d || h.d || '').replace(/^\s*descripci[oó]n\s*:?\s*/i, '').replace(/\s+/g, ' ').trim();
+    desc = `${name}${p.b && !name.toLowerCase().includes(p.b.toLowerCase()) ? ` de ${p.b}` : ''}${specs.length ? ` en formatos ${specs.slice(0, -1).join(', ')} y ${specs[specs.length - 1]}` : p.spec ? `, ${p.spec}` : ''}. ${text.length > 110 ? text.slice(0, 110).replace(/\s\S*$/, '') + '…' : text}`.trim();
+    img = absImg(p); canon = pUrl(h); type = 'product';
+    ld = { '@context': 'https://schema.org', '@type': 'Product', name: ttl(p), image: [img], sku: p.sku || undefined, brand: p.b ? { '@type': 'Brand', name: p.b } : undefined, category: (gById.get(p.g) || {}).name,
+      offers: (h.vs || [p]).map((v) => ({ '@type': 'Offer', url: pUrl(v), sku: v.sku || undefined, price: web(v), priceCurrency: 'CLP', availability: v.stk === 0 ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock', itemCondition: 'https://schema.org/NewCondition' })) };
+  } else if (name === 'tienda') {
+    const o = shop.params, g = o.g && gById.get(o.g), x = o.p && pById.get(o.p);
+    desc = g ? `${gName(g)}: ${g.blurb} Productos originales con envío a todo Chile.` : x ? `${x.name}: ${x.blurb}` : o.q ? `Resultados para «${o.q}» en Reycar Store.` : DEFAULT_DESC;
+    canon = location.origin + '/tienda' + toQuery(Object.fromEntries(Object.entries(o).filter(([k]) => k === 'g' || k === 'p' || k === 'sc' || k === 'b')));
+  } else if (name === 'motor-clean') {
+    desc = `Toda la línea Motor Clean: ${mcAll().length} productos de lavado, interior, neumáticos y protección, en formatos de 1 L y 5 L.`;
+    img = `${location.origin}${MC_LOGO}`;
+  } else if (name === 'marcas') desc = `${BRANDS.length} marcas de detailing automotriz, todas con productos originales.`;
+  else if (name === 'asesoria') desc = 'Servicios de detailing en nuestro taller de Quinta Normal: lavado, pulido, cerámicos e interior. Agenda por WhatsApp.';
+  setMetaTag('name', 'description', desc);
+  setMetaTag('property', 'og:title', document.title);
+  setMetaTag('property', 'og:description', desc);
+  setMetaTag('property', 'og:image', img);
+  setMetaTag('property', 'og:url', canon);
+  setMetaTag('property', 'og:type', type);
+  setMetaTag('name', 'twitter:card', 'summary_large_image');
+  headTag('link[rel="canonical"]', () => Object.assign(document.createElement('link'), { rel: 'canonical' })).href = canon;
+  // las páginas que no existen no se indexan
+  const nr = document.head.querySelector('meta[name="robots"][data-404]');
+  if (!ok && !nr) { const m = document.createElement('meta'); m.name = 'robots'; m.content = 'noindex'; m.dataset['404'] = ''; document.head.appendChild(m); } else if (ok && nr) nr.remove();
+  const old = document.getElementById('ld-json'); if (old) old.remove();
+  if (ld) { const sc = document.createElement('script'); sc.type = 'application/ld+json'; sc.id = 'ld-json'; sc.textContent = JSON.stringify(ld); document.head.appendChild(sc); }
+}
 function viewProduct(slug) {
   const p = bySlug.get(slug);
-  if (!p) return `<section class="page wrap view"><div class="empty"><h3 class="cond">Producto no encontrado</h3><p>Puede que ya no esté disponible.</p><br><a class="btn btn--dark btn--sm" href="#/tienda">Ir a la tienda</a></div></section>`;
+  if (!p) { pdp = { p: null, qty: 1 }; document.title = 'Producto no encontrado — Reycar Store'; }   // sin esto quedaba el producto anterior (y se medía como visto)
+  if (!p) return `<section class="page wrap view"><div class="empty"><h3 class="cond">Producto no encontrado</h3><p>Puede que ya no esté disponible.</p><br><a class="btn btn--dark btn--sm" href="/tienda">Ir a la tienda</a></div></section>`;
   pdp = { p, qty: 1 };
   const g = gById.get(p.g), h = headOf(p);
   const psc = p.sc && scById.get(p.sc);
@@ -881,12 +935,12 @@ function viewProduct(slug) {
   const logo = LOGOS[p.b];
   document.title = `${p.t} — Reycar Store`;
   return `<section class="page wrap view">
-    <div class="crumbs"><a href="#/">Inicio</a>${catTrail(g, psc)}<span>${esc(ttl(p))}</span></div>
-    <a class="back" href="#/tienda?g=${g.id}${psc ? `&sc=${psc.id}` : ''}"><span aria-hidden="true">←</span> ${esc(psc ? psc.name : g.name)}</a>
+    <div class="crumbs"><a href="/">Inicio</a>${catTrail(g, psc)}<span>${esc(ttl(p))}</span></div>
+    <a class="back" href="/tienda?g=${g.id}${psc ? `&sc=${psc.id}` : ''}"><span aria-hidden="true">←</span> ${esc(psc ? psc.name : g.name)}</a>
     <div class="pdp">
       <div class="gal">
         <div class="gal__main${p.img ? ' gal__main--zoom' : ''}" id="galMain"${p.img ? ' data-action="lightbox" role="button" tabindex="0" aria-label="Ampliar foto"' : ''}>
-          <div class="gal__img" id="galImg">${p.img ? `<img src="${U(p.im[0][1])}" alt="${esc(p.t)}" fetchpriority="high"${fit(p)}>` : `<span class="ph"><img src="assets/reycars-crest.webp" alt="" loading="lazy"><small>Foto pronto</small></span>`}</div>
+          <div class="gal__img" id="galImg">${p.img ? `<img src="${U(p.im[0][1])}" alt="${esc(p.t)}" fetchpriority="high"${fit(p)}>` : `<span class="ph"><img src="/assets/reycars-crest.webp" alt="" loading="lazy"><small>Foto pronto</small></span>`}</div>
           <div class="gal__tags">${DISC ? `<span class="gal__tag gal__tag--off">−${DISC * 100}% web</span>` : ''}${p.spec ? `<span class="gal__tag">${esc(p.spec)}</span>` : ''}</div>
           ${p.img ? `<span class="gal__zoom" aria-hidden="true">${ico('zoom')}Ampliar</span>` : ''}
         </div>
@@ -894,8 +948,8 @@ function viewProduct(slug) {
       </div>
       <div class="info">
         <div class="info__top">
-          ${logo ? `<a class="info__logo" href="#/tienda?b=${encodeURIComponent(p.b)}" aria-label="Ver productos ${esc(p.b)}"><img class="${logo[1] ? 'fx-' + logo[1] : ''}" src="${logo[0]}" alt=""></a>` : ''}
-          <div class="info__meta">${p.b ? `<a class="info__brand" href="#/tienda?b=${encodeURIComponent(p.b)}">${esc(p.b)}</a>` : ''}<span class="mono">${esc(g.name)}${p.spec ? ' · ' + esc(p.spec) : ''}</span></div>
+          ${logo ? `<a class="info__logo" href="/tienda?b=${encodeURIComponent(p.b)}" aria-label="Ver productos ${esc(p.b)}"><img class="${logo[1] ? 'fx-' + logo[1] : ''}" src="${logo[0]}" alt=""></a>` : ''}
+          <div class="info__meta">${p.b ? `<a class="info__brand" href="/tienda?b=${encodeURIComponent(p.b)}">${esc(p.b)}</a>` : ''}<span class="mono">${esc(g.name)}${p.spec ? ' · ' + esc(p.spec) : ''}</span></div>
           <button class="info__share" data-action="share" aria-label="Compartir producto" title="Compartir">${ico('share')}</button>
         </div>
         <h1>${esc(ttl(p))}</h1>
@@ -904,32 +958,32 @@ function viewProduct(slug) {
           <span class="info__note">Precio web con ${DISC * 100}% de descuento</span>` : ''}
         </div>
         ${h.vs ? `<div class="fmt"><span class="fmt__l">Formato: <b>${esc(p.spec)}</b></span>
-          <div class="fmt__opts">${h.vs.map((v) => `<a class="${v === p ? 'on' : ''}" href="#/producto/${v.s}"${v === p ? ' aria-current="true"' : ''}><b>${esc(v.spec)}</b><em>${clp(web(v))}</em></a>`).join('')}</div></div>` : ''}
+          <div class="fmt__opts">${h.vs.map((v) => `<a class="${v === p ? 'on' : ''}" href="/producto/${v.s}"${v === p ? ' aria-current="true"' : ''}><b>${esc(v.spec)}</b><em>${clp(web(v))}</em></a>`).join('')}</div></div>` : ''}
         <div class="stock${out ? ' stock--out' : low ? ' stock--low' : ''}"><i></i>${out ? 'Agotado por ahora' : low ? (p.stk === 1 ? 'Última unidad disponible' : `Quedan ${p.stk} unidades`) : 'En stock'}</div>
         <div class="buy">
           <div class="qty"><button data-action="pdp-qty" data-d="-1" aria-label="Menos">${ico('minus')}</button><output id="pdpQty">1</output><button data-action="pdp-qty" data-d="1" aria-label="Más">${ico('plus')}</button></div>
           <button class="btn btn--red" data-action="add-pdp" data-id="${p.id}"${out ? ' disabled' : ''}>${out ? 'Agotado' : 'Agregar al carro'}</button>
         </div>
-        <a class="btn btn--line btn--block buy__wa" href="${wa(`Hola Reycar, tengo una consulta sobre: ${p.t} (${p.url})`)}" target="_blank" rel="noopener">${ico('chat')} ¿Dudas? Pregunta por WhatsApp</a>
+        <a class="btn btn--line btn--block buy__wa" href="${wa(`Hola Reycar, tengo una consulta sobre: ${p.t} (${pUrl(headOf(p))})`)}" target="_blank" rel="noopener">${ico('chat')} ¿Dudas? Pregunta por WhatsApp</a>
         <ul class="pdpk">
           <li>${ico('truck')}<span><b>Envío a todo Chile.</b> El costo se calcula al finalizar la compra.</span></li>
-          <li>${ico('card')}<span><b>Paga con Webpay,</b> tarjetas de crédito o débito.</span></li>
+          <li>${ico('card')}<span>${CHECKOUT === 'whatsapp' ? '<b>Pedido por WhatsApp:</b> te confirmamos stock, despacho y forma de pago.' : '<b>Pago en línea,</b> con tarjeta o billeteras digitales.'}</span></li>
           <li>${ico('shield')}<span><b>Producto original</b>${p.b ? ` ${esc(p.b)}` : ''}.</span></li>
         </ul>
         ${p.b === MC ? mcStrip() : ''}
         <div class="acc">
-          <details open><summary>Descripción ${ico('plus')}</summary><div class="acc__body">${descHTML(p.d || (h.vs || []).map((v) => v.d).find(Boolean) || '')}</div></details>
-          <details><summary>Ficha técnica ${ico('plus')}</summary><div class="acc__body"><dl class="specs">
-            ${p.b ? `<dt>Marca</dt><dd><a href="#/tienda?b=${encodeURIComponent(p.b)}">${esc(p.b)}</a></dd>` : ''}
-            <dt>Categoría</dt><dd><a href="#/tienda?g=${g.id}">${esc(g.name)}</a></dd>
+          <details open><summary><h2 class="acc__t">Descripción</h2>${ico('plus')}</summary><div class="acc__body">${descHTML(p.d || (h.vs || []).map((v) => v.d).find(Boolean) || '')}</div></details>
+          <details><summary><h2 class="acc__t">Ficha técnica</h2>${ico('plus')}</summary><div class="acc__body"><dl class="specs">
+            ${p.b ? `<dt>Marca</dt><dd><a href="/tienda?b=${encodeURIComponent(p.b)}">${esc(p.b)}</a></dd>` : ''}
+            <dt>Categoría</dt><dd><a href="/tienda?g=${g.id}">${esc(g.name)}</a></dd>
             ${p.spec ? `<dt>Formato</dt><dd>${esc(p.spec)}</dd>` : ''}
             ${p.sku ? `<dt>SKU</dt><dd>${esc(p.sku)}</dd>` : ''}
           </dl></div></details>
         </div>
       </div>
     </div>
-    ${next.length ? `<section class="sec"><div class="sh"><div><span class="mono mono--red">Siguiente etapa · ${String(ri + 2).padStart(2, '0')}</span><h2 class="cond">Después: ${esc(nextG.name)}</h2></div><a class="sh__link" href="#/tienda?g=${nextG.id}">Ver ${esc(nextG.name.toLowerCase())} ${arrow}</a></div><div class="grid grid--row">${next.map(card).join('')}</div></section>` : ''}
-    ${same.length ? `<section class="sec"><div class="sh"><h2 class="cond">También en ${esc(g.name)}</h2><a class="sh__link" href="#/tienda?g=${g.id}">Ver todo ${arrow}</a></div><div class="grid grid--row">${same.map(card).join('')}</div></section>` : ''}
+    ${next.length ? `<section class="sec"><div class="sh"><div><span class="mono mono--red">Siguiente etapa · ${String(ri + 2).padStart(2, '0')}</span><h2 class="cond">Después: ${esc(nextG.name)}</h2></div><a class="sh__link" href="/tienda?g=${nextG.id}">Ver ${esc(nextG.name.toLowerCase())} ${arrow}</a></div><div class="grid grid--row">${next.map(card).join('')}</div></section>` : ''}
+    ${same.length ? `<section class="sec"><div class="sh"><h2 class="cond">También en ${esc(g.name)}</h2><a class="sh__link" href="/tienda?g=${g.id}">Ver todo ${arrow}</a></div><div class="grid grid--row">${same.map(card).join('')}</div></section>` : ''}
   </section>
   <div class="sticky-buy" id="stickyBuy" aria-hidden="true">
     ${p.img ? `<span class="sb__img"><img src="${thumb(p)}" alt=""${fit(p)}></span>` : ''}
@@ -988,15 +1042,15 @@ function closeLightbox() {
 function shareProduct() {
   const p = pdp.p; if (!p) return;
   const text = `${p.t} en Reycar Store`;
-  if (navigator.share) navigator.share({ title: text, url: p.url }).catch(() => {});
-  else window.open(`https://wa.me/?text=${encodeURIComponent(text + ': ' + p.url)}`, '_blank', 'noopener');
+  if (navigator.share) navigator.share({ title: text, url: pUrl(headOf(p)) }).catch(() => {});
+  else window.open(`https://wa.me/?text=${encodeURIComponent(text + ': ' + pUrl(headOf(p)))}`, '_blank', 'noopener');
 }
 
 /* ───────── navegación ───────── */
 // una categoría con sus subcategorías plegables (menú del celular y panel de categorías)
 const mmGroup = (g) => (g.subs
-  ? `<details><summary>${esc(g.name)}<small>${g.count}</small></summary><div class="mm__subs"><a href="#/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())}<small>${g.count}</small></a>${g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}</div></details>`
-  : `<a href="#/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`);
+  ? `<details><summary>${esc(g.name)}<small>${g.count}</small></summary><div class="mm__subs"><a href="/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())}<small>${g.count}</small></a>${g.subs.map((s) => `<a href="/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}</div></details>`
+  : `<a href="/tienda?g=${g.id}">${esc(g.name)}<small>${g.count}</small></a>`);
 // celular y tablet: tocar Cuidado exterior / interior / Accesorios abre sus subcategorías en vez de saltar a una página
 function openCatSheet(key) {
   const x = pById.get(key);
@@ -1004,29 +1058,29 @@ function openCatSheet(key) {
   const title = x ? x.name : g.name;
   const body = !g
     ? `<a class="mm__all" href="${pHref(x)}">Ver todo ${esc(x.short)}<small>${x.count}</small></a>${x.groups.map((id) => mmGroup(gById.get(id))).join('')}`
-    : `<a class="mm__all" href="#/tienda?g=${g.id}">Ver todo ${esc(x ? x.short : g.name.toLowerCase())}<small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}`;
+    : `<a class="mm__all" href="/tienda?g=${g.id}">Ver todo ${esc(x ? x.short : g.name.toLowerCase())}<small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')}`;
   $('#catSheetTitle').textContent = title;
   $('#catSheetBody').innerHTML = `<div class="mm"><nav class="mm__list" aria-label="${esc(title)}">${body}</nav></div>`;
   openOverlay('#catSheet');
 }
 const wideMQ = window.matchMedia ? matchMedia('(min-width: 1101px)') : { matches: true };
 function buildChrome() {
-  const subLinks = (g) => g.subs.map((s) => `<a href="#/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <small>${s.count}</small></a>`).join('');
+  const subLinks = (g) => g.subs.map((s) => `<a href="/tienda?g=${g.id}&sc=${s.id}">${esc(s.name)} <small>${s.count}</small></a>`).join('');
   const ddItem = (g, label, attr) => (g.subs
-    ? `<div class="cats__item"><a href="#/tienda?g=${g.id}" ${attr} aria-haspopup="true">${esc(label)}</a>
-        <div class="cats__dd"><a class="cats__all" href="#/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())} <small>${g.count}</small></a>${subLinks(g)}</div></div>`
-    : `<a href="#/tienda?g=${g.id}" ${attr}>${esc(label)}</a>`);
+    ? `<div class="cats__item"><a href="/tienda?g=${g.id}" ${attr} aria-haspopup="true">${esc(label)}</a>
+        <div class="cats__dd"><a class="cats__all" href="/tienda?g=${g.id}">Ver todo ${esc(g.name.toLowerCase())} <small>${g.count}</small></a>${subLinks(g)}</div></div>`
+    : `<a href="/tienda?g=${g.id}" ${attr}>${esc(label)}</a>`);
   // escritorio: Cuidado exterior abre un panel con todas sus categorías y subcategorías en columnas
   const megaItem = (x) => `<div class="cats__item cats__item--mega"><a href="${pHref(x)}" data-p="${x.id}" aria-haspopup="true">${esc(x.name)}</a>
       <div class="cats__dd cats__mega">
-        <div class="cats__cols">${x.groups.map((id) => { const g = gById.get(id); return `<div class="cats__col"><a class="cats__gh" href="#/tienda?g=${id}">${esc(g.name)} <small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="#/tienda?g=${id}&sc=${s.id}">${esc(s.name)}</a>`).join('')}</div>`; }).join('')}
+        <div class="cats__cols">${x.groups.map((id) => { const g = gById.get(id); return `<div class="cats__col"><a class="cats__gh" href="/tienda?g=${id}">${esc(g.name)} <small>${g.count}</small></a>${(g.subs || []).map((s) => `<a href="/tienda?g=${id}&sc=${s.id}">${esc(s.name)}</a>`).join('')}</div>`; }).join('')}
         <a class="cats__allcell" href="${pHref(x)}"><span>Ver todo</span><b>${esc(x.name)}</b><small>${x.count} productos ${arrow}</small></a></div></div></div>`;
   const rest = G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios' && g.id !== 'cursos');
   $('#cats').innerHTML = PARENTS.map((x) => (x.groups.length > 1 ? megaItem(x) : ddItem(gById.get(x.groups[0]), x.name, `data-p="${x.id}"`))).join('')
     + rest.map((g) => ddItem(g, g.name, `data-g="${g.id}"`)).join('')
-    + `<a href="#/tienda" data-all="1">Todo el catálogo</a><a class="cats__mc" href="#/motor-clean" data-r="motor-clean">Motor Clean</a>`
-    + `<span class="cats__sp"></span><a href="#/marcas" data-r="marcas">Marcas</a><a class="cats__svc" href="#/asesoria" data-r="asesoria">Servicios de taller</a>`;
-  $('#ftCats').insertAdjacentHTML('beforeend', PARENTS.map((x) => `<a href="${pHref(x)}">${esc(x.name)}</a>`).join('') + rest.map((g) => `<a href="#/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="#/motor-clean">Motor Clean</a><a href="#/tienda">Todo el catálogo</a>');
+    + `<a href="/tienda" data-all="1">Todo el catálogo</a><a class="cats__mc" href="/motor-clean" data-r="motor-clean">Motor Clean</a>`
+    + `<span class="cats__sp"></span><a href="/marcas" data-r="marcas">Marcas</a><a class="cats__svc" href="/asesoria" data-r="asesoria">Servicios de taller</a>`;
+  $('#ftCats').insertAdjacentHTML('beforeend', PARENTS.map((x) => `<a href="${pHref(x)}">${esc(x.name)}</a>`).join('') + rest.map((g) => `<a href="/tienda?g=${g.id}">${esc(g.name)}</a>`).join('') + '<a href="/motor-clean">Motor Clean</a><a href="/tienda">Todo el catálogo</a>');
   $$('#cats .cats__item').forEach((it) => {
     const top = it.firstElementChild;
     // el nombre de la categoría no navega: en escritorio deja el panel abierto, en celular abre la hoja de subcategorías
@@ -1041,25 +1095,25 @@ function buildChrome() {
   $('#mobileMenuBody').innerHTML = `<div class="mm">
     <nav class="mm__list" aria-label="Categorías">
       ${PARENTS.map((x) => `<a class="mm__h" href="${pHref(x)}">${esc(x.name)}<small>Ver todo</small></a>${x.groups.length === 1
-        ? (gById.get(x.groups[0]).subs || []).map((s) => `<a href="#/tienda?g=${x.groups[0]}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')
+        ? (gById.get(x.groups[0]).subs || []).map((s) => `<a href="/tienda?g=${x.groups[0]}&sc=${s.id}">${esc(s.name)}<small>${s.count}</small></a>`).join('')
         : x.groups.map((id) => mmGroup(gById.get(id))).join('')}`).join('')}
       <span class="mm__h">Más</span>${G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios').map(mmGroup).join('')}
     </nav>
     <div class="mm__links">
-      <a class="mm__mc" href="#/motor-clean">Motor Clean <small>Marca destacada</small></a>
-      <a href="#/tienda">Todo el catálogo <small>${P.length}</small></a>
-      <a href="#/marcas">Marcas <small>${BRANDS.length}</small></a>
-      <a class="mm__svc" href="#/asesoria">Servicios de taller <small>Quinta Normal</small></a>
+      <a class="mm__mc" href="/motor-clean">Motor Clean <small>Marca destacada</small></a>
+      <a href="/tienda">Todo el catálogo <small>${P.length}</small></a>
+      <a href="/marcas">Marcas <small>${BRANDS.length}</small></a>
+      <a class="mm__svc" href="/asesoria">Servicios de taller <small>Quinta Normal</small></a>
       <a href="${wa('Hola Reycar, necesito asesoría')}" target="_blank" rel="noopener">Asesoría por WhatsApp <small>+56 9 6355 5437</small></a>
     </div>
   </div>`;
 }
 function markNav() {
-  const h = location.hash;
-  const r = (h.match(/^#\/([^/?]+)/) || [])[1];
-  const prod = r === 'producto' ? bySlug.get(safeDec(h.split('/')[2] || '')) : null;
-  const g = (h.match(/[?&]g=([^&]+)/) || [])[1] || (prod && prod.g);
-  const pp = (h.match(/[?&]p=([^&]+)/) || [])[1] || (parentOf.get(g) || {}).id;
+  const seg = curPath().split('/'), qs = location.search;
+  const r = seg[1] || '';
+  const prod = r === 'producto' ? bySlug.get(safeDec(seg[2] || '')) : null;
+  const g = (qs.match(/[?&]g=([^&]+)/) || [])[1] || (prod && prod.g);
+  const pp = (qs.match(/[?&]p=([^&]+)/) || [])[1] || (parentOf.get(g) || {}).id;
   const shopping = r === 'tienda' || !!prod;
   $$('#cats > a, #cats > .cats__item > a').forEach((a) => a.classList.toggle('on', !!(
     (a.dataset.g && a.dataset.g === g && shopping) || (a.dataset.p && a.dataset.p === pp && shopping)
@@ -1069,13 +1123,20 @@ function markNav() {
   if (on) { const c = $('#cats'); c.scrollTo({ left: on.offsetLeft - 16, behavior: 'smooth' }); }
 }
 
+/* ───────── direcciones reales: /tienda, /producto/<nombre>, /marcas… ─────────
+   Los enlaces internos se resuelven sin recargar (history.pushState). Las direcciones antiguas con #/ se
+   convierten al cargar, así los enlaces ya compartidos siguen funcionando. */
+const curPath = () => location.pathname.replace(/\/+$/, '') || '/';
+const VIEWS = ['tienda', 'producto', 'marcas', 'asesoria', 'motor-clean'];
+function navigate(url, replace) {
+  history[replace ? 'replaceState' : 'pushState'](null, '', url);
+  route();
+}
 const main = $('#main');
 let lastRoute = '';
 function route() {
-  const h = location.hash || '#/';
-  if (!h.startsWith('#/')) { const el = document.getElementById(h.slice(1)); if (el) el.scrollIntoView({ behavior: 'smooth' }); return; }
-  const [path, qs = ''] = h.slice(1).split('?');
-  const seg = path.split('/').filter(Boolean);
+  const qs = location.search.slice(1);
+  const seg = curPath().split('/').filter(Boolean);
   const name = seg[0] || 'home';
   if (document.activeElement && document.activeElement.closest('#cats')) document.activeElement.blur(); // cierra el panel de categorías
   closeSearch(); closeOverlay('#mobileMenu', true); closeOverlay('#catSheet', true); closeOverlay('#drawer', true);
@@ -1084,7 +1145,7 @@ function route() {
   if (typeof showHeader === 'function') showHeader();
 
   if (name === 'tienda' && lastRoute === 'tienda' && $('#shopRoot')) {
-    shop.params = parseQuery(qs); shop.shown = PAGE; drawShop(); window.scrollTo(0, 0); track('pageView'); return;
+    shop.params = parseQuery(qs); shop.shown = PAGE; drawShop(); setMeta(name); window.scrollTo(0, 0); track('pageView'); return;
   }
   document.title = 'Reycar Store — Detailing automotriz profesional';
   const fromFam = lastRoute === 'producto' && pdp.p ? headOf(pdp.p) : null, y = window.scrollY;
@@ -1094,7 +1155,8 @@ function route() {
   else if (name === 'marcas') html = viewBrands();
   else if (name === 'asesoria') html = viewServices();
   else if (name === 'motor-clean') html = viewMC(parseQuery(qs));
-  else html = viewHome();
+  else if (name === 'home') html = viewHome();
+  else html = view404();
   main.innerHTML = html;
   lastRoute = name;
   document.body.classList.toggle('has-sticky', name === 'producto');
@@ -1106,6 +1168,8 @@ function route() {
   cfInit();
   crestInit();
   if (name === 'producto' && pdp.p) pdpInit();
+  setMeta(name);
+  if (location.hash.length > 1) { const el = document.getElementById(location.hash.slice(1)); if (el) setTimeout(() => el.scrollIntoView(), 0); }
   track('pageView');
   if (name === 'producto' && pdp.p) track('viewItem', tItem(pdp.p));
 }
@@ -1277,9 +1341,9 @@ function drawSearch(q) {
   q = q.trim(); sIdx = -1;
   if (!q) {
     sDrop.innerHTML = `<div class="sh-l">Búsquedas frecuentes</div>
-      <div class="sugs">${['Shampoo', 'Cerámico', 'Microfibra', 'Pad', 'Compuesto', 'Aromatizante', 'Neumáticos', 'Meguiars', 'Koch'].map((s) => `<a href="#/tienda?q=${encodeURIComponent(s)}">${s}</a>`).join('')}</div>
+      <div class="sugs">${['Shampoo', 'Cerámico', 'Microfibra', 'Pad', 'Compuesto', 'Aromatizante', 'Neumáticos', 'Meguiars', 'Koch'].map((s) => `<a href="/tienda?q=${encodeURIComponent(s)}">${s}</a>`).join('')}</div>
       <div class="sh-l">Categorías</div>
-      ${[...PARENTS.map((x) => [pHref(x), x.name, x.count]), ...G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios' && g.id !== 'cursos').map((g) => [`#/tienda?g=${g.id}`, g.name, g.count]), ['#/motor-clean', 'Motor Clean', mcAll().length]]
+      ${[...PARENTS.map((x) => [pHref(x), x.name, x.count]), ...G.filter((g) => !parentOf.has(g.id) && g.id !== 'servicios' && g.id !== 'cursos').map((g) => [`/tienda?g=${g.id}`, g.name, g.count]), ['/motor-clean', 'Motor Clean', mcAll().length]]
         .map(([h, n, c]) => `<a class="sr sr--text" href="${h}"><div class="sr__t">${esc(n)}</div><span class="sr__s">${c}</span></a>`).join('')}`;
     return;
   }
@@ -1294,9 +1358,9 @@ function drawSearch(q) {
     return;
   }
   sDrop.innerHTML =
-    (gs.length || bs.length || ss.length ? `<div class="sh-l">Ir a</div>${ss.map((s) => `<a class="sr sr--text" href="#/tienda?g=${s.g}&sc=${s.id}"><div class="sr__t">${hi(s.name, q)}</div><span class="sr__s">${esc(gById.get(s.g).name)} · ${s.count}</span></a>`).join('')}${gs.map((g) => `<a class="sr sr--text" href="#/tienda?g=${g.id}"><div class="sr__t">${hi(g.name, q)}</div><span class="sr__s">Categoría · ${g.count}</span></a>`).join('')}${bs.map((b) => `<a class="sr sr--text" href="#/tienda?b=${encodeURIComponent(b.name)}"><div class="sr__t">${hi(b.name, q)}</div><span class="sr__s">Marca · ${b.n}</span></a>`).join('')}` : '') +
-    (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="#/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${thumb(p)}" alt=""${fit(p)}>` : ''}</span><div><div class="sr__t">${hi(ttl(p), q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.vs ? ' · ' + p.vs.map((v) => esc(v.spec)).join(' / ') : p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
-    (all.length > top.length ? `<a class="sr sr--text" href="#/tienda?q=${encodeURIComponent(q)}"><div class="sr__t">Ver los ${all.length} resultados ${arrow}</div></a>` : '');
+    (gs.length || bs.length || ss.length ? `<div class="sh-l">Ir a</div>${ss.map((s) => `<a class="sr sr--text" href="/tienda?g=${s.g}&sc=${s.id}"><div class="sr__t">${hi(s.name, q)}</div><span class="sr__s">${esc(gById.get(s.g).name)} · ${s.count}</span></a>`).join('')}${gs.map((g) => `<a class="sr sr--text" href="/tienda?g=${g.id}"><div class="sr__t">${hi(g.name, q)}</div><span class="sr__s">Categoría · ${g.count}</span></a>`).join('')}${bs.map((b) => `<a class="sr sr--text" href="/tienda?b=${encodeURIComponent(b.name)}"><div class="sr__t">${hi(b.name, q)}</div><span class="sr__s">Marca · ${b.n}</span></a>`).join('')}` : '') +
+    (top.length ? `<div class="sh-l">Productos</div>${top.map((p) => `<a class="sr" href="/producto/${p.s}"><span class="sr__img">${p.img ? `<img src="${thumb(p)}" alt=""${fit(p)}>` : ''}</span><div><div class="sr__t">${hi(ttl(p), q)}</div><div class="sr__s">${esc(p.b || gById.get(p.g).name)}${p.vs ? ' · ' + p.vs.map((v) => esc(v.spec)).join(' / ') : p.spec ? ' · ' + esc(p.spec) : ''}</div></div><span class="sr__p">${clp(web(p))}</span></a>`).join('')}` : '') +
+    (all.length > top.length ? `<a class="sr sr--text" href="/tienda?q=${encodeURIComponent(q)}"><div class="sr__t">Ver los ${all.length} resultados ${arrow}</div></a>` : '');
 }
 function openSearch() { drawSearch(sInput.value); sDrop.hidden = false; }
 function closeSearch() { sDrop.hidden = true; sIdx = -1; }
@@ -1321,7 +1385,7 @@ $('#hdSearch').addEventListener('submit', (e) => {
   e.preventDefault();
   const q = sInput.value.trim(); if (!q) return;
   track('search', q);
-  location.hash = '#/tienda?q=' + encodeURIComponent(q);
+  navigate('/tienda?q=' + encodeURIComponent(q));
   closeSearch(); sInput.blur();
 });
 
@@ -1364,7 +1428,14 @@ document.addEventListener('click', (e) => {
     case 'close-cart': closeOverlay('#drawer'); break;
     case 'qty': setQty(id, (cart[id] || 0) + +t.dataset.d); break;
     case 'rm': setQty(id, 0); break;
-    case 'checkout': track('beginCheckout', cartItemsT()); toast('Prototipo: aquí se conecta al checkout'); break;
+    case 'checkout': {
+      if (!cartCount()) break;
+      track('beginCheckout', cartItemsT());
+      // pedido por WhatsApp: cada línea con nombre, formato, cantidad, SKU y total, para preparar la boleta en Bsale
+      const lines = Object.entries(cart).map(([id, q]) => { const p = byId.get(+id); return `• ${q} × ${ttl(p)}${headOf(p).vs ? ` (${p.spec})` : ''} — ${clp(web(p) * q)} [SKU ${p.sku}]`; });
+      window.open(wa(`Hola Reycar, quiero hacer este pedido:\n${lines.join('\n')}\nSubtotal: ${clp(cartTotal())} (sin despacho)\n\nMi nombre:\nComuna de despacho o retiro en tienda:\nBoleta o factura (RUT):`), '_blank', 'noopener');
+      break;
+    }
     case 'open-menu': openOverlay('#mobileMenu'); break;
     case 'close-menu': closeOverlay('#mobileMenu'); break;
     case 'close-cats': closeOverlay('#catSheet'); break;
@@ -1418,7 +1489,20 @@ document.addEventListener('error', (e) => {
     im.replaceWith(Object.assign(document.createElement('span'), { className: 'ph', textContent: 'Reycar' }));
   }
 }, true);
-window.addEventListener('hashchange', route);
+// enlaces internos sin recargar la página; las anclas (#contacto, #main) y los enlaces externos quedan normales
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href]');
+  if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.target || a.hasAttribute('download')) return;
+  const u = new URL(a.href, location.href);
+  if (u.origin !== location.origin || /^\/(api|assets|data)\//.test(u.pathname) || /\.[a-z0-9]{2,4}$/i.test(u.pathname)) return;
+  if (u.pathname === location.pathname && u.search === location.search && u.hash) return;
+  e.preventDefault();
+  navigate(u.pathname + u.search + u.hash);
+});
+window.addEventListener('popstate', route);
+// direcciones antiguas con #/ (enlaces compartidos antes del cambio)
+window.addEventListener('hashchange', () => { if (location.hash.startsWith('#/')) navigate(location.hash.slice(1), true); });
+if (location.hash.startsWith('#/')) history.replaceState(null, '', location.hash.slice(1));
 applyMode();
 buildChrome();
 // barra de categorías: el degradado de la derecha solo aparece si queda algo por deslizar

@@ -94,7 +94,7 @@
   var Track = {
     config: CONFIG,
     pageView: function () {
-      send(['PageView', {}], ['page_view', { page_location: location.href, page_path: location.hash || '/', page_title: document.title }]);
+      send(['PageView', {}], ['page_view', { page_location: location.href, page_path: location.pathname + location.search, page_title: document.title }]);
     },
     viewItem: function (item) {
       send(['ViewContent', metaBag([item], { content_name: item.name, content_category: item.category })], ['view_item', gaBag([item])]);

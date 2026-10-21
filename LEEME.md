@@ -63,22 +63,38 @@ sitio anterior). `python3 -I scripts/img-fit.py` mide el encuadre de cada una (`
 `node build-data.js` lo incorpora. Si cambia el catálogo: `build-data.js` → `mirror-images.py` → `img-fit.py`
 → `build-data.js`.
 
+## Direcciones y páginas generadas
+
+La tienda usa direcciones reales (`/tienda?g=pulido`, `/producto/<nombre>`, `/marcas`, `/motor-clean`,
+`/asesoria`). Los enlaces antiguos con `#/` se convierten solos. `node scripts/prerender.js` genera una página
+por producto y por sección (`producto/*.html`, `tienda.html`…) con título, descripción, imagen y dirección
+canónica, más `sitemap.xml` y `robots.txt`: así WhatsApp, Facebook y Google ven cada producto sin ejecutar
+JavaScript. **Volver a correrlo cuando cambie `index.html` o el catálogo.** `vercel.json` redirige las direcciones
+del sitio anterior (`/shop`, `/marca/…`, `/servicios/…`, `/producto/<nombre>/`) a las nuevas.
+
+**Al pasar al dominio definitivo:** `SITE_URL=https://reycarstore.cl node scripts/prerender.js`, publicar y
+enviar `https://reycarstore.cl/sitemap.xml` en Google Search Console.
+
+## Cierre de compra
+
+Mientras se conecta el pago en línea (Klap), "Hacer pedido por WhatsApp" abre WhatsApp con el detalle del
+carro: producto, formato, cantidad, precio y SKU de cada línea, subtotal y los datos que faltan (nombre, comuna,
+boleta o factura). Se cambia con la constante `CHECKOUT` al inicio de `app.js`.
+
 ## Salida a producción
 
-**Ya resuelto:** fotos y logo propios (sin depender del sitio anterior), encabezados de seguridad,
+**Ya resuelto:** direcciones reales con vista previa al compartir, sitemap y redirecciones del sitio anterior;
+pedido por WhatsApp desde el carro; fotos y logo propios (sin depender del sitio anterior), encabezados de seguridad,
 buscadores bloqueados solo en `reycar.vercel.app` (en el dominio real el sitio es indexable), carro y
 direcciones a prueba de datos dañados, sin código que falle en iPhones con iOS antiguo, contraste de
 colores AA, medición lista (falta cargar los IDs).
 
 **Falta antes de vender (decisiones y datos del cliente):**
 
-1. **Cobro.** "Finalizar compra" es todavía una simulación: no hay pago ni pedido. Hace falta Webpay
-   Plus (código de comercio y llave de Transbank), cálculo de despacho, formulario de datos del cliente y
-   emisión de boleta/factura en Bsale. Alternativa para abrir antes: pedido por WhatsApp.
-2. **Direcciones y buscadores.** El sitio usa direcciones con `#` (`/#/producto/...`): Google no las indexa
-   bien y WhatsApp/Facebook no muestran foto ni nombre al compartir un producto. Para reemplazar la tienda
-   actual sin perder posicionamiento hace falta pasar a direcciones reales (`/producto/<nombre>`, las mismas
-   que hoy), con título, descripción y foto por producto, `sitemap.xml` y `robots.txt`.
+1. **Pago en línea (Klap Checkout Flex).** Falta la apikey y la URL de pruebas ("Datos de prueba"), el manual
+   de integración y confirmar si aceptan débito Redcompra. Después: formulario de datos, cálculo de despacho,
+   aviso de pago firmado y emisión de boleta/factura en Bsale (`POST /v1/documents.json`).
+2. **Dominio definitivo** para generar las páginas con `SITE_URL` (ver arriba) y registrar Apple Pay.
 3. **Textos legales.** La página "Términos y condiciones" del sitio actual está vacía. Se necesitan los textos
    (términos, privacidad, cambios y devoluciones, despacho) y los datos del proveedor (razón social y RUT).
 4. **Medición.** Cargar `metaPixelId` y `ga4Id` en `tracking.js`. `Purchase` debe salir desde el servidor al

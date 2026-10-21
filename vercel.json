@@ -1,26 +1,128 @@
 {
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/shop",
+      "destination": "/tienda",
+      "permanent": true
+    },
+    {
+      "source": "/tienda-online",
+      "destination": "/tienda",
+      "permanent": true
+    },
+    {
+      "source": "/categoria-producto/:path*",
+      "destination": "/tienda",
+      "permanent": true
+    },
+    {
+      "source": "/marca/motor-clean",
+      "destination": "/motor-clean",
+      "permanent": true
+    },
+    {
+      "source": "/marca/:slug",
+      "destination": "/marcas",
+      "permanent": true
+    },
+    {
+      "source": "/servicios",
+      "destination": "/asesoria",
+      "permanent": true
+    },
+    {
+      "source": "/servicios/:path*",
+      "destination": "/asesoria",
+      "permanent": true
+    },
+    {
+      "source": "/nuestra-historia",
+      "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/contacto",
+      "destination": "/#contacto",
+      "permanent": true
+    },
+    {
+      "source": "/my-account/:path*",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/cart",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/checkout",
+      "destination": "/",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=()"
+        }
       ]
     },
     {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "reycar.vercel.app" }],
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+      "has": [
+        {
+          "type": "host",
+          "value": "reycar.vercel.app"
+        }
+      ],
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
     },
     {
       "source": "/assets/uploads/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     },
     {
       "source": "/assets/brands/(.*)",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=604800"
+        }
+      ]
     }
   ]
 }
