@@ -65,6 +65,8 @@ const sections = [
   ['tienda.html', { title: 'Tienda — Reycar Store', desc: DEFAULT_DESC, url: '/tienda', image: CREST }],
   ['marcas.html', { title: 'Marcas — Reycar Store', desc: `${brandCount} marcas de detailing automotriz, todas con productos originales.`, url: '/marcas', image: CREST }],
   ['asesoria.html', { title: 'Servicios de taller — Reycar Store', desc: 'Servicios de detailing en nuestro taller de Quinta Normal: lavado, pulido, cerámicos e interior. Agenda por WhatsApp.', url: '/asesoria', image: CREST }],
+  // Vercel muestra 404.html (con estado 404) para cualquier dirección que no exista; la tienda dibuja su página de "no encontrada"
+  ['404.html', { title: 'Página no encontrada — Reycar Store', desc: DEFAULT_DESC, url: '/', image: CREST }],
   ['motor-clean.html', { title: 'Motor Clean — Reycar Store', desc: `Toda la línea Motor Clean: ${mc} productos de lavado, interior, neumáticos y protección, en formatos de 1 L y 5 L.`, url: '/motor-clean', image: '/assets/brands/motor-clean.png' }],
 ];
 sections.forEach(([file, meta]) => write(file, page(meta)));
