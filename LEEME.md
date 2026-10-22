@@ -81,6 +81,15 @@ Mientras se conecta el pago en línea (Klap), "Hacer pedido por WhatsApp" abre W
 carro: producto, formato, cantidad, precio y SKU de cada línea, subtotal y los datos que faltan (nombre, comuna,
 boleta o factura). Se cambia con la constante `CHECKOUT` al inicio de `app.js`.
 
+## Panel de administración (maqueta)
+
+`/admin` (`admin.html`, `assets/admin/`) es una maqueta navegable con el aspecto de WooCommerce, para validar
+pantallas antes de construir el panel real: escritorio, pedidos (lista, estados, detalle con documento Bsale,
+atribución y notas), productos (lo que se edita en la web; nombre, SKU, precio y stock quedan de Bsale), clientes,
+analítica por origen, SEO, usuarios y ajustes de Klap, Sendu, Bsale y seguimiento. Los productos son los reales;
+pedidos y clientes son de demostración (semilla fija) y nada se guarda. No se indexa (`noindex` y robots.txt).
+Falta para la versión real: base de datos, inicio de sesión y las conexiones con Bsale, Klap, Sendu y GA4.
+
 ## Salida a producción
 
 **Ya resuelto:** direcciones reales con vista previa al compartir, sitemap y redirecciones del sitio anterior;
