@@ -1,5 +1,6 @@
 /* Panel de administración de Reycar Store — MAQUETA NAVEGABLE.
-   Imita WooCommerce para que Guillermo y su equipo la validen antes de construir la versión real.
+   Con la identidad de Reycar; la lógica (pedidos, estados, notas, atribución) es la que el equipo ya conoce de
+   WooCommerce. Sirve para que Guillermo y su equipo la validen antes de construir la versión real.
    Los productos son los reales del catálogo (data/products.js); clientes y pedidos son de demostración,
    generados con una semilla fija (mismos datos en cada visita). Nada se guarda: los cambios viven en
    memoria hasta recargar. En la versión real: pedidos y clientes en base de datos, precio/stock/boletas
@@ -223,8 +224,8 @@
       svg += ticks.map((v) => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--grid)" stroke-width="1"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end">${clpK(v)}</text>`).join('');
       svg += s.days.map((d, i) => ((n - 1 - i) % every === 0 ? `<text x="${X(i)}" y="${H - 6}" text-anchor="middle">${fDay(d)}</text>` : '')).join('');
       if (s.prev) svg += `<path d="${path(s.prev)}" fill="none" stroke="var(--cmp)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-      svg += `<path d="${path(s.cur)}" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
-      svg += `<g class="hover" style="display:none"><line y1="${T}" y2="${H - B}" stroke="#8c8f94" stroke-width="1"/>${s.prev ? '<circle r="4" fill="var(--cmp)" stroke="#fff" stroke-width="2" class="hp"/>' : ''}<circle r="4" fill="var(--blue)" stroke="#fff" stroke-width="2" class="hc"/></g>`;
+      svg += `<path d="${path(s.cur)}" fill="none" stroke="var(--data)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      svg += `<g class="hover" style="display:none"><line y1="${T}" y2="${H - B}" stroke="var(--line2)" stroke-width="1"/>${s.prev ? '<circle r="4" fill="var(--cmp)" stroke="var(--surface)" stroke-width="2" class="hp"/>' : ''}<circle r="4" fill="var(--data)" stroke="var(--surface)" stroke-width="2" class="hc"/></g>`;
       svg += `<rect x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent" class="hit"/></svg>`;
       host.innerHTML = svg;
       const g = $('.hover', host), hit = $('.hit', host), sv = $('svg', host);
@@ -234,7 +235,7 @@
         g.style.display = ''; $('line', g).setAttribute('x1', X(i)); $('line', g).setAttribute('x2', X(i));
         const hc = $('.hc', g); hc.setAttribute('cx', X(i)); hc.setAttribute('cy', Y(s.cur[i]));
         const hp = $('.hp', g); if (hp) { hp.setAttribute('cx', X(i)); hp.setAttribute('cy', Y(s.prev[i])); }
-        showTip(`<b>${fDate(s.days[i])}</b><br><span class="sw" style="background:var(--blue)"></span>${clp(s.cur[i])} · ${plural(s.cnt[i], 'pedido', 'pedidos')}${s.prev ? `<br><span class="sw" style="background:var(--cmp)"></span>${fDay(s.pdays[i])}: ${clp(s.prev[i])}` : ''}`, ev.clientX, r.top + Y(s.cur[i]) * (r.height / H));
+        showTip(`<b>${fDate(s.days[i])}</b><br><span class="sw" style="background:var(--data)"></span>${clp(s.cur[i])} · ${plural(s.cnt[i], 'pedido', 'pedidos')}${s.prev ? `<br><span class="sw" style="background:var(--cmp)"></span>${fDay(s.pdays[i])}: ${clp(s.prev[i])}` : ''}`, ev.clientX, r.top + Y(s.cur[i]) * (r.height / H));
       };
       hit.addEventListener('pointermove', move);
       hit.addEventListener('pointerdown', move);
@@ -263,7 +264,7 @@
     return { list, daily, sales, n: list.length, avg: list.length ? sales / list.length : 0, units: list.reduce((s, o) => s + qty(o), 0) };
   }
   const groupBy = (list, key) => { const m = new Map(); list.forEach((o) => { const k = key(o); const x = m.get(k) || { l: k, v: 0, n: 0 }; x.v += o.total; x.n++; m.set(k, x); }); return [...m.values()].sort((a, b) => b.v - a.v); };
-  const delta = (a, b) => { if (!b) return '<span class="muted">sin datos del período anterior</span>'; const p = ((a - b) / b) * 100; const r = Math.round(p); return `<span class="${r >= 0 ? 'up' : 'down'}">${r >= 0 ? '▲' : '▼'} ${Math.abs(r)} %</span> vs. período anterior`; };
+  const delta = (a, b) => { if (!b) return '<span class="muted">sin datos del período anterior</span>'; const p = ((a - b) / b) * 100; const r = Math.round(p); return `<span class="${r >= 0 ? 'up' : 'down'}">${r >= 0 ? '▲' : '▼'} ${Math.abs(r)} %</span><span class="vs"> vs. período anterior</span>`; };
   const tile = (lbl, val, d) => `<div class="tile"><div class="lbl">${lbl}</div><div class="val">${val}</div><div class="delta">${d}</div></div>`;
 
   /* ───────── vistas ───────── */
@@ -344,12 +345,12 @@
         <tbody>${rows.length ? rows.map((o) => `<tr class="clickable" data-go="#/pedido/${o.id}">
           <th class="check hide-m" scope="row"><input type="checkbox" value="${o.id}" aria-label="Seleccionar pedido ${o.id}"></th>
           <td><a class="row-title" href="#/pedido/${o.id}">#${o.id} ${esc(custName(o.c))}</a>${o.cnote ? ' <span title="Tiene nota del cliente" aria-label="Tiene nota del cliente">💬</span>' : ''}<div class="muted small">${esc(o.c.comuna)}<span class="show-m"> · ${ago(o.t)}</span></div></td>
-          <td class="hide-m"><time datetime="${new Date(o.t).toISOString()}" title="${fFull(o.t)}">${ago(o.t)}</time></td>
+          <td class="hide-m nw"><time datetime="${new Date(o.t).toISOString()}" title="${fFull(o.t)}">${ago(o.t)}</time></td>
           <td>${pill(o.st)}</td>
-          <td class="hide-m">${o.doc ? `${o.doc.type.split(' ')[0]} N° ${o.doc.folio}` : '<span class="muted">—</span>'}</td>
-          <td class="hide-m">${esc(o.ship.m.replace(' a domicilio', ''))}<div class="muted small">${o.ship.cost ? clp(o.ship.cost) : 'Gratis'}</div></td>
+          <td class="hide-m nw">${o.doc ? `${o.doc.type.split(' ')[0]} N° ${o.doc.folio}` : '<span class="muted">—</span>'}</td>
+          <td class="hide-m">${esc(o.ship.m.replace(' a domicilio', '').replace(' — Quinta Normal', ''))}<div class="muted small">${o.ship.cost ? clp(o.ship.cost) : 'Gratis'}</div></td>
           <td class="hide-m">${otag(o)}</td>
-          <td class="num">${clp(o.total)}<div class="muted small">${esc(o.pay)}</div></td></tr>`).join('') : '<tr class="no-items"><td colspan="8">No se encontraron pedidos.</td></tr>'}</tbody>
+          <td class="num nw">${clp(o.total)}<div class="muted small">${esc(o.pay)}</div></td></tr>`).join('') : '<tr class="no-items"><td colspan="8">No se encontraron pedidos.</td></tr>'}</tbody>
         <tfoot><tr><td class="check"></td><th>Pedido</th><th class="hide-m">Fecha</th><th>Estado</th><th class="hide-m">Documento</th><th class="hide-m">Envío</th><th class="hide-m">Origen</th><th class="num">Total</th></tr></tfoot>
       </table>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>`;
@@ -365,7 +366,7 @@
       <div class="cols">
         <div>
           <div class="postbox"><div class="inside">
-            <h2 style="font-size:21px;font-weight:400;margin:0 0 4px">Detalles del pedido #${o.id}</h2>
+            <h2 style="font-size:24px;font-weight:800;font-stretch:88%;letter-spacing:-.01em;margin:0 0 4px">Detalles del pedido #${o.id}</h2>
             <p class="muted" style="margin:0 0 16px">${o.auth ? `Pago con Klap (${esc(o.pay)}). Pagado el ${fFull(paidNote ? paidNote.t : o.t)}.` : o.st === 'failed' ? 'Pago rechazado por Klap.' : 'Aún sin pago.'} ${o.doc ? `${o.doc.type} N° ${o.doc.folio}.` : ''}</p>
             <div class="grid3">
               <div>
@@ -410,7 +411,7 @@
             <select id="oact" style="width:100%"><option value="">Elige una acción…</option><option>Enviar detalles del pedido al cliente</option><option>Reenviar ${o.fac ? 'factura' : 'boleta'} al cliente</option><option>Generar envío en Sendu</option><option>Emitir documento en Bsale de nuevo</option></select>
           </div><div class="major-publishing-actions"><button class="button-link-delete" data-act="papelera">Mover a la papelera</button><button class="button button-primary" data-act="guardar-pedido" data-id="${o.id}">Actualizar</button></div></div>
           ${box('Documento tributario', o.doc ? `<dl class="kv"><dt>Tipo</dt><dd>${o.doc.type}</dd><dt>Folio</dt><dd>N° ${o.doc.folio}</dd>${o.nc ? `<dt>Nota de crédito</dt><dd>N° ${o.nc}</dd>` : ''}<dt>Emitido</dt><dd>Automático, al aprobarse el pago</dd><dt>Stock</dt><dd>Descontado en Bsale</dd></dl><p style="margin:12px 0 0"><button class="button" data-act="pdf">Ver PDF en Bsale</button></p>` : '<p class="muted" style="margin:0">Se emite automáticamente en Bsale cuando Klap aprueba el pago.</p>')}
-          ${box('Atribución del pedido', `<dl class="kv"><dt>Origen</dt><dd>${otag(o)}</dd><dt>Tipo de origen</dt><dd>${o.src.type}</dd><dt>Fuente / medio</dt><dd>${esc(o.src.src)} / ${esc(o.src.med)}</dd>${o.camp ? `<dt>Campaña</dt><dd>${esc(o.camp)}</dd>` : ''}<dt>Página de entrada</dt><dd>${esc(o.landing)}</dd><dt>Dispositivo</dt><dd>${o.dev}</dd><dt>Páginas vistas</dt><dd>${o.pages}</dd></dl>`)}
+          ${box('De dónde vino', `<dl class="kv"><dt>Origen</dt><dd>${otag(o)}</dd><dt>Tipo de origen</dt><dd>${o.src.type}</dd><dt>Fuente / medio</dt><dd>${esc(o.src.src)} / ${esc(o.src.med)}</dd>${o.camp ? `<dt>Campaña</dt><dd>${esc(o.camp)}</dd>` : ''}<dt>Página de entrada</dt><dd>${esc(o.landing)}</dd><dt>Dispositivo</dt><dd>${o.dev}</dd><dt>Páginas vistas</dt><dd>${o.pages}</dd></dl>`)}
           ${box('Historial del cliente', (() => { const all = ORDERS.filter((x) => x.c === c && PAID.has(x.st)); return `<dl class="kv"><dt>Pedidos pagados</dt><dd>${all.length}</dd><dt>Total gastado</dt><dd>${clp(all.reduce((s, x) => s + x.total, 0))}</dd><dt>Ticket promedio</dt><dd>${clp(all.length ? all.reduce((s, x) => s + x.total, 0) / all.length : 0)}</dd></dl>`; })())}
           ${box('Notas del pedido', `<ul class="notes" id="notes">${notes.map(noteHtml).join('')}</ul>
             <div class="field" style="margin-top:12px"><label for="nn">Añadir nota</label><textarea id="nn" rows="3"></textarea></div>
@@ -443,7 +444,7 @@
       </form>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
       <table class="wp-list-table">
-        <thead><tr><td class="check hide-m"><input type="checkbox" aria-label="Seleccionar todos" data-all></td><th style="width:52px"><span class="screen-reader-text">Imagen</span>🖼</th><th>Nombre</th><th class="hide-m">SKU</th><th>Stock</th><th class="num">Precio</th><th class="hide-m">Categorías</th><th class="hide-m">Marca</th><th class="hide-m" title="Destacado">★</th></tr></thead>
+        <thead><tr><td class="check hide-m"><input type="checkbox" aria-label="Seleccionar todos" data-all></td><th style="width:60px"><span class="screen-reader-text">Foto</span></th><th>Nombre</th><th class="hide-m">SKU</th><th>Stock</th><th class="num">Precio</th><th class="hide-m">Categorías</th><th class="hide-m">Marca</th><th class="hide-m" title="Destacado">★</th></tr></thead>
         <tbody>${rows.length ? rows.map((p) => `<tr>
           <th class="check hide-m" scope="row"><input type="checkbox" aria-label="Seleccionar ${esc(p.n)}"></th>
           <td><img class="thumb" src="${img(p)}" alt="" loading="lazy"></td>
@@ -483,7 +484,7 @@
             <div class="panel" data-panel="2" hidden><p class="muted small" style="margin-top:0">Los formatos se muestran como un solo producto en la tienda, con selector (1 L, 5 L…).</p><table class="items"><thead><tr><th>Formato</th><th>SKU</th><th class="num">Precio</th><th>Stock</th></tr></thead><tbody>${vs.map((v) => `<tr><td>${esc((v.n.match(/\d+(?:[.,]\d+)?\s?(?:ml|cc|l|lt|lts|litros?|gr?|kg|galón|gal)\b/i) || [v === p ? 'Principal' : 'Formato'])[0])}</td><td>${esc(v.sku || '—')}</td><td class="num">${clp(v.p)}</td><td>${stockCell(v)}</td></tr>`).join('')}</tbody></table><p><button class="button" data-act="unir">Unir otro formato…</button></p></div>
             <div class="panel" data-panel="3" hidden><div class="grid2"><div class="field"><label for="pw">Peso (kg)</label><input type="number" id="pw" step="0.1" value="${(/5\s?l/i.test(p.n) ? 5.4 : 1.1)}"></div><div class="field"><label>Dimensiones (cm)</label><span style="display:flex;gap:4px"><input type="number" aria-label="Largo" value="12" style="width:33%"><input type="number" aria-label="Ancho" value="8" style="width:33%"><input type="number" aria-label="Alto" value="${/5\s?l/i.test(p.n) ? 32 : 26}" style="width:33%"></span></div></div><p class="muted small">Sendu usa el peso y las medidas para cotizar el despacho en el checkout.</p></div>
           </div></div></div>
-          <div class="postbox"><h2 class="hndle">SEO <span class="act muted">como en Rank Math</span></h2><div class="inside">
+          <div class="postbox"><h2 class="hndle">SEO <span class="act">cómo aparece en Google</span></h2><div class="inside">
             <div class="serp" aria-label="Vista previa en Google"><div class="u">reycarstore.cl › producto › ${esc(p.s.slice(0, 40))}</div><div class="t" id="serpT"></div><div class="d" id="serpD"></div></div>
             <div class="field" style="margin-top:14px"><label for="seoT">Título SEO <span class="muted small" id="seoTc"></span></label><input type="text" id="seoT" value="${esc(sm.t)}" style="width:100%"><div class="meter"><i id="seoTm"></i></div></div>
             <div class="field"><label for="seoD">Meta descripción <span class="muted small" id="seoDc"></span></label><textarea id="seoD" rows="3">${esc(sm.d)}</textarea><div class="meter"><i id="seoDm"></i></div></div>
@@ -547,13 +548,13 @@
       <div class="wrap-h"><h1>Analítica</h1>${seg('r', [[7, '7 días'], [30, '30 días'], [90, '90 días']], r)}</div>
       <p class="muted" style="margin:-6px 0 14px">${fDate(a.daily[0].d)} – ${fDate(a.daily[a.daily.length - 1].d)}, comparado con ${fDate(b.daily[0].d)} – ${fDate(b.daily[b.daily.length - 1].d)}. Solo pedidos pagados (Procesando y Completado).</p>
       <div class="tiles">${tile('Ventas', clp(a.sales), delta(a.sales, b.sales))}${tile('Pedidos', miles(a.n), delta(a.n, b.n))}${tile('Ticket promedio', clp(a.avg), delta(a.avg, b.avg))}${tile('Productos vendidos', miles(a.units), delta(a.units, b.units))}</div>
-      <div class="postbox"><div class="chart-head"><h2>Ventas por día</h2><span class="legend"><span><i style="background:var(--blue)"></i>Período seleccionado</span><span><i style="background:var(--cmp)"></i>Período anterior</span></span>${seg('ver', [['grafico', 'Gráfico'], ['tabla', 'Tabla']], view)}</div>
+      <div class="postbox"><div class="chart-head"><h2>Ventas por día</h2><span class="legend"><span><i style="background:var(--data)"></i>Período seleccionado</span><span><i style="background:var(--cmp)"></i>Período anterior</span></span>${seg('ver', [['grafico', 'Gráfico'], ['tabla', 'Tabla']], view)}</div>
         ${view === 'tabla' ? `<div style="max-height:360px;overflow:auto"><table class="mini"><thead><tr><td><b>Día</b></td><td class="num"><b>Pedidos</b></td><td class="num"><b>Ventas</b></td><td class="num"><b>Período anterior</b></td></tr></thead><tbody>${a.daily.map((d, i) => `<tr><td>${fDate(d.d)}</td><td class="num">${d.n}</td><td class="num">${clp(d.v)}</td><td class="num muted">${clp(b.daily[i].v)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="chart" id="cday"></div>'}</div>
       <div class="dash">
-        ${box('Ventas por origen', bars(bySrc, a.sales), 'como la atribución de WooCommerce', true)}
+        ${box('Ventas por origen', bars(bySrc, a.sales), 'qué trajo cada compra', true)}
         ${box('Ventas por categoría', bars(byCat.slice(0, 8), byCat.reduce((s, x) => s + x.v, 0)), 'artículos, sin envío', true)}
       </div>
-      ${box('Detalle por origen', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Origen</b></td><td class="hide-m"><b>Tipo</b></td><td class="num"><b>Pedidos</b></td><td class="num"><b>Ventas</b></td><td class="num hide-m"><b>Ticket promedio</b></td><td class="num"><b>% de ventas</b></td><td class="num hide-m"><b>vs. anterior</b></td></tr></thead><tbody>${bySrc.map((x) => { const o = ORIG.find((y) => y.lbl === x.l); const pv = prevBySrc.get(x.l); return `<tr><td><a href="#/pedidos?origen=${o.k}">${esc(x.l)}</a></td><td class="hide-m">${o.type}</td><td class="num">${x.n}</td><td class="num">${clp(x.v)}</td><td class="num hide-m">${clp(x.v / x.n)}</td><td class="num">${Math.round((x.v / a.sales) * 100)} %</td><td class="num hide-m delta">${pv ? delta(x.v, pv.v).replace(' vs. período anterior', '') : '—'}</td></tr>`; }).join('')}</tbody></table></div>
+      ${box('Detalle por origen', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Origen</b></td><td class="hide-m"><b>Tipo</b></td><td class="num"><b>Pedidos</b></td><td class="num"><b>Ventas</b></td><td class="num hide-m"><b>Ticket promedio</b></td><td class="num"><b>% de ventas</b></td><td class="num hide-m"><b>vs. anterior</b></td></tr></thead><tbody>${bySrc.map((x) => { const o = ORIG.find((y) => y.lbl === x.l); const pv = prevBySrc.get(x.l); return `<tr><td><a href="#/pedidos?origen=${o.k}">${esc(x.l)}</a></td><td class="hide-m">${o.type}</td><td class="num">${x.n}</td><td class="num">${clp(x.v)}</td><td class="num hide-m">${clp(x.v / x.n)}</td><td class="num">${Math.round((x.v / a.sales) * 100)} %</td><td class="num hide-m delta">${pv ? delta(x.v, pv.v).replace('<span class="vs"> vs. período anterior</span>', '') : '—'}</td></tr>`; }).join('')}</tbody></table></div>
         <p class="muted small" style="padding:0 12px">Por tipo: ${byType.map((x) => `${x.l} ${Math.round((x.v / a.sales) * 100)} %`).join(' · ')}. Por dispositivo: ${dev.map((x) => `${x.l} ${Math.round((x.n / a.n) * 100)} %`).join(' · ')}.</p>`, '', true)}
       <div class="dash">
         ${box('Campañas con ventas', `<table class="mini"><tbody>${camps.slice(0, 8).map((x) => { const [s, c] = x.l.split('|'); return `<tr><td>${esc(c)}<div class="muted small">${esc(s)}</div></td><td class="num">${plural(x.n, 'pedido', 'pedidos')}</td><td class="num">${clp(x.v)}</td></tr>`; }).join('') || '<tr><td class="muted">Sin campañas en el período.</td></tr>'}</tbody></table>`, 'según UTM', true)}
@@ -581,7 +582,7 @@
   V.usuarios = () => `
     <div class="wrap-h"><h1>Usuarios</h1><button class="page-title-action" data-act="nuevo-usuario">Añadir nuevo</button></div>
     <table class="wp-list-table"><thead><tr><th>Nombre de usuario</th><th>Nombre</th><th class="hide-m">Correo</th><th>Perfil</th><th class="hide-m">Último acceso</th></tr></thead><tbody>
-      ${[['guillermo', 'Guillermo Araya', 'Administrador', 2 * HOUR], ['desarrollo', 'Equipo de desarrollo', 'Administrador', 26 * HOUR], ['ventas', 'Ventas y despacho', 'Gestor de la tienda', 40 * MIN]].map(([u, n, r, t]) => `<tr><td><span class="ab-av" style="display:inline-grid;color:#fff;margin-right:8px">${u[0].toUpperCase()}</span><a class="row-title" href="#/usuarios">${u}</a></td><td>${n}</td><td class="hide-m">${u}@ejemplo.cl</td><td>${r}</td><td class="hide-m">${ago(NOW - t)}</td></tr>`).join('')}
+      ${[['guillermo', 'Guillermo Araya', 'Administrador', 2 * HOUR], ['desarrollo', 'Equipo de desarrollo', 'Administrador', 26 * HOUR], ['ventas', 'Ventas y despacho', 'Gestor de la tienda', 40 * MIN]].map(([u, n, r, t]) => `<tr><td><span class="av" style="margin-right:10px;width:30px;height:30px;font-size:13px">${u[0].toUpperCase()}</span><a class="row-title" href="#/usuarios">${u}</a></td><td>${n}</td><td class="hide-m">${u}@ejemplo.cl</td><td>${r}</td><td class="hide-m">${ago(NOW - t)}</td></tr>`).join('')}
     </tbody></table>
     <div class="dash" style="margin-top:20px">
       ${box('Perfiles', '<dl class="kv"><dt>Administrador</dt><dd>Todo, incluidos los ajustes, conexiones y usuarios.</dd><dt>Gestor de la tienda</dt><dd>Pedidos, productos, clientes y analítica. No ve ajustes ni claves.</dd></dl>')}
@@ -611,19 +612,32 @@
     const sec = parts[0] || '', key = sec === '' || sec === 'escritorio' ? 'dash' : sec, view = V[key];
     hideTip();
     drawMenu(sec, q);
-    $('#adminmenu').classList.remove('open'); $('#menuToggle').setAttribute('aria-expanded', 'false');
+    setMenu(false);
     charts.length = 0;
     const main = $('#wpbody');
     main.innerHTML = view ? view(q, parts[1]) : `<div class="wrap-h"><h1>No encontrado</h1></div><p><a href="#/">Volver al escritorio</a></p>`;
     if (view && view.after) view.after(q, parts[1]);
-    document.title = `${TITLES[key] || 'No encontrado'} ‹ Reycar Store — Administración`;
+    document.title = `${TITLES[key] || 'No encontrado'} · Panel Reycar`;
     if (route.last !== path) { scrollTo(0, 0); main.focus({ preventScroll: true }); }
     route.last = path;
   }
   addEventListener('hashchange', route);
 
   /* ───────── interacción ───────── */
-  $('#menuToggle').addEventListener('click', (e) => { const m = $('#adminmenu'); const on = m.classList.toggle('open'); e.currentTarget.setAttribute('aria-expanded', String(on)); });
+  function setMenu(on) { $('#side').classList.toggle('open', on); $('#scrim').hidden = !on; $('#menuToggle').setAttribute('aria-expanded', String(on)); }
+  $('#menuToggle').addEventListener('click', () => setMenu(!$('#side').classList.contains('open')));
+  $('#scrim').addEventListener('click', () => setMenu(false));
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
+  // modo claro / oscuro: misma preferencia que la tienda (reycars-theme)
+  const darkMQ = matchMedia('(prefers-color-scheme: dark)');
+  const mode = () => document.documentElement.dataset.theme || (darkMQ.matches ? 'dark' : 'light');
+  const syncTheme = () => { $('#themeBtn').setAttribute('aria-label', mode() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'); };
+  $('#themeBtn').addEventListener('click', () => { const next = mode() === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = next; try { localStorage.setItem('reycars-theme', next); } catch (e) { /* modo privado */ } syncTheme(); });
+  if (darkMQ.addEventListener) darkMQ.addEventListener('change', syncTheme);
+  syncTheme();
+  const dn = new Date(NOW), hr = dn.getHours();
+  $('#hello').textContent = `${hr < 12 ? 'Buenos días' : hr < 20 ? 'Buenas tardes' : 'Buenas noches'}, Guillermo`;
+  $('#today').textContent = `${['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dn.getDay()]} ${dn.getDate()} de ${MESL[dn.getMonth()]}`;
   document.addEventListener('submit', (e) => {
     const f = e.target.closest('[data-form]'); if (!f) return;
     e.preventDefault();
