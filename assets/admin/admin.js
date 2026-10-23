@@ -139,7 +139,7 @@
   const oId = new Map(ORDERS.map((o) => [o.id, o]));
 
   function buildNotes(o) {
-    const n = (dt, txt, kind = 'system', by = 'Reycar Store') => o.notes.push({ t: o.t + dt, txt, kind, by });
+    const n = (dt, txt, kind = 'system', by = 'Reycar Store') => o.notes.push({ t: Math.min(o.t + dt, NOW - MIN), txt, kind, by });
     n(0, 'Pedido creado. Esperando el pago en Klap.');
     if (o.st === 'failed') return n(2 * MIN, 'Klap rechazó el pago (tarjeta sin fondos). El stock no se descontó.');
     if (o.st === 'pending') return;
@@ -165,6 +165,64 @@
   const otag = (o) => `<span class="tag${o.src.cls ? ' tag--' + o.src.cls : ''}">${esc(o.src.lbl)}</span>`;
   const qty = (o) => o.lines.reduce((s, l) => s + l.q, 0);
 
+  /* ───────── más datos de demostración: carritos, cupones, campañas, actividad, portada ───────── */
+  ORDERS.forEach((o) => { if (o.st === 'processing') o.prep = NOW - o.t > 18 * HOUR; });
+  const isPick = (o) => /Retiro/.test(o.ship.m);
+
+  const CARTS = [];
+  for (let i = 0; i < 46; i++) {
+    const t = NOW - rnd() * 14 * DAY, known = rnd() < 0.62, c = known ? CUST[Math.floor(rnd() * CUST.length)] : null;
+    const lines = [];
+    for (let k = 0, nl = pick([1, 1, 2, 2, 3]); k < nl; k++) { let p = wpick(SELL).p; if (p.vs) p = pick(p.vs); if (!lines.some((l) => l.p === p)) lines.push({ p, q: rnd() < 0.85 ? 1 : 2 }); }
+    const r = rnd();
+    CARTS.push({ id: 900 + i, t, c, lines, total: lines.reduce((s, l) => s + l.q * l.p.p, 0), src: wpick(ORIG),
+      stage: !known ? 'Agregó al carro' : rnd() < 0.55 ? 'Llegó al pago' : 'Ingresó sus datos',
+      st: !known ? 'anon' : NOW - t > 2 * DAY ? (r < 0.27 ? 'rec' : r < 0.62 ? 'sent' : 'pend') : (r < 0.25 ? 'sent' : 'pend') });
+  }
+  CARTS.sort((a, b) => b.t - a.t);
+  const CART_ST = { pend: ['Por recuperar', 'processing'], sent: ['Recordatorio enviado', 'pending'], rec: ['Recuperado', 'completed'], anon: ['Sin datos de contacto', 'cancelled'] };
+
+  const yr = new Date(NOW).getFullYear();
+  const COUPONS = [
+    { code: 'CYBER30', type: 'pct', val: 30, min: 0, uses: 41, limit: 0, from: NOW - 18 * DAY, to: NOW - 14 * DAY, scope: 'Toda la tienda' },
+    { code: 'MOTORCLEAN10', type: 'pct', val: 10, min: 0, uses: 23, limit: 200, from: NOW - 25 * DAY, to: NOW + 20 * DAY, scope: 'Solo productos Motor Clean' },
+    { code: 'BIENVENIDA5', type: 'pct', val: 5, min: 0, uses: 58, limit: 0, from: NOW - 160 * DAY, to: 0, scope: 'Solo primera compra' },
+    { code: 'ENVIOGRATIS', type: 'ship', val: 0, min: 50000, uses: 37, limit: 0, from: NOW - 60 * DAY, to: NOW + 40 * DAY, scope: 'Toda la tienda' },
+    { code: 'TALLER5000', type: 'fix', val: 5000, min: 30000, uses: 12, limit: 100, from: NOW - 90 * DAY, to: 0, scope: 'Clientes del taller' },
+    { code: 'NAVIDAD15', type: 'pct', val: 15, min: 0, uses: 0, limit: 300, from: new Date(yr, 11, 1).getTime(), to: new Date(yr, 11, 25, 23, 59).getTime(), scope: 'Toda la tienda' },
+  ];
+  const cpState = (c, now = Date.now()) => (c.to && c.to < now ? ['Vencido', 'cancelled'] : c.from > now ? ['Programado', 'pending'] : c.limit && c.uses >= c.limit ? ['Agotado', 'failed'] : ['Activo', 'completed']);
+  const cpVal = (c) => (c.type === 'pct' ? `${c.val} %` : c.type === 'fix' ? clp(c.val) : 'Envío gratis');
+
+  // retorno y costo por clic de cada campaña (de ejemplo; en la versión real vienen de Meta Ads y Google Ads)
+  const CAMP = new Map();
+  ORIG.filter((o) => o.cls === 'ads').forEach((o) => [...o.camps, ...(o.k === 'meta' ? ['CyberMonday · Hasta 30 %'] : [])].forEach((c) => CAMP.set(c, { roas: 2.1 + rnd() * 5.2, cpc: 140 + rnd() * 280 })));
+
+  const LOG = [];
+  const log = (what, detail, who = 'Guillermo') => LOG.unshift({ t: Date.now(), who, what, detail });
+  ORDERS.filter((o) => NOW - o.t < 30 * DAY).forEach((o) => o.notes.filter((n) => n.by === 'Guillermo' && n.t <= NOW).forEach((n) => LOG.push({ t: n.t, who: 'Guillermo', what: `Pedido #${o.id}`, detail: n.txt })));
+  for (let d = 0; d < 30; d++) {
+    LOG.push({ t: NOW - d * DAY - (2 + rnd() * 6) * HOUR, who: 'Guillermo', what: 'Inicio de sesión', detail: 'Correo, contraseña y código de verificación' });
+    if (d % 2 === 0) LOG.push({ t: NOW - d * DAY - rnd() * 8 * HOUR, who: 'Ventas y despacho', what: 'Inicio de sesión', detail: 'Correo, contraseña y código de verificación' });
+  }
+  LOG.push({ t: NOW - 3 * DAY, who: 'Guillermo', what: 'Portada', detail: 'Destacó 6 productos Motor Clean en la portada' },
+    { t: NOW - 15 * DAY - 3 * HOUR, who: 'Guillermo', what: 'Cupón', detail: 'Creó el cupón CYBER30 (30 %)' },
+    { t: NOW - 6 * DAY, who: 'Ventas y despacho', what: 'Despacho', detail: 'Generó 5 etiquetas en Sendu' },
+    { t: NOW - 9 * DAY, who: 'Equipo de desarrollo', what: 'Ajustes', detail: 'Actualizó el ID de Google Analytics 4' });
+  LOG.sort((a, b) => b.t - a.t);
+
+  const firstPulido = HEADS.find((p) => p.g === 'pulido' && p.im && p.im.length);
+  const HOME = {
+    bar: { on: true, txt: 'Envíos a todo Chile · Retiro gratis en Quinta Normal' },
+    banners: [
+      { t: 'Línea completa Motor Clean', s: 'Formatos de 1 L y 5 L para tu lavado', link: '/motor-clean', img: '/assets/brands/motor-clean.png', on: true },
+      { t: 'Pulido profesional', s: 'Máquinas, pads y compuestos', link: '/tienda?g=pulido', img: firstPulido ? img(firstPulido) : '/assets/reycars-crest.webp', on: true },
+      { t: 'Servicios de taller', s: 'Agenda tu lavado o cerámico', link: '/asesoria', img: '/assets/reycars-crest.webp', on: false },
+    ],
+    secs: [['Banners principales', true], ['Categorías', true], ['Productos destacados', true], ['Espacio Motor Clean', true], ['Marcas', true], ['Servicios de taller', true], ['Contacto y ubicación', true]],
+    mc: 'auto',
+  };
+
   /* ───────── menú ───────── */
   const IC = {
     dash: 'M10 3a8 8 0 0 0-7 12h14a8 8 0 0 0-7-12zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM5 9a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm10 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-1.6-3.2 1 .8-3.6 4.6a1.5 1.5 0 1 1-1-.8z',
@@ -174,24 +232,31 @@
     stats: 'M2 17h16v1.5H2zM3 10h3v6H3zm5-5h3v11H8zm5 3h3v8h-3z',
     seo: 'M8.5 2a6.5 6.5 0 0 1 5.2 10.4l4.4 4.4-1.3 1.3-4.4-4.4A6.5 6.5 0 1 1 8.5 2zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z',
     users: 'M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8c0-3.6 3.1-6.5 7-6.5s7 2.9 7 6.5z',
+    mkt: 'M16 3v14l-5.5-3.2H7.2L6.4 18H4.2l.9-4.4A3.2 3.2 0 0 1 2 10.5v-1A3.5 3.5 0 0 1 5.5 6h5zm1.5 4a3 3 0 0 1 0 6z',
+    home: 'M10 2 1.5 9.2H4V18h4.6v-5.2h2.8V18H16V9.2h2.5z',
     set: 'M3 5h8.2a2.5 2.5 0 0 1 4.6 0H17v1.5h-1.2a2.5 2.5 0 0 1-4.6 0H3zm0 8.5h1.2a2.5 2.5 0 0 1 4.6 0H17V15H8.8a2.5 2.5 0 0 1-4.6 0H3z',
   };
   const ico = (k) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${IC[k]}" fill="currentColor"/></svg>`;
   const MENU = [
     { k: 'dash', href: '#/', t: 'Escritorio', match: ['', 'escritorio'] },
-    { k: 'orders', href: '#/pedidos', t: 'Pedidos', match: ['pedidos', 'pedido'], badge: () => ORDERS.filter((o) => o.st === 'processing').length },
-    { k: 'prod', href: '#/productos', t: 'Productos', match: ['productos', 'producto'] },
+    { k: 'orders', href: '#/pedidos', t: 'Pedidos', match: ['pedidos', 'pedido', 'despachos'], badge: () => ORDERS.filter((o) => o.st === 'processing').length, subs: [['#/pedidos', 'Todos los pedidos'], ['#/despachos', 'Despachos']] },
+    { k: 'prod', href: '#/productos', t: 'Productos', match: ['productos', 'producto', 'inventario'], subs: [['#/productos', 'Todos los productos'], ['#/inventario', 'Inventario y reposición']] },
     { k: 'cust', href: '#/clientes', t: 'Clientes', match: ['clientes'] },
+    { k: 'mkt', href: '#/marketing', t: 'Marketing', match: ['marketing'], def: 'anuncios', subs: [['#/marketing?tab=anuncios', 'Anuncios'], ['#/marketing?tab=cupones', 'Cupones'], ['#/marketing?tab=carritos', 'Carritos abandonados'], ['#/marketing?tab=catalogos', 'Catálogos'], ['#/marketing?tab=pixel', 'Píxel y eventos']] },
+    { k: 'home', href: '#/portada', t: 'Portada', match: ['portada'] },
     { k: 'stats', href: '#/analitica', t: 'Analítica', match: ['analitica'] },
     { k: 'seo', href: '#/seo', t: 'SEO', match: ['seo'] },
-    { k: 'users', href: '#/usuarios', t: 'Usuarios', match: ['usuarios'] },
-    { k: 'set', href: '#/ajustes', t: 'Ajustes', match: ['ajustes'], subs: [['general', 'General'], ['pagos', 'Pagos (Klap)'], ['envios', 'Envíos (Sendu)'], ['bsale', 'Bsale'], ['seguimiento', 'Seguimiento y anuncios']] },
+    { k: 'users', href: '#/usuarios', t: 'Usuarios', match: ['usuarios', 'actividad'], subs: [['#/usuarios', 'Usuarios'], ['#/actividad', 'Registro de actividad']] },
+    { k: 'set', href: '#/ajustes', t: 'Ajustes', match: ['ajustes'], def: 'general', subs: [['#/ajustes?tab=general', 'General'], ['#/ajustes?tab=pagos', 'Pagos (Klap)'], ['#/ajustes?tab=envios', 'Envíos (Sendu)'], ['#/ajustes?tab=bsale', 'Bsale'], ['#/ajustes?tab=seguimiento', 'Seguimiento y anuncios'], ['#/ajustes?tab=correos', 'Correos al cliente'], ['#/ajustes?tab=privacidad', 'Privacidad y datos']] },
   ];
+  const ALIAS = { pedido: 'pedidos', producto: 'productos' };
+  const subKey = (h) => { const [path, qs] = h.replace(/^#\//, '').split('?'); return `${path.split('/')[0]}|${new URLSearchParams(qs || '').get('tab') || ''}`; };
   function drawMenu(sec, q) {
     $('#adminmenu').innerHTML = MENU.map((m) => {
       const on = m.match.includes(sec), b = m.badge && m.badge();
       let h = `<a href="${m.href}" class="${on ? 'current' : ''}"${on ? ' aria-current="page"' : ''}>${ico(m.k)}<span>${m.t}</span>${b ? `<span class="count" aria-label="${b} por procesar">${b}</span>` : ''}</a>`;
-      if (on && m.subs) h += `<div class="sub">${m.subs.map(([id, t]) => `<a href="${m.href}?tab=${id}" class="${(q.get('tab') || 'general') === id ? 'on' : ''}">${t}</a>`).join('')}</div>`;
+      const cur = `${ALIAS[sec] || sec}|${m.def ? q.get('tab') || m.def : ''}`;
+      if (on && m.subs) h += `<div class="sub">${m.subs.map(([u, t]) => `<a href="${u}" class="${subKey(u) === cur ? 'on' : ''}">${t}</a>`).join('')}</div>`;
       return h;
     }).join('');
   }
@@ -244,9 +309,11 @@
     draw();
     charts.push({ host, draw });
   }
-  function bars(rows, total) {
-    const max = Math.max(1, ...rows.map((r) => r.v));
-    return `<ul class="bars">${rows.map((r) => `<li data-tip="${esc(`<b>${esc(r.l)}</b><br>${clp(r.v)} · ${plural(r.n, 'pedido', 'pedidos')}<br>Ticket promedio ${clp(r.n ? r.v / r.n : 0)}`)}"><span class="bl" title="${esc(r.l)}">${esc(r.l)}</span><span class="bt"><span class="bf" style="display:block;width:${((r.v / max) * 100).toFixed(1)}%"></span></span><span class="bv">${clpK(r.v)}<small>${total ? Math.round((r.v / total) * 100) : 0} %</small></span></li>`).join('')}</ul>`;
+  function bars(rows, total, o = {}) {
+    const max = Math.max(1e-9, ...rows.map((r) => r.v));
+    const tipOf = o.tip || ((r) => `<b>${esc(r.l)}</b><br>${clp(r.v)} · ${plural(r.n, 'pedido', 'pedidos')}<br>Ticket promedio ${clp(r.n ? r.v / r.n : 0)}`);
+    const valOf = o.fmt || ((r) => `${clpK(r.v)}<small>${total ? Math.round((r.v / total) * 100) : 0} %</small>`);
+    return `<ul class="bars">${rows.map((r) => `<li data-tip="${esc(tipOf(r))}"><span class="bl" title="${esc(r.l)}">${esc(r.l)}</span><span class="bt"><span class="bf" style="display:block;width:${((r.v / max) * 100).toFixed(1)}%"></span></span><span class="bv">${valOf(r)}</span></li>`).join('')}</ul>`;
   }
   document.addEventListener('pointerover', (e) => { const li = e.target.closest('[data-tip]'); if (li) { const r = li.getBoundingClientRect(); showTip(li.dataset.tip, r.left + r.width * 0.45, r.top); } });
   document.addEventListener('pointerout', (e) => { if (e.target.closest('[data-tip]') && !e.relatedTarget?.closest?.('[data-tip]')) hideTip(); });
@@ -293,6 +360,12 @@
           ${box('Últimos pedidos', `<table class="mini"><tbody>${ORDERS.slice(0, 7).map((o) => `<tr><td><a href="#/pedido/${o.id}"><b>#${o.id}</b> ${esc(custName(o.c))}</a><div class="muted small">${ago(o.t)} · ${otag(o)}</div></td><td>${pill(o.st)}</td><td class="num">${clp(o.total)}</td></tr>`).join('')}</tbody></table>`, '<a href="#/pedidos">Ver todos</a>', true)}
         </div>
         <div>
+          ${box('Para hoy', `<ul class="tasks">${[
+            [ORDERS.filter((o) => o.st === 'processing' && !o.prep).length, 'pedidos por preparar', '#/despachos'],
+            [ORDERS.filter((o) => o.st === 'processing' && o.prep).length, 'listos para enviar o retirar', '#/despachos'],
+            [CARTS.filter((c) => c.st === 'pend').length, 'carritos abandonados por recuperar', '#/marketing?tab=carritos'],
+            [invRows().filter((x) => x.st === 'now').length, 'productos para reponer ya', '#/inventario'],
+          ].map(([n, t, h]) => `<li><a href="${h}"><b>${n}</b><span>${t}</span><span aria-hidden="true" class="tasks__go">→</span></a></li>`).join('')}</ul>`, '', true)}
           ${box('Estado de la tienda', `<ul class="glance">
             <li><a href="#/pedidos?estado=processing"><strong>${plural(proc.length, 'pedido', 'pedidos')}</strong>en Procesando</a></li>
             <li><a href="#/pedidos?estado=pending"><strong>${plural(pend.length, 'pedido', 'pedidos')}</strong>esperando pago</a></li>
@@ -323,12 +396,13 @@
     const counts = {}; list.forEach((o) => (counts[o.st] = (counts[o.st] || 0) + 1));
     if (st) list = list.filter((o) => o.st === st);
     const months = [...new Set(ORDERS.map((o) => { const d = new Date(o.t); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}`; }))];
+    V.pedidos.last = list;
     const rows = list.slice((page - 1) * per, page * per);
     const base = '#/pedidos';
     const tabs = [['', 'Todos', Object.values(counts).reduce((a, b) => a + b, 0)], ...['pending', 'processing', 'completed', 'cancelled', 'refunded', 'failed'].map((k) => [k, ST[k], counts[k] || 0])].filter(([k, , n]) => !k || n);
     const c = cid && CUST.find((x) => x.id === cid);
     return `
-      <div class="wrap-h"><h1>Pedidos</h1><button class="page-title-action" data-act="nuevo-pedido">Añadir pedido</button></div>
+      <div class="wrap-h"><h1>Pedidos</h1><button class="page-title-action" data-act="nuevo-pedido">Añadir pedido</button><button class="button" data-act="csv-pedidos">Exportar a Excel (${miles(list.length)})</button></div>
       ${c ? `<div class="notice"><p>Mostrando solo los pedidos de <b>${esc(custName(c))}</b>. <a href="${href(base, q, { cliente: '', pag: '' })}">Ver todos</a></p></div>` : ''}
       <ul class="subsubsub">${tabs.map(([k, l, n]) => `<li><a href="${href(base, q, { estado: k, pag: '' })}" class="${st === k ? 'current' : ''}">${l} <span class="n">(${miles(n)})</span></a></li>`).join('')}</ul>
       <form class="tablenav" data-form="pedidos">
@@ -362,7 +436,8 @@
     const c = o.c, paidNote = o.notes.find((n) => n.txt.startsWith('Klap aprobó'));
     const notes = [...o.notes].reverse();
     return `
-      <div class="wrap-h"><h1>Editar pedido</h1><button class="page-title-action" data-act="nuevo-pedido">Añadir pedido</button></div>
+      <div class="wrap-h no-print"><h1>Editar pedido</h1><button class="button" data-act="imprimir">Imprimir pedido</button><a class="button" href="https://wa.me/${c.phone.replace(/\D/g, '')}" target="_blank" rel="noopener" data-act="wa-cliente">WhatsApp al cliente</a></div>
+      <div class="print-only print-head"><img src="/assets/logo.png" alt="" width="40" height="41"><div><b>Reycar Store · Pedido #${o.id}</b><br>${fFull(o.t)} · ${esc(o.ship.m)}</div></div>
       <div class="cols">
         <div>
           <div class="postbox"><div class="inside">
@@ -519,10 +594,11 @@
     ORDERS.forEach((o) => { const x = m.get(o.c) || { c: o.c, n: 0, v: 0, last: 0 }; if (PAID.has(o.st)) { x.n++; x.v += o.total; } x.last = Math.max(x.last, o.t); m.set(o.c, x); });
     let list = [...m.values()].filter((x) => !s || deacc(`${custName(x.c)} ${x.c.email} ${x.c.comuna} ${x.c.emp ? x.c.emp.name : ''}`.toLowerCase()).includes(s));
     list.sort((a, b) => (sort === 'reciente' ? b.last - a.last : sort === 'pedidos' ? b.n - a.n || b.v - a.v : b.v - a.v));
+    V.clientes.last = list;
     const rows = list.slice((page - 1) * per, page * per);
     const rep = [...m.values()].filter((x) => x.n > 1).length;
     return `
-      <div class="wrap-h"><h1>Clientes</h1></div>
+      <div class="wrap-h"><h1>Clientes</h1><button class="button" data-act="csv-clientes">Exportar a Excel</button></div>
       <div class="tiles">${tile('Clientes con pedidos', miles(m.size), 'últimos 180 días')}${tile('Compraron más de una vez', miles(rep), `${Math.round((rep / m.size) * 100)} % del total`)}${tile('Gasto promedio por cliente', clp([...m.values()].reduce((a, x) => a + x.v, 0) / m.size), 'pedidos pagados')}${tile('Con factura', miles([...m.values()].filter((x) => x.c.emp).length), 'empresas con RUT y giro')}</div>
       <form class="tablenav" data-form="clientes">
         <select name="orden" aria-label="Ordenar"><option value="gasto">Mayor gasto</option><option value="pedidos"${sort === 'pedidos' ? ' selected' : ''}>Más pedidos</option><option value="reciente"${sort === 'reciente' ? ' selected' : ''}>Compra más reciente</option></select><button class="button" type="submit">Ordenar</button>
@@ -591,7 +667,7 @@
 
   V.ajustes = (q) => {
     const tab = q.get('tab') || 'general';
-    const tabs = [['general', 'General'], ['pagos', 'Pagos (Klap)'], ['envios', 'Envíos (Sendu)'], ['bsale', 'Bsale'], ['seguimiento', 'Seguimiento y anuncios']];
+    const tabs = [['general', 'General'], ['pagos', 'Pagos (Klap)'], ['envios', 'Envíos (Sendu)'], ['bsale', 'Bsale'], ['seguimiento', 'Seguimiento y anuncios'], ['correos', 'Correos al cliente'], ['privacidad', 'Privacidad y datos']];
     const row = (l, inner, d = '') => `<tr><th>${l}</th><td>${inner}${d ? `<p class="description">${d}</p>` : ''}</td></tr>`;
     const secret = (id, ph) => `<input type="password" id="${id}" placeholder="${ph}" autocomplete="off">`;
     const B = {
@@ -600,12 +676,244 @@
       envios: row('Estado', '<span class="st-wait">Por configurar</span>') + row('<label for="sk">Token de Sendu</label>', secret('sk', 'Se guarda cifrado en el servidor')) + row('Couriers', '<label class="switch"><input type="checkbox" checked> Starken</label><br><label class="switch"><input type="checkbox" checked> Chilexpress</label><br><label class="switch"><input type="checkbox" checked> Blue Express</label>') + row('Retiro en tienda', '<label class="switch"><input type="checkbox" checked> Ofrecer retiro gratis en Quinta Normal</label>') + row('Envío gratis', '<input type="text" placeholder="Monto mínimo, ej. 60.000">', 'Vacío = sin envío gratis.'),
       bsale: row('Estado', '<span class="st-wait">Falta el token de acceso</span>', 'Lo solicita el administrador de la cuenta de Bsale. Es un token nuevo, distinto del que usa hoy WordPress.') + row('<label for="bk">Token de acceso</label>', secret('bk', 'Se guarda cifrado en el servidor')) + row('Sucursal', '<select disabled><option>Casa Matriz (se carga al conectar)</option></select>', 'El stock web sale de esta sucursal.') + row('Lista de precios', '<select disabled><option>Lista web (se carga al conectar)</option></select>') + row('Documento al pagar', '<label class="switch"><input type="checkbox" checked> Emitir boleta o factura automáticamente cuando Klap aprueba el pago</label>', 'También descuenta el stock y envía el PDF al cliente.') + row('Avisos de Bsale', '<label class="switch"><input type="checkbox" checked> Actualizar precio y stock al instante cuando cambian en Bsale</label>'),
       seguimiento: row('<label for="ga">Google Analytics 4</label>', '<input type="text" id="ga" placeholder="G-XXXXXXXXXX">') + row('<label for="gtm">Google Tag Manager</label>', '<input type="text" id="gtm" placeholder="GTM-XXXXXXX">', 'El contenedor actual sigue funcionando: la tienda envía los mismos eventos que hoy (vista de producto, agregar al carro, compra).') + row('<label for="px">Píxel de Meta</label>', '<input type="text" id="px" placeholder="ID del píxel">') + row('<label for="capi">API de conversiones de Meta</label>', secret('capi', 'Token de acceso'), 'Envía las compras también desde el servidor, para que Meta no pierda ventas por bloqueadores o iPhone.') + row('Catálogos de productos', '<a href="#/seo">Meta: /feeds/meta.xml</a><br><a href="#/seo">Google Merchant: /feeds/google.xml</a>', 'Con los mismos ID de producto que hoy, para no reiniciar campañas ni públicos.') + row('Aviso de cookies', '<select><option>Pedir consentimiento (Consent Mode v2)</option><option>Solo informar</option></select>'),
+      correos: [['Pedido recibido', 'Apenas Klap aprueba el pago, con el detalle y la boleta adjunta.'], ['Listo para retiro', 'Cuando se marca "preparado" en Despachos y el cliente eligió retiro.'], ['Pedido enviado', 'Con el courier y el número de seguimiento de Sendu.'], ['Carrito abandonado', 'Una hora después, con el carro listo para pagar.'], ['Pedido cancelado o reembolsado', 'Con la nota de crédito si corresponde.']].map(([t, d]) => row(t, `<label class="switch"><input type="checkbox" checked> Enviar</label> <button class="button" data-act="ver-correo">Vista previa</button>`, d)).join('') + row('Remitente', '<input type="text" value="Reycar Store" aria-label="Nombre del remitente">', 'Los correos llevan el logo y los colores de la tienda.'),
+      privacidad: row('Ley 21.719', '<span class="st st-wait">Vigente desde el 1 de diciembre de 2026</span>', 'Los clientes pueden pedir ver, corregir o borrar sus datos. Desde aquí se atiende cada solicitud y queda registrada.') + row('Solicitudes de clientes', '<button class="button" data-act="solicitud">Exportar los datos de un cliente</button> <button class="button" data-act="solicitud">Borrar los datos de un cliente</button>', 'Los pedidos y boletas se conservan por obligación tributaria; se borran los datos de contacto y marketing.') + row('Conservación', '<select><option>Borrar carritos abandonados a los 90 días</option><option>A los 30 días</option></select>') + row('Exportaciones', '<label class="switch"><input type="checkbox" checked> Solo administradores pueden exportar clientes y pedidos</label>', 'Cada exportación queda en el registro de actividad.') + row('Aviso de privacidad', '<a href="#/ajustes?tab=privacidad" data-act="guardar">Editar el texto de la política de privacidad</a>'),
     };
     return `<div class="wrap-h"><h1>Ajustes</h1></div><nav class="nav-tab-wrapper">${tabs.map(([k, l]) => `<a class="nav-tab${k === tab ? ' nav-tab-active' : ''}" href="#/ajustes?tab=${k}">${l}</a>`).join('')}</nav><table class="form-table"><tbody>${B[tab] || B.general}</tbody></table><p><button class="button button-primary" data-act="guardar">Guardar cambios</button></p>`;
   };
 
+  /* ───────── despachos: del pago a la entrega ───────── */
+  V.despachos = () => {
+    const proc = ORDERS.filter((o) => o.st === 'processing');
+    const lanes = [
+      ['Por preparar', proc.filter((o) => !o.prep), 'Arma la caja y márcalo como preparado.'],
+      ['Listos para retiro', proc.filter((o) => o.prep && isPick(o)), 'Avisa al cliente que puede pasar a buscarlo.'],
+      ['Listos para enviar', proc.filter((o) => o.prep && !isPick(o)), 'Genera la etiqueta en Sendu y entrégalo al courier.'],
+      ['En camino', ORDERS.filter((o) => o.st === 'completed' && o.ship.track && NOW - o.t < 5 * DAY), 'El cliente recibió el número de seguimiento.'],
+    ];
+    const pl = new Map();
+    lanes[0][1].forEach((o) => o.lines.forEach((l) => { const x = pl.get(l.p) || { p: l.p, q: 0, o: [] }; x.q += l.q; x.o.push(o.id); pl.set(l.p, x); }));
+    const pickList = [...pl.values()].sort((a, b) => b.q - a.q);
+    const btn = (lane, o) => [
+      `<button class="button button-primary" data-act="prep" data-id="${o.id}">Marcar preparado</button>`,
+      `<button class="button" data-act="avisar" data-id="${o.id}">Avisar por WhatsApp</button><button class="button button-primary" data-act="retirado" data-id="${o.id}">Retirado</button>`,
+      `<button class="button button-primary" data-act="etiqueta" data-id="${o.id}">Generar etiqueta</button>`,
+      `<button class="button" data-act="seguimiento" data-id="${o.id}">Ver seguimiento</button>`][lane];
+    const card = (o, lane) => `<article class="dcard">
+        <div class="dcard__h"><a href="#/pedido/${o.id}"><b>#${o.id}</b> ${esc(custName(o.c))}</a><span class="muted small">${ago(o.t)}</span></div>
+        <div class="muted small">${esc(o.c.comuna)} · ${plural(qty(o), 'producto', 'productos')} · ${clp(o.total)}</div>
+        <div class="small dcard__ship">${esc(o.ship.m)}${o.ship.track ? ` · ${esc(o.ship.carrier)} ${o.ship.track}` : ''}</div>
+        ${o.cnote ? `<div class="dcard__note"><b>Nota del cliente:</b> ${esc(o.cnote)}</div>` : ''}
+        <div class="dcard__a">${btn(lane, o)}</div></article>`;
+    return `
+      <div class="wrap-h"><h1>Despachos</h1><button class="button no-print" data-act="imprimir">Imprimir lista de preparación</button></div>
+      <p class="muted no-print" style="margin:-8px 0 18px">Solo pedidos pagados, desde que entran hasta que salen. Cada paso queda anotado en el pedido.</p>
+      <div class="board no-print">${lanes.map(([t, l, d], i) => `<section class="lane" aria-label="${t}"><h2>${t} <span class="lane__n">${l.length}</span></h2><p class="muted small lane__d">${d}</p>${l.map((o) => card(o, i)).join('') || '<p class="lane__empty">Nada pendiente.</p>'}</section>`).join('')}</div>
+      <div class="print-only print-head"><img src="/assets/logo.png" alt="" width="40" height="41"><div><b>Reycar Store · Lista de preparación</b><br>${fFull(Date.now())}</div></div>
+      ${box(`Lista de preparación · ${plural(pickList.length, 'producto', 'productos')}`, pickList.length ? `<table class="mini"><thead><tr><td><b>Producto</b></td><td class="hide-m"><b>SKU</b></td><td class="num"><b>Cant.</b></td><td class="hide-m"><b>Pedidos</b></td><td class="num"><b>Listo</b></td></tr></thead><tbody>${pickList.map((x) => `<tr><td>${esc(x.p.n)}</td><td class="hide-m">${esc(x.p.sku || '—')}</td><td class="num"><b>${x.q}</b></td><td class="hide-m">${x.o.map((i) => '#' + i).join(', ')}</td><td class="num"><input type="checkbox" aria-label="Listo: ${esc(x.p.n)}"></td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="padding:16px 18px;margin:0">No hay pedidos por preparar.</p>', 'lo que hay que sacar de bodega', true)}`;
+  };
+
+  /* ───────── inventario: cuánto alcanza el stock ───────── */
+  function invRows() {
+    const sold = new Map();
+    agg(30).list.forEach((o) => o.lines.forEach((l) => sold.set(l.p, (sold.get(l.p) || 0) + l.q)));
+    return ALL.filter((p) => p.p > 0 && !['cursos', 'servicios'].includes(p.g)).map((p) => {
+      const u = sold.get(p) || 0, per = u / 30, days = p.stk == null || !per ? Infinity : p.stk / per;
+      const st = p.stk === 0 ? 'out' : days <= 14 ? 'now' : days <= 30 ? 'soon' : !u && p.stk > 5 ? 'idle' : 'ok';
+      return { p, u, days, st, sug: per ? Math.max(0, Math.ceil(per * 45 - (p.stk || 0))) : 0 };
+    });
+  }
+  const INV_ST = { out: ['Agotado', 'failed'], now: ['Reponer ya', 'failed'], soon: ['Reponer pronto', 'processing'], ok: ['Con stock', 'completed'], idle: ['Sin ventas en 30 días', 'cancelled'] };
+  V.inventario = (q) => {
+    const f = q.get('f') || 'reponer', page = Math.max(1, +q.get('pag') || 1), per = 25, base = '#/inventario';
+    const all = invRows(), cnt = (k) => all.filter((x) => x.st === k).length;
+    let list = f === 'reponer' ? all.filter((x) => ['out', 'now', 'soon'].includes(x.st)) : f === 'idle' ? all.filter((x) => x.st === 'idle') : all;
+    list.sort((a, b) => a.days - b.days || b.u - a.u || (a.p.stk ?? 99) - (b.p.stk ?? 99));
+    V.inventario.last = list;
+    const rows = list.slice((page - 1) * per, page * per);
+    return `
+      <div class="wrap-h"><h1>Inventario y reposición</h1><button class="button" data-act="csv-inventario">Exportar para el proveedor</button></div>
+      <div class="notice"><p>El stock es el real de Bsale. Con las ventas de los últimos 30 días se calcula para cuántos días alcanza y cuánto pedir para cubrir 45 días. <span class="muted">(Las ventas de esta maqueta son de ejemplo.)</span></p></div>
+      <div class="tiles">${tile('Reponer ya', miles(cnt('now')), 'alcanza para 14 días o menos')}${tile('Reponer pronto', miles(cnt('soon')), 'alcanza para 15 a 30 días')}${tile('Agotados', miles(cnt('out')), 'sin stock en Bsale')}${tile('Sin ventas en 30 días', miles(cnt('idle')), 'stock detenido')}</div>
+      <ul class="subsubsub">${[['reponer', 'Por reponer', cnt('out') + cnt('now') + cnt('soon')], ['idle', 'Sin ventas', cnt('idle')], ['todos', 'Todos', all.length]].map(([k, l, n]) => `<li><a href="${href(base, q, { f: k, pag: '' })}" class="${f === k ? 'current' : ''}">${l} <span class="n">(${miles(n)})</span></a></li>`).join('')}</ul>
+      <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
+      <table class="wp-list-table"><thead><tr><th style="width:60px"><span class="screen-reader-text">Foto</span></th><th>Producto</th><th class="hide-m">SKU</th><th class="num">Stock</th><th class="num hide-m">Vendidos 30 días</th><th class="num">Alcanza para</th><th class="hide-m">Estado</th><th class="num hide-m">Sugerido pedir</th></tr></thead>
+      <tbody>${rows.length ? rows.map((x) => `<tr><td><img class="thumb" src="${img(x.p)}" alt="" loading="lazy"></td><td><a class="row-title" href="#/producto/${x.p.fam || x.p.id}">${esc(x.p.n)}</a><div class="muted small">${esc(x.p.b || '')}</div></td><td class="hide-m">${esc(x.p.sku || '—')}</td><td class="num">${x.p.stk == null ? '—' : x.p.stk}</td><td class="num hide-m">${x.u}</td><td class="num nw">${x.days === Infinity ? '<span class="muted">—</span>' : plural(Math.max(0, Math.round(x.days)), 'día', 'días')}</td><td class="hide-m">${pillOf(INV_ST[x.st])}</td><td class="num hide-m">${x.sug ? `<b>${x.sug}</b>` : '—'}</td></tr>`).join('') : '<tr class="no-items"><td colspan="8">Nada por reponer.</td></tr>'}</tbody></table>
+      <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>`;
+  };
+  const pillOf = ([l, cls]) => `<mark class="order-status status-${cls}"><span>${l}</span></mark>`;
+
+  /* ───────── marketing ───────── */
+  const FEED_ERR = (p) => { const e = []; if (!p.im || !p.im.length) e.push('Sin foto'); if (!String(p.d || (p.fam && byId.get(p.fam).d) || '').trim()) e.push('Sin descripción'); return e; };
+  const FEED_WARN = (p) => { const w = []; if (!p.b) w.push('Sin marca'); if (p.sku && !/^\d{8,14}$/.test(p.sku)) w.push('SKU no es código de barras'); return w; };
+  V.marketing = (q) => {
+    const tab = q.get('tab') || 'anuncios';
+    const tabs = [['anuncios', 'Anuncios'], ['cupones', 'Cupones'], ['carritos', 'Carritos abandonados'], ['catalogos', 'Catálogos'], ['pixel', 'Píxel y eventos']];
+    const head = `<div class="wrap-h"><h1>Marketing</h1>${tab === 'anuncios' ? segR(q) : ''}</div><nav class="nav-tab-wrapper">${tabs.map(([k, l]) => `<a class="nav-tab${k === tab ? ' nav-tab-active' : ''}" href="#/marketing?tab=${k}">${l}</a>`).join('')}</nav>`;
+    return head + (MK[tab] || MK.anuncios)(q);
+  };
+  const rangeOf = (q) => ([7, 30, 90].includes(+q.get('r')) ? +q.get('r') : 30);
+  const segR = (q) => `<span class="seg" role="group">${[[7, '7 días'], [30, '30 días'], [90, '90 días']].map(([v, l]) => `<button type="button" data-q="r=${v}" aria-pressed="${v === rangeOf(q)}">${l}</button>`).join('')}</span>`;
+  const x1 = (n) => `${n.toFixed(1).replace('.', ',')}×`;
+  const MK = {};
+  MK.anuncios = (q) => {
+    const r = rangeOf(q);
+    const camps = (x) => groupBy(x.list.filter((o) => o.src.cls === 'ads' && o.camp), (o) => o.camp).map((g) => {
+      const k = CAMP.get(g.l) || { roas: 3, cpc: 250 }, spend = g.v / k.roas;
+      return { ...g, plat: x.list.find((o) => o.camp === g.l).src.lbl, spend, clicks: Math.round(spend / k.cpc), roas: k.roas };
+    });
+    const sum = (rs) => rs.reduce((s, x) => ({ spend: s.spend + x.spend, v: s.v + x.v, n: s.n + x.n, clicks: s.clicks + x.clicks }), { spend: 0, v: 0, n: 0, clicks: 0 });
+    const a = agg(r), cur = camps(a), T = sum(cur), P = sum(camps(agg(r, r)));
+    const plat = (name) => sum(cur.filter((x) => x.plat === name));
+    const m = plat('Meta Ads'), g = plat('Google Ads');
+    return `
+      <div class="tiles">${tile('Inversión en anuncios', clp(T.spend), delta(T.spend, P.spend))}${tile('Ventas desde anuncios', clp(T.v), delta(T.v, P.v))}${tile('Retorno (ROAS)', T.spend ? x1(T.v / T.spend) : '—', T.spend && P.spend ? delta(T.v / T.spend, P.v / P.spend) : '')}${tile('Costo por pedido', clp(T.n ? T.spend / T.n : 0), delta(T.n ? T.spend / T.n : 0, P.n ? P.spend / P.n : 0))}</div>
+      <div class="dash">
+        ${box('Retorno por campaña', bars(cur.map((x) => ({ ...x, v: x.roas })).sort((a, b) => b.v - a.v), 0, { fmt: (x) => `${x1(x.v)}<small>${esc(x.plat.replace(' Ads', ''))}</small>`, tip: (x) => `<b>${esc(x.l)}</b><br>Inversión ${clp(x.spend)} · Ventas ${clp(x.spend * x.v)}<br>Por cada $1 invertido vuelven ${clp(x.v)}` }), 'ventas ÷ inversión', true)}
+        ${box('Por plataforma', `<table class="mini"><thead><tr><td><b>Plataforma</b></td><td class="num"><b>Inversión</b></td><td class="num"><b>Ventas</b></td><td class="num"><b>ROAS</b></td></tr></thead><tbody>${[['Meta Ads', m], ['Google Ads', g]].map(([n, x]) => `<tr><td>${n}</td><td class="num">${clp(x.spend)}</td><td class="num">${clp(x.v)}</td><td class="num"><b>${x.spend ? x1(x.v / x.spend) : '—'}</b></td></tr>`).join('')}</tbody></table><p class="muted small" style="padding:0 18px 4px">Un ROAS de 4× significa que cada $1.000 en anuncios trajo $4.000 en ventas. Se cuentan solo pedidos pagados.</p>`, '', true)}
+      </div>
+      ${box('Campañas', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Campaña</b></td><td class="num"><b>Inversión</b></td><td class="num hide-m"><b>Clics</b></td><td class="num"><b>Pedidos</b></td><td class="num"><b>Ventas</b></td><td class="num"><b>ROAS</b></td><td class="num hide-m"><b>Costo por pedido</b></td></tr></thead><tbody>${cur.sort((a, b) => b.v - a.v).map((x) => `<tr><td>${esc(x.l)}<div class="muted small">${x.plat}</div></td><td class="num">${clp(x.spend)}</td><td class="num hide-m">${miles(x.clicks)}</td><td class="num">${x.n}</td><td class="num">${clp(x.v)}</td><td class="num"><b>${x1(x.roas)}</b></td><td class="num hide-m">${clp(x.spend / x.n)}</td></tr>`).join('') || '<tr><td class="muted">Sin ventas desde anuncios en el período.</td></tr>'}</tbody></table></div>`, `${fDate(a.daily[0].d)} – ${fDate(a.daily[a.daily.length - 1].d)}`, true)}
+      <div class="notice"><p><b>En la versión real</b> la inversión y los clics llegan solos desde Meta Ads y Google Ads, y las ventas son los pedidos pagados con su campaña (UTM). Así el retorno se ve con las ventas reales, no con las que estima cada plataforma.</p></div>`;
+  };
+  MK.cupones = () => {
+    const act = COUPONS.filter((c) => cpState(c)[0] === 'Activo');
+    return `
+      <div class="tiles">${tile('Cupones activos', miles(act.length), `de ${COUPONS.length} creados`)}${tile('Usos totales', miles(COUPONS.reduce((s, c) => s + c.uses, 0)), 'pedidos pagados con cupón')}${tile('Ventas con cupón', clp(COUPONS.reduce((s, c) => s + c.uses * 52000, 0)), 'aproximado')}${tile('Más usado', esc(COUPONS.slice().sort((a, b) => b.uses - a.uses)[0].code), 'desde que se creó')}</div>
+      <table class="wp-list-table"><thead><tr><th>Código</th><th>Descuento</th><th class="hide-m">Aplica a</th><th class="hide-m">Compra mínima</th><th class="num">Usos</th><th class="hide-m">Vigencia</th><th>Estado</th></tr></thead><tbody>
+      ${COUPONS.map((c) => `<tr><td><code>${esc(c.code)}</code></td><td>${cpVal(c)}</td><td class="hide-m">${esc(c.scope)}</td><td class="hide-m">${c.min ? clp(c.min) : '—'}</td><td class="num">${c.uses}${c.limit ? ` / ${c.limit}` : ''}</td><td class="hide-m">${c.to ? `${fDay(c.from)} – ${fDate(c.to)}` : `Desde ${fDate(c.from)}`}</td><td>${pillOf(cpState(c))}</td></tr>`).join('')}
+      </tbody></table>
+      <div class="postbox" style="margin-top:20px"><h2 class="hndle">Crear cupón</h2><div class="inside"><div class="fgrid">
+        <div class="field"><label for="cc">Código</label><input type="text" id="cc" placeholder="EJ: VERANO20" style="text-transform:uppercase" maxlength="20"></div>
+        <div class="field"><label for="ct">Tipo de descuento</label><select id="ct"><option value="pct">Porcentaje</option><option value="fix">Monto fijo</option><option value="ship">Envío gratis</option></select></div>
+        <div class="field"><label for="cv">Valor</label><input type="number" id="cv" min="0" placeholder="10"></div>
+        <div class="field"><label for="cm">Compra mínima ($)</label><input type="number" id="cm" min="0" placeholder="Sin mínimo"></div>
+        <div class="field"><label for="cl">Límite de usos</label><input type="number" id="cl" min="0" placeholder="Sin límite"></div>
+        <div class="field"><label for="cs2">Aplica a</label><select id="cs2"><option>Toda la tienda</option><option>Solo primera compra</option><option>Solo productos Motor Clean</option><option>Una categoría…</option><option>Clientes del taller</option></select></div>
+        <div class="field"><label for="cf">Desde</label><input type="date" id="cf"></div>
+        <div class="field"><label for="cto">Hasta</label><input type="date" id="cto"></div>
+      </div><p class="muted small" style="margin:0 0 12px">El descuento aparece como línea aparte en la boleta o factura de Bsale.</p><button class="button button-primary" data-act="crear-cupon">Crear cupón</button></div></div>`;
+  };
+  MK.carritos = (q) => {
+    const f = q.get('f') || '', base = '#/marketing';
+    const list = CARTS.filter((c) => !f || c.st === f);
+    const known = CARTS.filter((c) => c.st !== 'anon'), rec = CARTS.filter((c) => c.st === 'rec');
+    return `
+      <div class="tiles">${tile('Carritos abandonados', miles(CARTS.length), 'últimos 14 días')}${tile('Valor en carritos', clp(CARTS.reduce((s, c) => s + c.total, 0)), 'lo que quedó sin pagar')}${tile('Se pueden recuperar', miles(known.length), 'dejaron correo o teléfono')}${tile('Recuperados', miles(rec.length), `${known.length ? Math.round((rec.length / known.length) * 100) : 0} % · ${clp(rec.reduce((s, c) => s + c.total, 0))}`)}</div>
+      <ul class="subsubsub">${[['', 'Todos', CARTS.length], ...Object.entries(CART_ST).map(([k, [l]]) => [k, l, CARTS.filter((c) => c.st === k).length])].map(([k, l, n]) => `<li><a href="${href(base, q, { f: k })}" class="${f === k ? 'current' : ''}">${l} <span class="n">(${n})</span></a></li>`).join('')}</ul>
+      <div class="tablenav"><button class="button" data-act="recordar-todos">Enviar recordatorio a todos los pendientes</button></div>
+      <table class="wp-list-table"><thead><tr><th>Cliente</th><th class="hide-m">Productos</th><th class="num">Total</th><th class="hide-m">Etapa</th><th class="hide-m">Origen</th><th>Estado</th></tr></thead><tbody>
+      ${list.map((c) => `<tr><td>${c.c ? `<b>${esc(custName(c.c))}</b><div class="muted small">${esc(c.c.email)}</div>` : '<span class="muted">Visitante sin datos</span>'}<div class="muted small">${ago(c.t)}<span class="show-m"> · ${plural(c.lines.length, 'producto', 'productos')}</span></div></td>
+        <td class="hide-m"><div class="cart-items">${c.lines.map((l) => `<img class="thumb" src="${img(l.p)}" alt="" loading="lazy" title="${esc(l.p.n)}">`).join('')}</div><div class="muted small">${esc(c.lines[0].p.n.slice(0, 48))}${c.lines.length > 1 ? ` y ${c.lines.length - 1} más` : ''}</div></td>
+        <td class="num nw">${clp(c.total)}</td><td class="hide-m">${c.stage}</td><td class="hide-m">${otag(c)}</td><td>${pillOf(CART_ST[c.st])}${c.st === 'pend' ? `<div style="margin-top:6px"><button class="button" data-act="recordar" data-id="${c.id}">Enviar recordatorio</button></div>` : ''}</td></tr>`).join('') || '<tr class="no-items"><td colspan="6">No hay carritos en este estado.</td></tr>'}
+      </tbody></table>
+      <div class="notice" style="margin-top:20px"><p><b>En la versión real</b> se envía un correo automático 1 hora después, con el carro listo para pagar, y se puede mandar un WhatsApp con un clic. Solo a quienes dejaron sus datos y aceptaron recibir mensajes.</p></div>`;
+  };
+  MK.catalogos = (q) => {
+    const f = q.get('f') || 'errores', page = Math.max(1, +q.get('pag') || 1), per = 20, base = '#/marketing';
+    const items = ALL.filter((p) => p.p > 0 && !hidden.has(p.fam || p.id) && !['cursos', 'servicios'].includes(p.g)).map((p) => ({ p, e: FEED_ERR(p), w: FEED_WARN(p) }));
+    const err = items.filter((x) => x.e.length), warn = items.filter((x) => !x.e.length && x.w.length), ok = items.length - err.length - warn.length;
+    const list = f === 'errores' ? err : f === 'avisos' ? warn : items.filter((x) => x.e.length || x.w.length);
+    const rows = list.slice((page - 1) * per, page * per);
+    const feed = (n, url, d) => `<li><div><b>${n}</b><div class="muted small">${d} · <code>${url}</code></div></div><span class="st st-ok">Listo para activar</span></li>`;
+    return `
+      <div class="tiles">${tile('Productos en el catálogo', miles(items.length), 'cada formato cuenta como uno')}${tile('Aprobados', miles(ok), 'sin observaciones')}${tile('Con advertencias', miles(warn.length), 'se publican, pero rinden menos')}${tile('Con errores', miles(err.length), 'Meta y Google los rechazan')}</div>
+      ${box('Catálogos para anuncios', `<ul class="integ">${feed('Meta (Facebook e Instagram)', '/feeds/meta.xml', 'Se actualiza cada hora')}${feed('Google Merchant Center', '/feeds/google.xml', 'Se actualiza cada hora')}</ul><p class="muted small" style="padding:0 18px 6px">Usan los mismos ID de producto que hoy, así no se reinician las campañas ni los públicos de remarketing.</p>`, '', true)}
+      <ul class="subsubsub">${[['errores', 'Con errores', err.length], ['avisos', 'Con advertencias', warn.length], ['todo', 'Todo lo que revisar', err.length + warn.length]].map(([k, l, n]) => `<li><a href="${href(base, q, { f: k, pag: '' })}" class="${f === k ? 'current' : ''}">${l} <span class="n">(${n})</span></a></li>`).join('')}</ul>
+      <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
+      <table class="wp-list-table"><thead><tr><th style="width:60px"><span class="screen-reader-text">Foto</span></th><th>Producto</th><th>Observaciones</th><th class="num"><span class="screen-reader-text">Acción</span></th></tr></thead><tbody>
+      ${rows.map((x) => `<tr><td><img class="thumb" src="${img(x.p)}" alt="" loading="lazy"></td><td><b>${esc(x.p.n)}</b><div class="muted small">${esc(x.p.b || 'Sin marca')} · SKU ${esc(x.p.sku || '—')}</div></td><td>${x.e.map((t) => `<span class="tag tag--bad">${t}</span>`).join(' ')} ${x.w.map((t) => `<span class="tag tag--ads">${t}</span>`).join(' ')}</td><td class="num"><a class="button" href="#/producto/${x.p.fam || x.p.id}">Corregir</a></td></tr>`).join('') || '<tr class="no-items"><td colspan="4">Todo en orden.</td></tr>'}
+      </tbody></table>
+      <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
+      <p class="muted small">Revisión hecha con los productos reales de la tienda.</p>`;
+  };
+  MK.pixel = () => {
+    const n7 = Math.max(1, agg(7).n), visits = Math.round(n7 / 0.013), vc = Math.round(visits * 0.47), atc = Math.round(vc * 0.11), ic = Math.round(atc * 0.5);
+    const steps = [['Visitas', visits], ['Vieron un producto', vc], ['Agregaron al carro', atc], ['Iniciaron el pago', ic], ['Compraron', n7]];
+    const ev = [['PageView', 'Visita a una página', visits * 2.6], ['ViewContent', 'Vio un producto', vc], ['AddToCart', 'Agregó al carro', atc], ['InitiateCheckout', 'Inició el pago', ic], ['Purchase', 'Compró', n7]];
+    return `
+      <div class="tiles">${tile('Compras registradas (7 días)', miles(n7), 'coinciden con los pedidos pagados')}${tile('Calidad de coincidencia (Meta)', '7,9 / 10', 'buena: se envía correo y teléfono cifrados')}${tile('Eventos sin duplicar', '97 %', 'píxel y servidor se reconocen')}${tile('Conversión', `${((n7 / visits) * 100).toFixed(1).replace('.', ',')} %`, 'de visitas a compras')}</div>
+      <div class="dash">
+        ${box('Embudo de compra · 7 días', bars(steps.map(([l, v], i) => ({ l, v, n: v, prev: i ? steps[i - 1][1] : 0 })), 0, { fmt: (x) => `${miles(x.v)}<small>${x.prev ? Math.round((x.v / x.prev) * 100) + ' %' : ''}</small>`, tip: (x) => `<b>${x.l}</b><br>${miles(x.v)} personas${x.prev ? `<br>${Math.round((x.v / x.prev) * 100)} % del paso anterior` : ''}` }), 'personas en cada paso', true)}
+        ${box('Eventos recibidos · 7 días', `<table class="mini"><thead><tr><td><b>Evento</b></td><td class="num"><b>Navegador</b></td><td class="num"><b>Servidor</b></td></tr></thead><tbody>${ev.map(([k, d, v]) => `<tr><td><code>${k}</code><div class="muted small">${d}</div></td><td class="num">${miles(Math.round(v * 0.86))}</td><td class="num">${miles(Math.round(v))}</td></tr>`).join('')}</tbody></table><p class="muted small" style="padding:0 18px 6px">El servidor (API de conversiones) recupera las visitas que los bloqueadores y el iPhone le esconden al píxel.</p>`, '', true)}
+      </div>
+      <div class="notice"><p>Cifras de ejemplo. <b>En la versión real</b> salen del Administrador de eventos de Meta y de Google Analytics 4. Las compras se envían con el mismo ID que hoy (SKU_id) y con el valor real del pedido pagado.</p></div>`;
+  };
+
+  /* ───────── portada de la tienda (sin Elementor) ───────── */
+  V.portada = () => {
+    const feat = [...featured].map((i) => byId.get(i)).filter(Boolean);
+    const mv = (k, i, n) => `<span class="mv"><button class="tb-btn" data-act="${k}-up" data-i="${i}" aria-label="Subir"${i === 0 ? ' disabled' : ''}>↑</button><button class="tb-btn" data-act="${k}-down" data-i="${i}" aria-label="Bajar"${i === n - 1 ? ' disabled' : ''}>↓</button></span>`;
+    return `
+      <div class="wrap-h"><h1>Portada</h1><a class="button" href="/" target="_blank" rel="noopener">Vista previa ↗</a><button class="button button-primary" data-act="publicar">Publicar cambios</button></div>
+      <p class="muted" style="margin:-8px 0 18px">Lo que se ve al entrar a la tienda. Antes se editaba con Elementor; aquí se cambia sin tocar código.</p>
+      <div class="cols"><div>
+        ${box('Banners principales', `<ul class="rows">${HOME.banners.map((b, i) => `<li class="brow${b.on ? '' : ' off'}"><img src="${b.img}" alt="" class="brow__img"><div class="brow__f"><input type="text" value="${esc(b.t)}" aria-label="Título del banner ${i + 1}" data-ban="${i}" data-k="t"><input type="text" value="${esc(b.s)}" aria-label="Texto del banner ${i + 1}" data-ban="${i}" data-k="s"><input type="text" value="${esc(b.link)}" aria-label="Enlace del banner ${i + 1}" data-ban="${i}" data-k="link"></div><div class="brow__a"><label class="switch"><input type="checkbox" data-act="ban-tog" data-i="${i}"${b.on ? ' checked' : ''}> Visible</label>${mv('ban', i, HOME.banners.length)}<button class="button" data-act="foto">Cambiar imagen</button></div></li>`).join('')}</ul><p style="margin:12px 0 0"><button class="button" data-act="ban-add">Agregar banner</button></p>`, 'en celular se muestra el primero, sin carrusel')}
+        ${box(`Productos destacados · ${feat.length}`, `<ul class="rows">${feat.map((p) => `<li class="frow"><img class="thumb" src="${img(p)}" alt=""><span>${esc(p.n)}<span class="muted small"> · ${clp(p.p)}</span></span><button class="button-link-delete" data-act="quitar-dest" data-id="${p.id}">Quitar</button></li>`).join('') || '<li class="muted">Sin destacados.</li>'}</ul>
+          <div class="addrow"><select id="addDest" aria-label="Producto para destacar"><option value="">Elegir producto para destacar…</option>${HEADS.filter((p) => !featured.has(p.id) && p.p > 0).sort((a, b) => a.n.localeCompare(b.n, 'es')).map((p) => `<option value="${p.id}">${esc(p.n.slice(0, 70))}</option>`).join('')}</select><button class="button" data-act="agregar-dest">Destacar</button></div>`, '', false)}
+      </div><div>
+        ${box('Barra de aviso', `<label class="switch" style="margin-bottom:10px"><input type="checkbox" id="barOn"${HOME.bar.on ? ' checked' : ''}> Mostrar arriba de todo</label><input type="text" id="barTxt" value="${esc(HOME.bar.txt)}" style="width:100%" aria-label="Texto de la barra de aviso"><p class="muted small" style="margin:8px 0 0">Ideal para promociones: "CyberMonday: 30 % con CYBER30".</p>`)}
+        ${box('Orden de las secciones', `<ul class="rows">${HOME.secs.map(([n, on], i) => `<li class="srow${on ? '' : ' off'}"><label class="switch"><input type="checkbox" data-act="sec-tog" data-i="${i}"${on ? ' checked' : ''}> ${n}</label>${mv('sec', i, HOME.secs.length)}</li>`).join('')}</ul>`)}
+        ${box('Espacio Motor Clean', `<label class="switch"><input type="radio" name="mc" value="auto"${HOME.mc === 'auto' ? ' checked' : ''}> Mostrar los más vendidos (automático)</label><br><label class="switch"><input type="radio" name="mc" value="mano"${HOME.mc !== 'auto' ? ' checked' : ''}> Elegir los productos a mano</label>`)}
+      </div></div>`;
+  };
+
+  /* ───────── registro de actividad ───────── */
+  V.actividad = (q) => {
+    const who = q.get('u') || '', page = Math.max(1, +q.get('pag') || 1), per = 30, base = '#/actividad';
+    const users = [...new Set(LOG.map((x) => x.who))];
+    const list = LOG.filter((x) => !who || x.who === who), rows = list.slice((page - 1) * per, page * per);
+    return `
+      <div class="wrap-h"><h1>Registro de actividad</h1></div>
+      <p class="muted" style="margin:-8px 0 18px">Quién hizo qué y cuándo. No se puede borrar ni editar.</p>
+      <ul class="subsubsub">${[['', 'Todos'], ...users.map((u) => [u, u])].map(([k, l]) => `<li><a href="${href(base, q, { u: k, pag: '' })}" class="${who === k ? 'current' : ''}">${esc(l)}</a></li>`).join('')}</ul>
+      <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
+      <table class="wp-list-table"><thead><tr><th>Fecha</th><th>Persona</th><th class="hide-m">Área</th><th>Detalle</th></tr></thead><tbody>
+      ${rows.map((x) => `<tr><td class="nw">${fFull(x.t)}</td><td class="nw">${esc(x.who)}</td><td class="hide-m">${esc(x.what)}</td><td>${esc(x.detail)}</td></tr>`).join('')}
+      </tbody></table>
+      <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>`;
+  };
+
+  /* ───────── buscador general y avisos ───────── */
+  function gsearch(v) {
+    const s = deacc(v.trim().toLowerCase()), res = $('#gres');
+    if (s.length < 2) { res.hidden = true; return; }
+    const os = ORDERS.filter((o) => String(o.id).includes(s) || deacc(`${custName(o.c)} ${o.c.email}`.toLowerCase()).includes(s)).slice(0, 4);
+    const ps = HEADS.filter((p) => deacc(`${p.n} ${p.sku} ${p.b}`.toLowerCase()).includes(s)).slice(0, 5);
+    const buyers = new Set(ORDERS.map((o) => o.c));
+    const cs = CUST.filter((c) => buyers.has(c) && deacc(`${custName(c)} ${c.email} ${c.emp ? c.emp.name : ''}`.toLowerCase()).includes(s)).slice(0, 3);
+    const sec = (t, items) => (items.length ? `<div class="gres__t">${t}</div>${items.join('')}` : '');
+    res.innerHTML = sec('Pedidos', os.map((o) => `<a href="#/pedido/${o.id}"><b>#${o.id}</b><span class="gres__m">${esc(custName(o.c))}</span>${pill(o.st)}</a>`))
+      + sec('Productos', ps.map((p) => `<a href="#/producto/${p.id}"><img src="${img(p)}" alt=""><span class="gres__m">${esc(p.n)}</span><span class="muted">${clp(p.p)}</span></a>`))
+      + sec('Clientes', cs.map((c) => `<a href="#/pedidos?cliente=${c.id}"><span class="gres__m"><b>${esc(custName(c))}</b></span><span class="muted">${esc(c.comuna)}</span></a>`)) || '<p class="gres__none">Sin resultados para esa búsqueda.</p>';
+    res.hidden = false;
+  }
+  function bellItems() {
+    const inv = invRows();
+    return [
+      [ORDERS.filter((o) => NOW - o.t < DAY && PAID.has(o.st)).length, 'pedidos pagados en las últimas 24 horas', '#/pedidos', 'st-ok'],
+      [ORDERS.filter((o) => o.st === 'processing' && !o.prep).length, 'pedidos esperando preparación', '#/despachos', 'st-wait'],
+      [ORDERS.filter((o) => o.st === 'failed' && NOW - o.t < 7 * DAY).length, 'pagos rechazados esta semana', '#/pedidos?estado=failed', 'st-bad'],
+      [inv.filter((x) => x.st === 'now').length, 'productos para reponer ya', '#/inventario', 'st-wait'],
+      [CARTS.filter((c) => c.st === 'pend').length, 'carritos abandonados por recuperar', '#/marketing?tab=carritos', 'st-info'],
+      [1, 'Bsale: falta el token para conectar precios y stock', '#/ajustes?tab=bsale', 'st-bad'],
+    ].filter((x) => x[0]);
+  }
+  function drawBell() {
+    const items = bellItems();
+    $('#bellN').textContent = items.length; $('#bellN').hidden = !items.length;
+    $('#bellPanel').innerHTML = `<div class="bell__h">Avisos</div>${items.map(([n, t, h, cls]) => `<a href="${h}" class="bell__i"><span class="st ${cls}"></span><span>${n > 1 || !/^Bsale/.test(t) ? `<b>${n}</b> ` : ''}${t}</span></a>`).join('')}`;
+  }
+  function csv(name, head, rows) {
+    const cell = (v) => { const s = String(v ?? ''); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const txt = '﻿' + [head, ...rows].map((r) => r.map(cell).join(';')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' })); a.download = name;
+    document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+  const stamp = () => { const d = new Date(); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
+
   /* ───────── enrutador (#/seccion/id?filtros) ───────── */
-  const TITLES = { dash: 'Escritorio', pedidos: 'Pedidos', pedido: 'Editar pedido', productos: 'Productos', producto: 'Editar producto', clientes: 'Clientes', analitica: 'Analítica', seo: 'SEO', usuarios: 'Usuarios', ajustes: 'Ajustes' };
+  const TITLES = { despachos: 'Despachos', inventario: 'Inventario y reposición', marketing: 'Marketing', portada: 'Portada', actividad: 'Registro de actividad', dash: 'Escritorio', pedidos: 'Pedidos', pedido: 'Editar pedido', productos: 'Productos', producto: 'Editar producto', clientes: 'Clientes', analitica: 'Analítica', seo: 'SEO', usuarios: 'Usuarios', ajustes: 'Ajustes' };
   function route() {
     const h = location.hash.replace(/^#/, '') || '/';
     const [path, qs] = h.split('?'), q = new URLSearchParams(qs || ''), parts = path.split('/').filter(Boolean);
@@ -613,6 +921,7 @@
     hideTip();
     drawMenu(sec, q);
     setMenu(false);
+    closePops();
     charts.length = 0;
     const main = $('#wpbody');
     main.innerHTML = view ? view(q, parts[1]) : `<div class="wrap-h"><h1>No encontrado</h1></div><p><a href="#/">Volver al escritorio</a></p>`;
@@ -620,6 +929,7 @@
     document.title = `${TITLES[key] || 'No encontrado'} · Panel Reycar`;
     if (route.last !== path) { scrollTo(0, 0); main.focus({ preventScroll: true }); }
     route.last = path;
+    drawBell();
   }
   addEventListener('hashchange', route);
 
@@ -627,7 +937,15 @@
   function setMenu(on) { $('#side').classList.toggle('open', on); $('#scrim').hidden = !on; $('#menuToggle').setAttribute('aria-expanded', String(on)); }
   $('#menuToggle').addEventListener('click', () => setMenu(!$('#side').classList.contains('open')));
   $('#scrim').addEventListener('click', () => setMenu(false));
-  addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
+  function closeBell() { $('#bellPanel').hidden = true; $('#bellBtn').setAttribute('aria-expanded', 'false'); }
+  function closePops() { $('#gres').hidden = true; $('#gsearch').value = ''; closeBell(); }
+  addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { setMenu(false); closePops(); }
+    if (e.key === '/' && !e.target.closest('input, textarea, select')) { e.preventDefault(); $('#gsearch').focus(); }
+  });
+  $('#gsearch').addEventListener('input', (e) => gsearch(e.target.value));
+  $('#gsearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const f = $('#gres a'); if (f) location.hash = f.getAttribute('href').slice(1); } });
+  $('#bellBtn').addEventListener('click', () => { const p = $('#bellPanel'), on = p.hidden; p.hidden = !on; $('#bellBtn').setAttribute('aria-expanded', String(on)); });
   // modo claro / oscuro: misma preferencia que la tienda (reycars-theme)
   const darkMQ = matchMedia('(prefers-color-scheme: dark)');
   const mode = () => document.documentElement.dataset.theme || (darkMQ.matches ? 'dark' : 'light');
@@ -646,6 +964,7 @@
     for (const [k, v] of fd) if (k !== 'bulk') set[k] = String(v).trim();
     location.hash = href(`#/${f.dataset.form}`, cur, set).slice(1);
   });
+  document.addEventListener('input', (e) => { const b = e.target.dataset && e.target.dataset.ban; if (b != null) HOME.banners[+b][e.target.dataset.k] = e.target.value; });
   document.addEventListener('change', (e) => {
     if (e.target.matches('[data-all]')) $$('tbody input[type=checkbox]', e.target.closest('table')).forEach((c) => (c.checked = e.target.checked));
   });
@@ -654,7 +973,16 @@
     if (qb) { const [k, v] = qb.dataset.q.split('='); const cur = new URLSearchParams((location.hash.split('?')[1]) || ''); location.hash = href(location.hash.split('?')[0] || '#/', cur, { [k]: v }).slice(1); return; }
     const tab = e.target.closest('.pdata [data-tab]');
     if (tab) { const w = tab.closest('.pdata'); $$('[data-tab]', w).forEach((b) => b.setAttribute('aria-selected', String(b === tab))); $$('[data-panel]', w).forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab)); return; }
+    if (!e.target.closest('.tb-search')) $('#gres').hidden = true;
+    if (!e.target.closest('.tb-pop')) closeBell();
     const a = e.target.closest('[data-act]');
+    if (a && a.matches('input')) {
+      const i = +a.dataset.i;
+      if (a.dataset.act === 'ban-tog') HOME.banners[i].on = a.checked;
+      if (a.dataset.act === 'sec-tog') HOME.secs[i][1] = a.checked;
+      a.closest('li').classList.toggle('off', !a.checked);
+      return;
+    }
     if (a) {
       e.preventDefault();
       const act = a.dataset.act, id = +a.dataset.id;
@@ -667,7 +995,37 @@
       if (act === 'guardar-pedido') { const o = oId.get(id), to = $('#ost').value, ac = $('#oact').value; const ch = to !== o.st; if (ch) setStatus(o, to); if (ac) o.notes.push({ t: Date.now(), txt: `Acción realizada: ${ac}.`, kind: 'system', by: 'Guillermo' }); route(); return toast(ch || ac ? `Pedido actualizado. ${NOSAVE}` : 'No hay cambios que guardar.'); }
       if (act === 'nota') { const o = oId.get(id), txt = $('#nn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); const n = { t: Date.now(), txt, kind: $('#nk').value, by: 'Guillermo' }; o.notes.push(n); $('#notes').insertAdjacentHTML('afterbegin', noteHtml(n)); $('#nn').value = ''; return toast(n.kind === 'customer' ? 'Nota añadida. En la versión real le llega al cliente por correo.' : 'Nota privada añadida.'); }
       if (act === 'guardar-producto') { const v = $('#pv').value === '1'; v ? hidden.delete(id) : hidden.add(id); $('#pf').checked ? featured.add(id) : featured.delete(id); seo.set(id, { t: $('#seoT').value, d: $('#seoD').value }); route(); return toast(`Producto actualizado. ${NOSAVE}`); }
-      const MSG = { 'nuevo-pedido': 'Los pedidos llegan solos desde la tienda. En la versión real también se podrán crear a mano (ventas por WhatsApp).', reembolso: 'En la versión real: devuelve el dinero en Klap y emite la nota de crédito en Bsale.', pdf: 'Al conectar Bsale, abre el PDF del documento.', papelera: 'En la maqueta no se borra nada.', unir: 'Elegirás otro producto de Bsale para mostrarlo como formato de este.', foto: 'Aquí se suben fotos (se optimizan solas para la web).', 'nueva-redir': 'Aquí se agrega una redirección: dirección antigua → nueva.', 'nuevo-usuario': 'Aquí se invita a una persona por correo, con su perfil.', guardar: `Guardado. ${NOSAVE}` };
+      const o = oId.get(id), note = (txt, kind = 'private', by = 'Ventas y despacho') => o.notes.push({ t: Date.now(), txt, kind, by });
+      if (act === 'prep') { o.prep = true; note('Pedido preparado y embalado.'); log(`Pedido #${o.id}`, 'Lo marcó como preparado', 'Ventas y despacho'); route(); return toast(`#${o.id} preparado. ${isPick(o) ? 'Ahora avisa al cliente que puede retirarlo.' : 'Ahora genera la etiqueta.'}`); }
+      if (act === 'avisar') { note(`Se avisó por WhatsApp que el pedido está listo para retiro en Quinta Normal.`, 'customer'); return toast(`En la versión real abre WhatsApp con: "Hola ${o.c.first}, tu pedido #${o.id} ya está listo para retiro en Quinta Normal".`); }
+      if (act === 'retirado') { note('El cliente retiró el pedido en la tienda.'); setStatus(o, 'completed'); route(); return toast(`#${o.id} entregado y completado.`); }
+      if (act === 'etiqueta') { Object.assign(o.ship, { track: String(1e9 + Math.floor(Math.random() * 8.9e9)), carrier: o.ship.carrier || 'Starken' }); note(`Envío creado en Sendu con ${o.ship.carrier}. N° de seguimiento ${o.ship.track}.`, 'customer'); setStatus(o, 'completed'); route(); return toast(`Etiqueta de ${o.ship.carrier} lista (en la versión real se descarga el PDF para imprimir). El cliente recibe el seguimiento por correo.`); }
+      if (act === 'seguimiento') return toast(`${o.ship.carrier} · N° ${o.ship.track}. En la versión real abre el seguimiento del courier.`);
+      if (act === 'imprimir') return print();
+      if (act === 'csv-pedidos') { const l = V.pedidos.last || []; csv(`pedidos-reycar-${stamp()}.csv`, ['Pedido', 'Fecha', 'Estado', 'Cliente', 'Correo', 'Teléfono', 'Comuna', 'Región', 'Documento', 'Folio', 'RUT', 'Envío', 'Costo envío', 'Medio de pago', 'Origen', 'Campaña', 'Productos', 'Total'], l.map((o) => [o.id, fFull(o.t), ST[o.st], custName(o.c), o.c.email, o.c.phone, o.c.comuna, o.c.region, o.doc ? o.doc.type : '', o.doc ? o.doc.folio : '', o.fac ? o.c.emp.rut : o.c.rut, o.ship.m, o.ship.cost, o.pay, o.src.lbl, o.camp, o.lines.map((x) => `${x.q} × ${x.p.n}`).join(' | '), o.total])); log('Exportación', `Exportó ${l.length} pedidos a Excel`); return toast(`Se descargó un archivo con ${plural(l.length, 'pedido', 'pedidos')}. Queda anotado en el registro de actividad.`); }
+      if (act === 'csv-clientes') { const l = V.clientes.last || []; csv(`clientes-reycar-${stamp()}.csv`, ['Nombre', 'Correo', 'Teléfono', 'Comuna', 'Región', 'Empresa', 'Pedidos pagados', 'Gasto total', 'Último pedido'], l.map((x) => [custName(x.c), x.c.email, x.c.phone, x.c.comuna, x.c.region, x.c.emp ? x.c.emp.name : '', x.n, x.v, fDate(x.last)])); log('Exportación', `Exportó ${l.length} clientes a Excel`); return toast(`Se descargó un archivo con ${plural(l.length, 'cliente', 'clientes')}. Queda anotado en el registro de actividad.`); }
+      if (act === 'csv-inventario') { const l = (V.inventario.last || []).filter((x) => x.sug || x.st === 'out'); csv(`reposicion-reycar-${stamp()}.csv`, ['Producto', 'Marca', 'SKU', 'Stock', 'Vendidos 30 días', 'Sugerido pedir'], l.map((x) => [x.p.n, x.p.b || '', x.p.sku, x.p.stk ?? '', x.u, x.sug])); return toast(`Se descargó la lista de reposición (${plural(l.length, 'producto', 'productos')}).`); }
+      if (act === 'crear-cupon') {
+        const code = $('#cc').value.trim().toUpperCase().replace(/\s+/g, ''), type = $('#ct').value, val = +$('#cv').value || 0;
+        if (!/^[A-Z0-9-]{3,20}$/.test(code)) return toast('El código debe tener de 3 a 20 letras o números, sin espacios.');
+        if (COUPONS.some((c) => c.code === code)) return toast('Ya existe un cupón con ese código.');
+        if (type !== 'ship' && !val) return toast('Indica el valor del descuento.');
+        if (type === 'pct' && val > 90) return toast('Un porcentaje mayor a 90 % parece un error.');
+        const dt = (id) => { const v = $(id).value; return v ? new Date(v + 'T00:00').getTime() : 0; };
+        COUPONS.unshift({ code, type, val, min: +$('#cm').value || 0, uses: 0, limit: +$('#cl').value || 0, from: dt('#cf') || Date.now(), to: dt('#cto') ? dt('#cto') + DAY - MIN : 0, scope: $('#cs2').value });
+        log('Cupón', `Creó el cupón ${code} (${cpVal(COUPONS[0])})`); route(); return toast(`Cupón ${code} creado. ${NOSAVE}`);
+      }
+      if (act === 'recordar' || act === 'recordar-todos') { const l = act === 'recordar' ? CARTS.filter((c) => c.id === id) : CARTS.filter((c) => c.st === 'pend'); l.forEach((c) => (c.st = 'sent')); log('Marketing', `Envió recordatorio a ${plural(l.length, 'carrito abandonado', 'carritos abandonados')}`); route(); return toast(l.length ? `Recordatorio enviado a ${plural(l.length, 'cliente', 'clientes')} (en la maqueta no sale ningún mensaje).` : 'No hay carritos pendientes.'); }
+      const mvArr = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; route(); };
+      const ii = +a.dataset.i;
+      if (act === 'ban-up' || act === 'ban-down') return mvArr(HOME.banners, ii, act.endsWith('up') ? -1 : 1);
+      if (act === 'sec-up' || act === 'sec-down') return mvArr(HOME.secs, ii, act.endsWith('up') ? -1 : 1);
+      if (act === 'ban-add') { HOME.banners.push({ t: 'Nuevo banner', s: 'Texto del banner', link: '/tienda', img: '/assets/reycars-crest.webp', on: false }); route(); return toast('Banner agregado (oculto hasta que lo actives).'); }
+      if (act === 'quitar-dest') { featured.delete(id); route(); return toast('Quitado de destacados.'); }
+      if (act === 'agregar-dest') { const v = +$('#addDest').value; if (!v) return toast('Elige un producto.'); featured.add(v); route(); return toast('Producto destacado.'); }
+      if (act === 'publicar') { HOME.bar = { on: $('#barOn').checked, txt: $('#barTxt').value }; HOME.mc = ($('input[name=mc]:checked') || {}).value || 'auto'; log('Portada', 'Publicó cambios en la portada'); return toast(`Portada publicada. ${NOSAVE}`); }
+      if (act === 'wa-cliente') return toast('En la versión real abre WhatsApp con el cliente. En la maqueta los teléfonos son inventados.');
+      const MSG = { 'ver-correo': 'Aquí se ve el correo tal como le llega al cliente, con el logo de Reycar.', solicitud: 'Se busca al cliente por correo o RUT; la acción queda registrada con fecha y responsable.', 'nuevo-pedido': 'Los pedidos llegan solos desde la tienda. En la versión real también se podrán crear a mano (ventas por WhatsApp).', reembolso: 'En la versión real: devuelve el dinero en Klap y emite la nota de crédito en Bsale.', pdf: 'Al conectar Bsale, abre el PDF del documento.', papelera: 'En la maqueta no se borra nada.', unir: 'Elegirás otro producto de Bsale para mostrarlo como formato de este.', foto: 'Aquí se suben fotos (se optimizan solas para la web).', 'nueva-redir': 'Aquí se agrega una redirección: dirección antigua → nueva.', 'nuevo-usuario': 'Aquí se invita a una persona por correo, con su perfil.', guardar: `Guardado. ${NOSAVE}` };
       return toast(MSG[act] || NOSAVE);
     }
     const row = e.target.closest('tr[data-go]');
@@ -676,6 +1034,7 @@
   function setStatus(o, to) {
     if (!o || o.st === to) return;
     o.notes.push({ t: Date.now(), txt: `El estado del pedido cambió de ${ST[o.st]} a ${ST[to]}.`, kind: 'system', by: 'Guillermo' });
+    log(`Pedido #${o.id}`, `Cambió el estado de ${ST[o.st]} a ${ST[to]}`);
     o.st = to;
   }
 
