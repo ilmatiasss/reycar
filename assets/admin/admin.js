@@ -99,7 +99,7 @@
     let fb = 48211, ff = 3120, fnc = 412, auth = 731200, used = 0;
     times.forEach((t, i) => {
       let c;
-      if (used > 20 && rnd() < 0.3) c = CUST[Math.floor(used * rnd() ** 1.7)];
+      if (used > 20 && rnd() < 0.3) c = CUST[Math.floor(Math.min(used, CUST.length) * rnd() ** 1.7)];
       else { c = CUST[used % CUST.length]; used++; }
       const src = wpick(ORIG), dev = wpick(DEV), ship = wpick(SHIP), pay = wpick(PAY);
       const nl = pick([1, 1, 1, 1, 2, 2, 2, 3, 4]);
