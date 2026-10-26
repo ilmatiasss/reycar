@@ -223,6 +223,109 @@
     mc: 'auto',
   };
 
+  /* ───────── más datos de ejemplo: ventas directas, clientes, taller, reseñas, correos, búsquedas ───────── */
+  const MANUAL = { k: 'manual', lbl: 'Venta directa', type: 'Directo', src: 'panel', med: 'whatsapp / local', w: 0 };
+  ORIG.push(MANUAL); oById.set('manual', MANUAL);
+  ORDERS.forEach((o) => { if (o.st === 'refunded' && o.nc) { const n = o.notes.find((x) => /^Nota de crédito/.test(x.txt)); o.ncs = [{ f: o.nc, a: o.total, t: n ? n.t : o.t }]; o.refunded = o.total; } });
+  CUST.forEach((c) => { c.tags = c.emp ? ['Empresa'] : []; c.consent = { mail: rnd() < 0.72, wa: rnd() < 0.45 }; c.cnotes = []; });
+  let CS = null;
+  const cstats = () => {
+    if (CS) return CS;
+    CS = new Map(CUST.map((c) => [c, { n: 0, v: 0, last: 0, first: 0, orders: [], brands: new Set() }]));
+    ORDERS.forEach((o) => {
+      const x = CS.get(o.c); if (!x) return;
+      x.orders.push(o);
+      if (PAID.has(o.st)) { x.n++; x.v += o.total; x.last = Math.max(x.last, o.t); x.first = x.first ? Math.min(x.first, o.t) : o.t; o.lines.forEach((l) => l.p.b && x.brands.add(l.p.b)); }
+    });
+    return CS;
+  };
+  const SEGS = { vip: ['Gran comprador', 'processing'], freq: ['Frecuente', 'completed'], nuevo: ['Nuevo', 'pending'], ocas: ['Ocasional', 'on-hold'], riesgo: ['En riesgo', 'failed'], sin: ['Sin compras', 'cancelled'] };
+  const segOf = (c) => {
+    const x = cstats().get(c); if (!x || !x.n) return 'sin';
+    const age = NOW - x.last;
+    if (x.v >= 250000 && age < 120 * DAY) return 'vip';
+    if (x.n >= 3 && age < 60 * DAY) return 'freq';
+    if (age > 90 * DAY) return 'riesgo';
+    if (x.n === 1 && age < 30 * DAY) return 'nuevo';
+    return 'ocas';
+  };
+
+  // taller: 2 boxes, lunes a viernes 9:00–19:00 y sábado 9:00–14:00 (servicios y precios de ejemplo)
+  const sod = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+  const addDays = (t, k) => { const d = new Date(t); d.setDate(d.getDate() + k); return d.getTime(); };
+  const mondayOf = (t) => addDays(sod(t), -((new Date(t).getDay() + 6) % 7));
+  const weekOf = (t) => Math.round((mondayOf(t) - mondayOf(NOW)) / (7 * DAY));
+  const SERVICES = [
+    { n: 'Lavado detallado', min: 120, p: 25000 }, { n: 'Lavado y sellado de pintura', min: 180, p: 45000 },
+    { n: 'Limpieza de interior y tapiz', min: 240, p: 60000 }, { n: 'Lavado de motor', min: 60, p: 20000 },
+    { n: 'Pulido 1 etapa', min: 300, p: 120000 }, { n: 'Corrección de pintura 2 etapas', min: 480, p: 220000 },
+    { n: 'Recubrimiento cerámico', min: 540, p: 350000 },
+  ];
+  const CARS = ['Toyota Yaris', 'Mazda 3', 'Hyundai Tucson', 'Kia Sportage', 'Chevrolet Sail', 'Suzuki Swift', 'Nissan Kicks', 'Peugeot 208', 'Subaru XV', 'Ford Ranger', 'Mitsubishi L200', 'Volkswagen Golf', 'Toyota Hilux', 'MG ZS'];
+  const LET = 'BCDFGHJKLPRSTVWXYZ';
+  const plate = () => Array.from({ length: 4 }, () => LET[Math.floor(rnd() * LET.length)]).join('') + Math.floor(10 + rnd() * 89);
+  const BK_ST = { agendado: ['Agendado', 'pending'], confirmado: ['Confirmado', 'on-hold'], proceso: ['En proceso', 'processing'], listo: ['Listo para entregar', 'completed'], entregado: ['Entregado', 'completed'], noshow: ['No asistió', 'failed'] };
+  const closeOf = (day) => (new Date(day).getDay() === 6 ? 840 : 1140);
+  const BOOK = [];
+  (() => {
+    const m0 = mondayOf(NOW), today = sod(NOW);
+    for (let w = -1; w <= 2; w++) for (let d = 0; d < 6; d++) for (let box = 1; box <= 2; box++) {
+      const day = addDays(m0, w * 7 + d), fill = [0.85, 0.8, 0.5, 0.25][w + 1], close = closeOf(day);
+      let t = 540;
+      while (t < close - 60) {
+        if (rnd() > fill) { t += 60; continue; }
+        const sv = pick(SERVICES);
+        if (t + sv.min > close) { t += 60; continue; }
+        const c = CUST[Math.floor(rnd() * CUST.length)], end = day + (t + sv.min) * MIN, beg = day + t * MIN;
+        const st = end < NOW ? (rnd() < 0.04 ? 'noshow' : day === today && rnd() < 0.5 ? 'listo' : 'entregado') : beg <= NOW ? 'proceso' : day - today <= DAY || rnd() < 0.45 ? 'confirmado' : 'agendado';
+        BOOK.push({ id: 5000 + BOOK.length, day, start: t, box, sv, c, car: pick(CARS), plate: plate(), st, price: sv.p, note: '' });
+        t += sv.min + (rnd() < 0.5 ? 30 : 60);
+      }
+    }
+    BOOK.forEach((b) => { if (!b.c.tags.includes('Cliente del taller')) b.c.tags.push('Cliente del taller'); });
+  })();
+
+  // reseñas: solo de compras completadas (compra verificada)
+  const RV_TXT = {
+    5: ['Excelente producto, se nota la diferencia desde la primera aplicación.', 'Llegó rapidísimo y muy bien embalado. Lo recomiendo.', 'El mejor que he probado, rinde muchísimo.', 'Muy buena atención, me asesoraron por WhatsApp antes de comprar.', 'Calidad profesional. Vuelvo a comprar seguro.'],
+    4: ['Muy bueno, aunque el envío se demoró un día más.', 'Buen producto, cumple lo que promete.', 'Buena relación precio-calidad.'],
+    3: ['Cumple, pero esperaba un poco más de brillo.', 'Está bien, nada extraordinario.'],
+    2: ['El envase llegó con una filtración; el producto bien.', 'No me convenció el aroma.'],
+    1: ['Me llegó un formato distinto al que pedí.', 'No noté ninguna diferencia.'],
+  };
+  const RV_ST = { pend: ['Por aprobar', 'processing'], ok: ['Publicada', 'completed'], hid: ['Oculta', 'cancelled'] };
+  const REVIEWS = [];
+  ORDERS.filter((o) => o.st === 'completed' && NOW - o.t > 7 * DAY).slice().reverse().forEach((o) => {
+    if (rnd() > 0.3) return;
+    const r = wpick([{ v: 5, w: 60 }, { v: 4, w: 25 }, { v: 3, w: 8 }, { v: 2, w: 4 }, { v: 1, w: 3 }]).v, p = o.lines[0].p, t = o.t + (8 + rnd() * 6) * DAY;
+    if (t > NOW) return;
+    REVIEWS.push({ id: 7000 + REVIEWS.length, o, p: p.fam ? byId.get(p.fam) : p, c: o.c, r, txt: pick(RV_TXT[r]), t, st: NOW - t < 6 * DAY ? 'pend' : 'ok', reply: r <= 3 && rnd() < 0.6 ? 'Hola, gracias por contarnos. Te escribimos por WhatsApp para solucionarlo.' : '' });
+  });
+  REVIEWS.sort((a, b) => b.t - a.t);
+
+  // correos a clientes (solo a quienes dieron permiso)
+  const MAILSEG = [
+    ['all', 'Todos los que aceptaron correos', (c) => c.consent.mail],
+    ['freq', 'Compradores frecuentes', (c) => c.consent.mail && ['freq', 'vip'].includes(segOf(c))],
+    ['riesgo', 'No compran hace más de 90 días', (c) => c.consent.mail && segOf(c) === 'riesgo'],
+    ['mc', 'Compraron Motor Clean', (c, x) => c.consent.mail && x.brands.has('Motor Clean')],
+    ['emp', 'Empresas y clientes del taller', (c) => c.consent.mail && (!!c.emp || c.tags.includes('Cliente del taller'))],
+  ];
+  const segCount = (k) => { const s = MAILSEG.find((x) => x[0] === k) || MAILSEG[0], st = cstats(); return CUST.filter((c) => st.get(c) && st.get(c).orders.length && s[2](c, st.get(c))).length; };
+  const CAMPAIGNS = [
+    { subj: 'Llegó la línea completa Motor Clean', seg: 'all', t: NOW - 12 * DAY - 5 * HOUR, st: 'sent', open: 0.41, click: 0.067, orders: 9 },
+    { subj: 'CyberMonday: 30 % con CYBER30', seg: 'all', t: NOW - 17 * DAY - 3 * HOUR, st: 'sent', open: 0.46, click: 0.094, orders: 17 },
+    { subj: 'Te extrañamos: 10 % para volver', seg: 'riesgo', t: NOW - 38 * DAY, st: 'sent', open: 0.27, click: 0.041, orders: 3 },
+    { subj: 'Novedades de septiembre', seg: 'all', t: NOW - 52 * DAY, st: 'sent', open: 0.36, click: 0.052, orders: 5 },
+  ];
+
+  // lo que la gente escribe en el buscador de la tienda (veces de ejemplo por 30 días; los resultados se calculan con el catálogo real)
+  const TERMS = [['motor clean', 412], ['shampoo', 296], ['ceramico', 251], ['cera', 233], ['microfibra', 198], ['pulidora', 176], ['apc', 151], ['koch', 139], ['llantas', 128], ['quick detailer', 117], ['menzerna', 104], ['cuero', 96], ['hidrolavadora', 91], ['aspiradora', 77], ['vidrios', 74], ['grafeno', 66], ['aromatizante', 61], ['arcilla', 58], ['pad', 55], ['tapiz', 52], ['espuma', 47], ['meguiars', 44], ['chemical guys', 39], ['kit lavado', 36], ['toalla secado', 33], ['foam lance', 29], ['sonax', 25], ['iron', 22]];
+  const SYN = new Map();
+  const searchHits = (term) => { const ws = deacc(term.toLowerCase()).split(/\s+/); return HEADS.filter((p) => { const h = deacc(`${p.n} ${p.b || ''} ${(gById.get(p.g) || {}).name || ''} ${subName(p)}`.toLowerCase()); return ws.every((w) => h.includes(w)); }).length; };
+
+  const ZONES = [['Región Metropolitana', 'Toda la región', 3990, '1 a 2 días hábiles'], ['Zona centro', "Valparaíso, O'Higgins y Maule", 5990, '2 a 3 días hábiles'], ['Zona sur', 'Ñuble a Los Lagos', 6990, '2 a 4 días hábiles'], ['Zona norte', 'Arica a Coquimbo', 7990, '3 a 5 días hábiles'], ['Zonas extremas', 'Aysén y Magallanes', 8990, '4 a 7 días hábiles']];
+
   /* ───────── menú ───────── */
   const IC = {
     dash: 'M10 3a8 8 0 0 0-7 12h14a8 8 0 0 0-7-12zm0 2a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM5 9a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm10 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-1.6-3.2 1 .8-3.6 4.6a1.5 1.5 0 1 1-1-.8z',
@@ -233,29 +336,31 @@
     seo: 'M8.5 2a6.5 6.5 0 0 1 5.2 10.4l4.4 4.4-1.3 1.3-4.4-4.4A6.5 6.5 0 1 1 8.5 2zm0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z',
     users: 'M10 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 8c0-3.6 3.1-6.5 7-6.5s7 2.9 7 6.5z',
     mkt: 'M16 3v14l-5.5-3.2H7.2L6.4 18H4.2l.9-4.4A3.2 3.2 0 0 1 2 10.5v-1A3.5 3.5 0 0 1 5.5 6h5zm1.5 4a3 3 0 0 1 0 6z',
+    cal: 'M5 1.5h2v2h6v-2h2v2h2.5v15h-15v-15H5zm-1 6v9h12v-9zm2 2h3v3H6z',
     home: 'M10 2 1.5 9.2H4V18h4.6v-5.2h2.8V18H16V9.2h2.5z',
     set: 'M3 5h8.2a2.5 2.5 0 0 1 4.6 0H17v1.5h-1.2a2.5 2.5 0 0 1-4.6 0H3zm0 8.5h1.2a2.5 2.5 0 0 1 4.6 0H17V15H8.8a2.5 2.5 0 0 1-4.6 0H3z',
   };
   const ico = (k) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${IC[k]}" fill="currentColor"/></svg>`;
   const MENU = [
     { k: 'dash', href: '#/', t: 'Escritorio', match: ['', 'escritorio'] },
-    { k: 'orders', href: '#/pedidos', t: 'Pedidos', match: ['pedidos', 'pedido', 'despachos'], badge: () => ORDERS.filter((o) => o.st === 'processing').length, subs: [['#/pedidos', 'Todos los pedidos'], ['#/despachos', 'Despachos']] },
-    { k: 'prod', href: '#/productos', t: 'Productos', match: ['productos', 'producto', 'inventario'], subs: [['#/productos', 'Todos los productos'], ['#/inventario', 'Inventario y reposición']] },
-    { k: 'cust', href: '#/clientes', t: 'Clientes', match: ['clientes'] },
-    { k: 'mkt', href: '#/marketing', t: 'Marketing', match: ['marketing'], def: 'anuncios', subs: [['#/marketing?tab=anuncios', 'Anuncios'], ['#/marketing?tab=cupones', 'Cupones'], ['#/marketing?tab=carritos', 'Carritos abandonados'], ['#/marketing?tab=catalogos', 'Catálogos'], ['#/marketing?tab=pixel', 'Píxel y eventos']] },
+    { k: 'orders', href: '#/pedidos', t: 'Pedidos', match: ['pedidos', 'pedido', 'despachos'], badge: () => ORDERS.filter((o) => o.st === 'processing').length, subs: [['#/pedidos', 'Todos los pedidos'], ['#/pedido/nuevo', 'Nuevo pedido'], ['#/despachos', 'Despachos']] },
+    { k: 'prod', href: '#/productos', t: 'Productos', match: ['productos', 'producto', 'inventario', 'resenas'], subs: [['#/productos', 'Todos los productos'], ['#/producto/nuevo', 'Añadir producto'], ['#/inventario', 'Inventario y reposición'], ['#/resenas', 'Reseñas']] },
+    { k: 'cust', href: '#/clientes', t: 'Clientes', match: ['clientes', 'cliente'] },
+    { k: 'cal', href: '#/taller', t: 'Taller', match: ['taller'] },
+    { k: 'mkt', href: '#/marketing', t: 'Marketing', match: ['marketing'], def: 'anuncios', subs: [['#/marketing?tab=anuncios', 'Anuncios'], ['#/marketing?tab=cupones', 'Cupones'], ['#/marketing?tab=correos', 'Correos'], ['#/marketing?tab=carritos', 'Carritos abandonados'], ['#/marketing?tab=catalogos', 'Catálogos'], ['#/marketing?tab=pixel', 'Píxel y eventos']] },
     { k: 'home', href: '#/portada', t: 'Portada', match: ['portada'] },
-    { k: 'stats', href: '#/analitica', t: 'Analítica', match: ['analitica'] },
+    { k: 'stats', href: '#/analitica', t: 'Analítica', match: ['analitica'], def: 'resumen', subs: [['#/analitica?tab=resumen', 'Resumen'], ['#/analitica?tab=trafico', 'Tráfico y búsquedas'], ['#/analitica?tab=informe', 'Informe de ventas']] },
     { k: 'seo', href: '#/seo', t: 'SEO', match: ['seo'] },
-    { k: 'users', href: '#/usuarios', t: 'Usuarios', match: ['usuarios', 'actividad'], subs: [['#/usuarios', 'Usuarios'], ['#/actividad', 'Registro de actividad']] },
-    { k: 'set', href: '#/ajustes', t: 'Ajustes', match: ['ajustes'], def: 'general', subs: [['#/ajustes?tab=general', 'General'], ['#/ajustes?tab=pagos', 'Pagos (Klap)'], ['#/ajustes?tab=envios', 'Envíos (Sendu)'], ['#/ajustes?tab=bsale', 'Bsale'], ['#/ajustes?tab=seguimiento', 'Seguimiento y anuncios'], ['#/ajustes?tab=correos', 'Correos al cliente'], ['#/ajustes?tab=privacidad', 'Privacidad y datos']] },
+    { k: 'users', href: '#/usuarios', t: 'Usuarios', match: ['usuarios', 'actividad'], subs: [['#/usuarios', 'Usuarios y permisos'], ['#/actividad', 'Registro de actividad']] },
+    { k: 'set', href: '#/ajustes', t: 'Ajustes', match: ['ajustes'], def: 'general', subs: [['#/ajustes?tab=general', 'General'], ['#/ajustes?tab=pagos', 'Pagos (Klap)'], ['#/ajustes?tab=envios', 'Envíos'], ['#/ajustes?tab=bsale', 'Bsale'], ['#/ajustes?tab=seguimiento', 'Seguimiento y anuncios'], ['#/ajustes?tab=correos', 'Correos al cliente'], ['#/ajustes?tab=privacidad', 'Privacidad y datos']] },
   ];
-  const ALIAS = { pedido: 'pedidos', producto: 'productos' };
-  const subKey = (h) => { const [path, qs] = h.replace(/^#\//, '').split('?'); return `${path.split('/')[0]}|${new URLSearchParams(qs || '').get('tab') || ''}`; };
-  function drawMenu(sec, q) {
+  const ALIAS = { pedido: 'pedidos', producto: 'productos', cliente: 'clientes' };
+  const subKey = (h) => { const [path, qs] = h.replace(/^#\//, '').split('?'); return `${path}|${new URLSearchParams(qs || '').get('tab') || ''}`; };
+  function drawMenu(sec, q, path = '') {
     $('#adminmenu').innerHTML = MENU.map((m) => {
       const on = m.match.includes(sec), b = m.badge && m.badge();
       let h = `<a href="${m.href}" class="${on ? 'current' : ''}"${on ? ' aria-current="page"' : ''}>${ico(m.k)}<span>${m.t}</span>${b ? `<span class="count" aria-label="${b} por procesar">${b}</span>` : ''}</a>`;
-      const cur = `${ALIAS[sec] || sec}|${m.def ? q.get('tab') || m.def : ''}`;
+      const cur = `${/^\/(pedido|producto)\/nuevo$/.test(path) ? path.slice(1) : ALIAS[sec] || sec}|${m.def ? q.get('tab') || m.def : ''}`;
       if (on && m.subs) h += `<div class="sub">${m.subs.map(([u, t]) => `<a href="${u}" class="${subKey(u) === cur ? 'on' : ''}">${t}</a>`).join('')}</div>`;
       return h;
     }).join('');
@@ -365,7 +470,10 @@
             [ORDERS.filter((o) => o.st === 'processing' && o.prep).length, 'listos para enviar o retirar', '#/despachos'],
             [CARTS.filter((c) => c.st === 'pend').length, 'carritos abandonados por recuperar', '#/marketing?tab=carritos'],
             [invRows().filter((x) => x.st === 'now').length, 'productos para reponer ya', '#/inventario'],
+            [REVIEWS.filter((r) => r.st === 'pend').length, 'reseñas por aprobar', '#/resenas'],
+            [BOOK.filter((b) => b.day === sod(NOW) && b.st !== 'noshow').length, 'autos en el taller hoy', '#/taller'],
           ].map(([n, t, h]) => `<li><a href="${h}"><b>${n}</b><span>${t}</span><span aria-hidden="true" class="tasks__go">→</span></a></li>`).join('')}</ul>`, '', true)}
+          ${box('Taller hoy', (() => { const l = BOOK.filter((b) => b.day === sod(NOW)).sort((a, b) => a.start - b.start); return l.length ? `<table class="mini"><tbody>${l.map((b) => `<tr class="clickable" data-act="bk-ver" data-id="${b.id}"><td class="nw"><b>${hm(b.start)}</b></td><td>${esc(b.sv.n)}<div class="muted small">${esc(b.car)} · ${fmtPlate(b.plate)} · Box ${b.box}</div></td><td>${pillOf(BK_ST[b.st])}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:0;padding:16px 18px">Hoy no hay reservas.</p>'; })(), '<a href="#/taller">Agenda</a>', true)}
           ${box('Estado de la tienda', `<ul class="glance">
             <li><a href="#/pedidos?estado=processing"><strong>${plural(proc.length, 'pedido', 'pedidos')}</strong>en Procesando</a></li>
             <li><a href="#/pedidos?estado=pending"><strong>${plural(pend.length, 'pedido', 'pedidos')}</strong>esperando pago</a></li>
@@ -431,6 +539,7 @@
   };
 
   V.pedido = (q, id) => {
+    if (id === 'nuevo') return V.nuevoPedido();
     const o = oId.get(+id);
     if (!o) return `<div class="wrap-h"><h1>Pedido no encontrado</h1></div><p><a href="#/pedidos">Volver a pedidos</a></p>`;
     const c = o.c, paidNote = o.notes.find((n) => n.txt.startsWith('Klap aprobó'));
@@ -442,13 +551,13 @@
         <div>
           <div class="postbox"><div class="inside">
             <h2 style="font-size:24px;font-weight:800;font-stretch:88%;letter-spacing:-.01em;margin:0 0 4px">Detalles del pedido #${o.id}</h2>
-            <p class="muted" style="margin:0 0 16px">${o.auth ? `Pago con Klap (${esc(o.pay)}). Pagado el ${fFull(paidNote ? paidNote.t : o.t)}.` : o.st === 'failed' ? 'Pago rechazado por Klap.' : 'Aún sin pago.'} ${o.doc ? `${o.doc.type} N° ${o.doc.folio}.` : ''}</p>
+            <p class="muted" style="margin:0 0 16px">${o.auth === 'LOCAL' ? 'Pagado en el local.' : o.auth ? `Pago con Klap (${esc(o.pay)}). Pagado el ${fFull(paidNote ? paidNote.t : o.t)}.` : o.doc ? `Pagado por ${esc(o.pay.toLowerCase())}.` : o.st === 'failed' ? 'Pago rechazado por Klap.' : o.st === 'on-hold' ? 'Esperando la transferencia.' : o.st === 'pending' && o.src === MANUAL ? 'Link de pago enviado; aún sin pagar.' : 'Aún sin pago.'} ${o.doc ? `${o.doc.type} N° ${o.doc.folio}.` : ''}${o.src === MANUAL ? ' Venta creada desde el panel.' : ''}</p>
             <div class="grid3">
               <div>
                 <h3 style="font-size:14px;margin:0 0 10px">General</h3>
                 <div class="field"><label for="fc">Fecha de creación</label><input type="text" id="fc" value="${fFull(o.t)}" disabled></div>
                 <div class="field"><label for="ost">Estado</label><select id="ost">${Object.entries(ST).map(([k, l]) => `<option value="${k}"${k === o.st ? ' selected' : ''}>${l}</option>`).join('')}</select></div>
-                <div class="field"><span class="lbl">Cliente</span><a href="#/clientes?q=${encodeURIComponent(c.email)}">${esc(custName(c))}</a> · <a href="#/pedidos?cliente=${c.id}">Ver otros pedidos →</a></div>
+                <div class="field"><span class="lbl">Cliente</span><a href="#/cliente/${c.id}">${esc(custName(c))}</a> · <a href="#/cliente/${c.id}">Ver ficha →</a></div>
               </div>
               <div class="addr">
                 <h3 style="font-size:14px;margin:0 0 10px">Facturación</h3>
@@ -473,19 +582,20 @@
             <tr><td></td><td>Envío: ${esc(o.ship.m)}</td><td class="hide-m"></td><td></td><td class="num">${o.ship.cost ? clp(o.ship.cost) : 'Gratis'}</td></tr></tbody></table>
             <table class="totals"><tbody>
               <tr><td>Subtotal de artículos:</td><td>${clp(o.sub)}</td></tr>
+              ${o.disc ? `<tr><td>Descuento${o.cpCode ? ` (${esc(o.cpCode)})` : ''}:</td><td>−${clp(o.disc)}</td></tr>` : ''}
               <tr><td>Envío:</td><td>${clp(o.ship.cost)}</td></tr>
               <tr class="grand"><td>Total del pedido:</td><td>${clp(o.total)}</td></tr>
               <tr><td class="muted">IVA incluido:</td><td class="muted">${clp(o.total - o.total / 1.19)}</td></tr>
-              ${o.st === 'refunded' ? `<tr><td style="color:#b32d2e">Reembolsado:</td><td style="color:#b32d2e">−${clp(o.total)}</td></tr>` : ''}
+              ${o.refunded ? `<tr><td style="color:var(--bad)">Reembolsado:</td><td style="color:var(--bad)">−${clp(o.refunded)}</td></tr>` : ''}
             </tbody></table>
-            <div class="major-publishing-actions"><span class="muted small">Precios con IVA, tal como se cobraron.</span>${['processing', 'completed'].includes(o.st) ? '<button class="button" data-act="reembolso">Reembolso</button>' : ''}</div>
+            <div class="major-publishing-actions"><span class="muted small">Precios con IVA, tal como se cobraron.</span>${['processing', 'completed'].includes(o.st) && (o.refunded || 0) < o.total ? `<button class="button" data-act="reembolso" data-id="${o.id}">${o.refunded ? 'Otro reembolso' : 'Reembolso'}</button>` : ''}</div>
           </div></div>
         </div>
         <div>
           <div class="postbox"><h2 class="hndle">Acciones del pedido</h2><div class="inside">
             <select id="oact" style="width:100%"><option value="">Elige una acción…</option><option>Enviar detalles del pedido al cliente</option><option>Reenviar ${o.fac ? 'factura' : 'boleta'} al cliente</option><option>Generar envío en Sendu</option><option>Emitir documento en Bsale de nuevo</option></select>
           </div><div class="major-publishing-actions"><button class="button-link-delete" data-act="papelera">Mover a la papelera</button><button class="button button-primary" data-act="guardar-pedido" data-id="${o.id}">Actualizar</button></div></div>
-          ${box('Documento tributario', o.doc ? `<dl class="kv"><dt>Tipo</dt><dd>${o.doc.type}</dd><dt>Folio</dt><dd>N° ${o.doc.folio}</dd>${o.nc ? `<dt>Nota de crédito</dt><dd>N° ${o.nc}</dd>` : ''}<dt>Emitido</dt><dd>Automático, al aprobarse el pago</dd><dt>Stock</dt><dd>Descontado en Bsale</dd></dl><p style="margin:12px 0 0"><button class="button" data-act="pdf">Ver PDF en Bsale</button></p>` : '<p class="muted" style="margin:0">Se emite automáticamente en Bsale cuando Klap aprueba el pago.</p>')}
+          ${box('Documento tributario', o.doc ? `<dl class="kv"><dt>Tipo</dt><dd>${o.doc.type}</dd><dt>Folio</dt><dd>N° ${o.doc.folio}</dd>${(o.ncs || []).map((n) => `<dt>Nota de crédito</dt><dd>N° ${n.f} · ${clp(n.a)}</dd>`).join('')}<dt>Emitido</dt><dd>${o.src === MANUAL ? 'Desde el panel, al registrar el pago' : 'Automático, al aprobarse el pago'}</dd><dt>Stock</dt><dd>Descontado en Bsale</dd></dl><p style="margin:12px 0 0"><button class="button" data-act="pdf">Ver PDF en Bsale</button></p>` : `<p class="muted" style="margin:0">${o.st === 'on-hold' ? 'Se emite en Bsale cuando confirmes la transferencia (estado Procesando).' : 'Se emite automáticamente en Bsale cuando se paga.'}</p>`)}
           ${box('De dónde vino', `<dl class="kv"><dt>Origen</dt><dd>${otag(o)}</dd><dt>Tipo de origen</dt><dd>${o.src.type}</dd><dt>Fuente / medio</dt><dd>${esc(o.src.src)} / ${esc(o.src.med)}</dd>${o.camp ? `<dt>Campaña</dt><dd>${esc(o.camp)}</dd>` : ''}<dt>Página de entrada</dt><dd>${esc(o.landing)}</dd><dt>Dispositivo</dt><dd>${o.dev}</dd><dt>Páginas vistas</dt><dd>${o.pages}</dd></dl>`)}
           ${box('Historial del cliente', (() => { const all = ORDERS.filter((x) => x.c === c && PAID.has(x.st)); return `<dl class="kv"><dt>Pedidos pagados</dt><dd>${all.length}</dd><dt>Total gastado</dt><dd>${clp(all.reduce((s, x) => s + x.total, 0))}</dd><dt>Ticket promedio</dt><dd>${clp(all.length ? all.reduce((s, x) => s + x.total, 0) / all.length : 0)}</dd></dl>`; })())}
           ${box('Notas del pedido', `<ul class="notes" id="notes">${notes.map(noteHtml).join('')}</ul>
@@ -494,6 +604,7 @@
         </div>
       </div>`;
   };
+  V.pedido.after = (q, id) => { if (id === 'nuevo') V.nuevoPedido.after(); };
   const noteHtml = (n) => `<li class="${n.kind}"><div class="note-content">${esc(n.txt)}</div><p class="meta">${fFull(n.t)} · por ${esc(n.by)}${n.kind === 'customer' ? ' · visible para el cliente' : ''}</p></li>`;
 
   V.productos = (q) => {
@@ -508,20 +619,21 @@
     const rows = list.slice((page - 1) * per, page * per);
     return `
       <div class="wrap-h"><h1>Productos</h1><a class="page-title-action" href="#/producto/nuevo">Añadir nuevo</a></div>
-      <div class="notice"><p><span class="lock">Bsale</span> El <b>nombre, SKU, precio y stock</b> vienen de Bsale y se actualizan solos (se editan allá). Aquí se edita lo que se ve en la web: fotos, descripción, categoría, formatos, destacado y SEO.</p></div>
+      <div class="notice"><p><b>Todo se edita aquí.</b> Nombre, precio y stock se sincronizan con Bsale en ambos sentidos: lo que cambies se actualiza en Bsale, y las ventas del local se reflejan aquí.</p></div>
       <ul class="subsubsub">${[['', 'Todos'], ['dest', 'Destacados'], ['ocultos', 'Ocultos']].map(([k, l]) => `<li><a href="${href(base, q, { ver: k, pag: '' })}" class="${vis === k ? 'current' : ''}">${l} <span class="n">(${miles(cnt[k])})</span></a></li>`).join('')}</ul>
       <form class="tablenav" data-form="productos">
         <select name="cat" aria-label="Filtrar por categoría"><option value="">Todas las categorías</option>${GROUPS.map((x) => `<option value="${x.id}"${x.id === g ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
         <select name="marca" aria-label="Filtrar por marca"><option value="">Todas las marcas</option>${brands.map((x) => `<option${x === b ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>
         <select name="stock" aria-label="Filtrar por stock"><option value="">Cualquier stock</option><option value="hay"${stk === 'hay' ? ' selected' : ''}>Hay existencias</option><option value="bajo"${stk === 'bajo' ? ' selected' : ''}>Pocas unidades</option><option value="agotado"${stk === 'agotado' ? ' selected' : ''}>Agotado</option></select>
         <button class="button" type="submit">Filtrar</button>
+        <select name="pbulk" aria-label="Acciones en lote" class="hide-m"><option value="">Acciones en lote</option><option value="show">Mostrar en la tienda</option><option value="hide">Ocultar de la tienda</option><option value="feat">Destacar en la portada</option><option value="unfeat">Quitar de destacados</option><optgroup label="Mover a la categoría">${GROUPS.map((x) => `<option value="g:${x.id}">${esc(x.name)}</option>`).join('')}</optgroup></select><button class="button hide-m" type="button" data-act="pbulk">Aplicar</button>
         <span class="search-box"><label class="screen-reader-text" for="ps">Buscar productos</label><input type="search" id="ps" name="q" value="${esc(q.get('q') || '')}" placeholder="Nombre, marca o SKU"><button class="button" type="submit">Buscar productos</button></span>
       </form>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
       <table class="wp-list-table">
         <thead><tr><td class="check hide-m"><input type="checkbox" aria-label="Seleccionar todos" data-all></td><th style="width:60px"><span class="screen-reader-text">Foto</span></th><th>Nombre</th><th class="hide-m">SKU</th><th>Stock</th><th class="num">Precio</th><th class="hide-m">Categorías</th><th class="hide-m">Marca</th><th class="hide-m" title="Destacado">★</th></tr></thead>
         <tbody>${rows.length ? rows.map((p) => `<tr>
-          <th class="check hide-m" scope="row"><input type="checkbox" aria-label="Seleccionar ${esc(p.n)}"></th>
+          <th class="check hide-m" scope="row"><input type="checkbox" value="${p.id}" aria-label="Seleccionar ${esc(p.n)}"></th>
           <td><img class="thumb" src="${img(p)}" alt="" loading="lazy"></td>
           <td><a class="row-title" href="#/producto/${p.id}">${esc(p.n)}</a>${hidden.has(p.id) ? ' — <span class="muted">Oculto</span>' : ''}${p.vs ? `<div class="muted small">${p.vs.length} formatos</div>` : ''}
             <div class="row-actions">ID: ${p.id} | <a href="#/producto/${p.id}">Editar</a> | <a href="/producto/${p.s}" target="_blank" rel="noopener">Ver en la tienda</a></div></td>
@@ -536,10 +648,7 @@
   };
 
   V.producto = (q, id) => {
-    if (id === 'nuevo') return `
-      <div class="wrap-h"><h1>Añadir nuevo producto</h1></div>
-      <div class="notice notice--warn"><p><b>Los productos nuevos se crean en Bsale</b>, con su SKU, precio y stock. En menos de un minuto aparecen solos en esta lista, como borrador oculto.</p><p>Aquí solo completas lo que la web necesita: fotos, descripción, categoría y SEO. Después lo publicas.</p></div>
-      <p><a class="button" href="#/productos">Volver a productos</a></p>`;
+    if (id === 'nuevo') return V.nuevoProducto();
     let p = byId.get(+id);
     if (!p) return `<div class="wrap-h"><h1>Producto no encontrado</h1></div><p><a href="#/productos">Volver a productos</a></p>`;
     if (p.fam && p.fam !== p.id) p = byId.get(p.fam);
@@ -549,14 +658,15 @@
       <div class="wrap-h"><h1>Editar producto</h1><a class="page-title-action" href="#/producto/nuevo">Añadir nuevo</a></div>
       <div class="cols">
         <div>
-          <label class="screen-reader-text" for="pt">Nombre</label><input type="text" id="pt" class="title-input" value="${esc(p.n)}" disabled>
-          <p class="muted small" style="margin:-10px 0 14px"><span class="lock">Nombre desde Bsale</span> · Enlace permanente: <a href="/producto/${p.s}" target="_blank" rel="noopener">reycarstore.cl/producto/${esc(p.s)}</a></p>
+          <label class="screen-reader-text" for="pt">Nombre</label><input type="text" id="pt" class="title-input" value="${esc(p.n)}" maxlength="150">
+          <p class="muted small" style="margin:-10px 0 14px">El nombre también se actualiza en Bsale · Enlace permanente: <a href="/producto/${p.s}" target="_blank" rel="noopener">reycarstore.cl/producto/${esc(p.s)}</a></p>
           ${box('Descripción', `<textarea rows="9" aria-label="Descripción">${esc(p.d || '')}</textarea>`)}
           <div class="postbox"><h2 class="hndle">Datos del producto <span class="act muted">${plural(sold.length, 'venta', 'ventas')} en 180 días</span></h2><div class="inside flush"><div class="pdata">
             <div class="tabs" role="tablist">${['General', 'Inventario', 'Formatos', 'Envío'].map((t, i) => `<button role="tab" aria-selected="${!i}" data-tab="${i}">${t}</button>`).join('')}</div>
-            <div class="panel" data-panel="0"><div class="field"><label>Precio normal ($)</label><input type="text" value="${miles(p.p)}" disabled> <span class="lock">Se cambia en la lista de precios de Bsale</span></div><div class="field"><label>Precio de oferta ($)</label><input type="text" value="" placeholder="Sin oferta" disabled> <span class="lock">Por lista de precios o promoción en Bsale</span></div></div>
-            <div class="panel" data-panel="1" hidden><dl class="kv"><dt>SKU</dt><dd>${esc(p.sku || '—')}</dd><dt>Stock</dt><dd>${stockCell(p)}</dd><dt>Sucursal</dt><dd>Casa Matriz (Quinta Normal)</dd><dt>Sincronizado</dt><dd>Hace menos de 1 minuto</dd></dl><p class="muted small">El stock se descuenta en Bsale al pagarse cada pedido; las ventas del local también se reflejan aquí.</p></div>
-            <div class="panel" data-panel="2" hidden><p class="muted small" style="margin-top:0">Los formatos se muestran como un solo producto en la tienda, con selector (1 L, 5 L…).</p><table class="items"><thead><tr><th>Formato</th><th>SKU</th><th class="num">Precio</th><th>Stock</th></tr></thead><tbody>${vs.map((v) => `<tr><td>${esc((v.n.match(/\d+(?:[.,]\d+)?\s?(?:ml|cc|l|lt|lts|litros?|gr?|kg|galón|gal)\b/i) || [v === p ? 'Principal' : 'Formato'])[0])}</td><td>${esc(v.sku || '—')}</td><td class="num">${clp(v.p)}</td><td>${stockCell(v)}</td></tr>`).join('')}</tbody></table><p><button class="button" data-act="unir">Unir otro formato…</button></p></div>
+            <div class="panel" data-panel="0"><div class="grid2"><div class="field"><label for="pp">Precio normal con IVA ($)</label><input type="number" id="pp" min="0" step="10" value="${p.p}"${vs.length > 1 ? ' disabled' : ''}></div><div class="field"><label for="po">Precio de oferta ($)</label><input type="number" id="po" min="0" step="10" placeholder="Sin oferta" value="${p.po || ''}"></div>
+              <div class="field"><label for="pod">Oferta desde</label><input type="date" id="pod" value="${p.pod || ''}"></div><div class="field"><label for="poh">Oferta hasta</label><input type="date" id="poh" value="${p.poh || ''}"></div></div><p class="muted small" style="margin:0">Al guardar se actualiza la lista de precios web de Bsale y los catálogos de Meta y Google. ${vs.length > 1 ? 'Cada formato tiene su precio: se cambia en la pestaña Formatos.' : ''}</p></div>
+            <div class="panel" data-panel="1" hidden><dl class="kv"><dt>SKU</dt><dd>${esc(p.sku || '—')}</dd><dt>Stock</dt><dd>${vs.length > 1 ? vs.map((v) => `${esc(fmtOf(v, p))}: ${v.stk ?? '—'}`).join(' · ') : stockCell(p)}</dd><dt>Sucursal</dt><dd>Casa Matriz (Quinta Normal)</dd><dt>Sincronizado</dt><dd>Hace menos de 1 minuto</dd></dl><p style="margin:12px 0"><button class="button" data-act="stock-adj" data-id="${p.id}">Ajustar stock</button></p>${(p.mov || []).length ? `<table class="mini"><thead><tr><td><b>Fecha</b></td><td><b>Movimiento</b></td><td class="num"><b>Stock</b></td></tr></thead><tbody>${p.mov.slice(0, 8).map((m) => `<tr><td class="nw">${fFull(m.t)}</td><td>${{ in: 'Ingreso', out: 'Salida', set: 'Corrección' }[m.type]} ${m.type === 'set' ? '' : m.n}${m.v ? ` · ${esc(m.v)}` : ''}${m.r ? `<div class="muted small">${esc(m.r)} · ${esc(m.by)}</div>` : ''}</td><td class="num nw">${m.before} → <b>${m.after}</b></td></tr>`).join('')}</tbody></table>` : '<p class="muted small" style="margin:0">El stock baja solo con cada venta (web o local). Los ingresos de mercadería y mermas se registran con "Ajustar stock".</p>'}</div>
+            <div class="panel" data-panel="2" hidden><p class="muted small" style="margin-top:0">Los formatos se muestran como un solo producto en la tienda, con selector (1 L, 5 L…).</p><table class="items"><thead><tr><th>Formato</th><th>SKU</th><th class="num">Precio</th><th>Stock</th></tr></thead><tbody>${vs.map((v) => `<tr><td>${esc(fmtOf(v, p))}</td><td>${esc(v.sku || '—')}</td><td class="num"><input type="number" data-vp="${v.id}" value="${v.p}" min="0" step="10" style="width:110px;min-height:32px" aria-label="Precio de ${esc(v.n)}"></td><td>${stockCell(v)}</td></tr>`).join('')}</tbody></table><p><button class="button" data-act="unir">Unir otro formato…</button></p></div>
             <div class="panel" data-panel="3" hidden><div class="grid2"><div class="field"><label for="pw">Peso (kg)</label><input type="number" id="pw" step="0.1" value="${(/5\s?l/i.test(p.n) ? 5.4 : 1.1)}"></div><div class="field"><label>Dimensiones (cm)</label><span style="display:flex;gap:4px"><input type="number" aria-label="Largo" value="12" style="width:33%"><input type="number" aria-label="Ancho" value="8" style="width:33%"><input type="number" aria-label="Alto" value="${/5\s?l/i.test(p.n) ? 32 : 26}" style="width:33%"></span></div></div><p class="muted small">Sendu usa el peso y las medidas para cotizar el despacho en el checkout.</p></div>
           </div></div></div>
           <div class="postbox"><h2 class="hndle">SEO <span class="act">cómo aparece en Google</span></h2><div class="inside">
@@ -592,7 +702,10 @@
     const page = Math.max(1, +q.get('pag') || 1), per = 20, base = '#/clientes';
     const m = new Map();
     ORDERS.forEach((o) => { const x = m.get(o.c) || { c: o.c, n: 0, v: 0, last: 0 }; if (PAID.has(o.st)) { x.n++; x.v += o.total; } x.last = Math.max(x.last, o.t); m.set(o.c, x); });
-    let list = [...m.values()].filter((x) => !s || deacc(`${custName(x.c)} ${x.c.email} ${x.c.comuna} ${x.c.emp ? x.c.emp.name : ''}`.toLowerCase()).includes(s));
+    const sg = q.get('seg') || '';
+    let list = [...m.values()].filter((x) => !s || deacc(`${custName(x.c)} ${x.c.email} ${x.c.comuna} ${x.c.emp ? x.c.emp.name : ''} ${x.c.tags.join(' ')}`.toLowerCase()).includes(s));
+    const segCnt = {}; list.forEach((x) => { const k = segOf(x.c); segCnt[k] = (segCnt[k] || 0) + 1; });
+    if (sg) list = list.filter((x) => segOf(x.c) === sg);
     list.sort((a, b) => (sort === 'reciente' ? b.last - a.last : sort === 'pedidos' ? b.n - a.n || b.v - a.v : b.v - a.v));
     V.clientes.last = list;
     const rows = list.slice((page - 1) * per, page * per);
@@ -600,17 +713,20 @@
     return `
       <div class="wrap-h"><h1>Clientes</h1><button class="button" data-act="csv-clientes">Exportar a Excel</button></div>
       <div class="tiles">${tile('Clientes con pedidos', miles(m.size), 'últimos 180 días')}${tile('Compraron más de una vez', miles(rep), `${Math.round((rep / m.size) * 100)} % del total`)}${tile('Gasto promedio por cliente', clp([...m.values()].reduce((a, x) => a + x.v, 0) / m.size), 'pedidos pagados')}${tile('Con factura', miles([...m.values()].filter((x) => x.c.emp).length), 'empresas con RUT y giro')}</div>
+      <ul class="subsubsub">${[['', 'Todos', Object.values(segCnt).reduce((a, b) => a + b, 0)], ...Object.entries(SEGS).filter(([k]) => segCnt[k]).map(([k, [l]]) => [k, l, segCnt[k]])].map(([k, l, n]) => `<li><a href="${href(base, q, { seg: k, pag: '' })}" class="${sg === k ? 'current' : ''}">${l} <span class="n">(${n})</span></a></li>`).join('')}</ul>
       <form class="tablenav" data-form="clientes">
         <select name="orden" aria-label="Ordenar"><option value="gasto">Mayor gasto</option><option value="pedidos"${sort === 'pedidos' ? ' selected' : ''}>Más pedidos</option><option value="reciente"${sort === 'reciente' ? ' selected' : ''}>Compra más reciente</option></select><button class="button" type="submit">Ordenar</button>
         <span class="search-box"><label class="screen-reader-text" for="cs">Buscar clientes</label><input type="search" id="cs" name="q" value="${esc(q.get('q') || '')}" placeholder="Nombre, correo, comuna o empresa"><button class="button" type="submit">Buscar</button></span>
       </form>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
-      <table class="wp-list-table"><thead><tr><th>Nombre</th><th class="hide-m">Correo</th><th class="hide-m">Comuna</th><th class="num">Pedidos</th><th class="num">Gasto total</th><th class="hide-m">Último pedido</th></tr></thead>
-      <tbody>${rows.length ? rows.map((x) => `<tr class="clickable" data-go="#/pedidos?cliente=${x.c.id}"><td><a class="row-title" href="#/pedidos?cliente=${x.c.id}">${esc(custName(x.c))}</a>${x.c.emp ? `<div class="muted small">${esc(x.c.emp.name)}</div>` : ''}</td><td class="hide-m">${esc(x.c.email)}</td><td class="hide-m">${esc(x.c.comuna)}</td><td class="num">${x.n}</td><td class="num">${clp(x.v)}</td><td class="hide-m">${ago(x.last)}</td></tr>`).join('') : '<tr class="no-items"><td colspan="6">No se encontraron clientes.</td></tr>'}</tbody></table>
+      <table class="wp-list-table"><thead><tr><th>Nombre</th><th class="hide-m">Segmento</th><th class="hide-m">Comuna</th><th class="num">Pedidos</th><th class="num">Gasto total</th><th class="hide-m">Último pedido</th></tr></thead>
+      <tbody>${rows.length ? rows.map((x) => `<tr class="clickable" data-go="#/cliente/${x.c.id}"><td><a class="row-title" href="#/cliente/${x.c.id}">${esc(custName(x.c))}</a><div class="muted small">${esc(x.c.email)}${x.c.emp ? ` · ${esc(x.c.emp.name)}` : ''}</div></td><td class="hide-m">${pillOf(SEGS[segOf(x.c)])}</td><td class="hide-m">${esc(x.c.comuna)}</td><td class="num">${x.n}</td><td class="num">${clp(x.v)}</td><td class="hide-m">${ago(x.last)}</td></tr>`).join('') : '<tr class="no-items"><td colspan="6">No se encontraron clientes.</td></tr>'}</tbody></table>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>`;
   };
 
   V.analitica = (q) => {
+    const tab = q.get('tab') || 'resumen';
+    if (tab !== 'resumen' && AN[tab]) return AN[tab](q);
     const r = [7, 30, 90].includes(+q.get('r')) ? +q.get('r') : 30, view = q.get('ver') === 'tabla' ? 'tabla' : 'grafico';
     const a = agg(r), b = agg(r, r);
     const bySrc = groupBy(a.list, (o) => o.src.lbl), byType = groupBy(a.list, (o) => o.src.type);
@@ -621,7 +737,7 @@
     const dev = groupBy(a.list, (o) => o.dev);
     const seg = (k, opts, cur) => `<span class="seg" role="group">${opts.map(([v, l]) => `<button type="button" data-q="${k}=${v}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('')}</span>`;
     return `
-      <div class="wrap-h"><h1>Analítica</h1>${seg('r', [[7, '7 días'], [30, '30 días'], [90, '90 días']], r)}</div>
+      <div class="wrap-h"><h1>Analítica</h1>${seg('r', [[7, '7 días'], [30, '30 días'], [90, '90 días']], r)}</div>${anNav('resumen')}
       <p class="muted" style="margin:-6px 0 14px">${fDate(a.daily[0].d)} – ${fDate(a.daily[a.daily.length - 1].d)}, comparado con ${fDate(b.daily[0].d)} – ${fDate(b.daily[b.daily.length - 1].d)}. Solo pedidos pagados (Procesando y Completado).</p>
       <div class="tiles">${tile('Ventas', clp(a.sales), delta(a.sales, b.sales))}${tile('Pedidos', miles(a.n), delta(a.n, b.n))}${tile('Ticket promedio', clp(a.avg), delta(a.avg, b.avg))}${tile('Productos vendidos', miles(a.units), delta(a.units, b.units))}</div>
       <div class="postbox"><div class="chart-head"><h2>Ventas por día</h2><span class="legend"><span><i style="background:var(--data)"></i>Período seleccionado</span><span><i style="background:var(--cmp)"></i>Período anterior</span></span>${seg('ver', [['grafico', 'Gráfico'], ['tabla', 'Tabla']], view)}</div>
@@ -636,10 +752,10 @@
         ${box('Campañas con ventas', `<table class="mini"><tbody>${camps.slice(0, 8).map((x) => { const [s, c] = x.l.split('|'); return `<tr><td>${esc(c)}<div class="muted small">${esc(s)}</div></td><td class="num">${plural(x.n, 'pedido', 'pedidos')}</td><td class="num">${clp(x.v)}</td></tr>`; }).join('') || '<tr><td class="muted">Sin campañas en el período.</td></tr>'}</tbody></table>`, 'según UTM', true)}
         ${box('Productos más vendidos', `<table class="mini"><tbody>${prods.map((x) => `<tr><td style="width:44px"><img class="thumb" src="${img(x.p)}" alt="" loading="lazy"></td><td><a href="#/producto/${x.p.id}">${esc(x.p.n)}</a></td><td class="num">${x.u} u.</td><td class="num">${clp(x.v)}</td></tr>`).join('')}</tbody></table>`, '', true)}
       </div>
-      <div class="notice"><p><b>En la versión real</b> este informe se cruza con Google Analytics 4 (visitas, tasa de conversión, embudo de compra) y con el gasto de Meta Ads y Google Ads, para ver el retorno de cada campaña (ROAS) sin salir del panel.</p></div>`;
+      <div class="notice"><p>Las visitas y búsquedas están en <a href="#/analitica?tab=trafico">Tráfico y búsquedas</a>; el retorno de cada campaña en <a href="#/marketing">Marketing</a>; y el resumen mensual para el contador en <a href="#/analitica?tab=informe">Informe de ventas</a>.</p></div>`;
   };
   V.analitica.after = (q) => {
-    const el = $('#cday'); if (!el) return;
+    const el = $('#cday'); if (!el || (q.get('tab') && q.get('tab') !== 'resumen')) return;
     const r = [7, 30, 90].includes(+q.get('r')) ? +q.get('r') : 30, a = agg(r), b = agg(r, r);
     lineChart(el, { label: `Ventas diarias, últimos ${r} días, comparado con el período anterior`, days: a.daily.map((d) => d.d), pdays: b.daily.map((d) => d.d), cur: a.daily.map((d) => d.v), prev: b.daily.map((d) => d.v), cnt: a.daily.map((d) => d.n), h: 260 });
   };
@@ -658,11 +774,11 @@
   V.usuarios = () => `
     <div class="wrap-h"><h1>Usuarios</h1><button class="page-title-action" data-act="nuevo-usuario">Añadir nuevo</button></div>
     <table class="wp-list-table"><thead><tr><th>Nombre de usuario</th><th>Nombre</th><th class="hide-m">Correo</th><th>Perfil</th><th class="hide-m">Último acceso</th></tr></thead><tbody>
-      ${[['guillermo', 'Guillermo Araya', 'Administrador', 2 * HOUR], ['desarrollo', 'Equipo de desarrollo', 'Administrador', 26 * HOUR], ['ventas', 'Ventas y despacho', 'Gestor de la tienda', 40 * MIN]].map(([u, n, r, t]) => `<tr><td><span class="av" style="margin-right:10px;width:30px;height:30px;font-size:13px">${u[0].toUpperCase()}</span><a class="row-title" href="#/usuarios">${u}</a></td><td>${n}</td><td class="hide-m">${u}@ejemplo.cl</td><td>${r}</td><td class="hide-m">${ago(NOW - t)}</td></tr>`).join('')}
+      ${[['guillermo', 'Guillermo Araya', 'Administrador', 2 * HOUR], ['desarrollo', 'Equipo de desarrollo', 'Administrador', 26 * HOUR], ['ventas', 'Ventas y despacho', 'Gestor de la tienda', 40 * MIN], ['taller', 'Bodega y taller', 'Despacho y taller', 3 * HOUR]].map(([u, n, r, t]) => `<tr><td><span class="av" style="margin-right:10px;width:30px;height:30px;font-size:13px">${u[0].toUpperCase()}</span><a class="row-title" href="#/usuarios">${u}</a></td><td>${n}</td><td class="hide-m">${u}@ejemplo.cl</td><td>${r}</td><td class="hide-m">${ago(NOW - t)}</td></tr>`).join('')}
     </tbody></table>
     <div class="dash" style="margin-top:20px">
-      ${box('Perfiles', '<dl class="kv"><dt>Administrador</dt><dd>Todo, incluidos los ajustes, conexiones y usuarios.</dd><dt>Gestor de la tienda</dt><dd>Pedidos, productos, clientes y analítica. No ve ajustes ni claves.</dd></dl>')}
-      ${box('Seguridad', '<dl class="kv"><dt>Inicio de sesión</dt><dd>Correo y contraseña, con código de verificación en dos pasos.</dd><dt>Intentos fallidos</dt><dd>Bloqueo temporal tras 5 intentos (como Loginizer hoy).</dd><dt>Registro</dt><dd>Queda anotado quién cambió cada pedido.</dd></dl>')}
+      ${box('Qué puede hacer cada perfil', `<div style="overflow-x:auto"><table class="mini perms"><thead><tr><td><b>Área</b></td><td class="num"><b>Administrador</b></td><td class="num"><b>Gestor de la tienda</b></td><td class="num"><b>Despacho y taller</b></td></tr></thead><tbody>${PERMS.map(([a, ...r], i) => `<tr><td>${a}</td>${r.map((v, j) => `<td class="num"><input type="checkbox"${v ? ' checked' : ''}${j === 0 ? ' disabled' : ''} aria-label="${a}: ${['Administrador', 'Gestor de la tienda', 'Despacho y taller'][j]}"></td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="major-publishing-actions"><span class="muted small">El administrador siempre tiene todo.</span><button class="button" data-act="guardar">Guardar permisos</button></div>`, '', true)}
+      ${box('Seguridad', '<dl class="kv"><dt>Inicio de sesión</dt><dd>Correo y contraseña, con código de verificación en dos pasos.</dd><dt>Intentos fallidos</dt><dd>Bloqueo temporal tras 5 intentos (como Loginizer hoy).</dd><dt>Registro</dt><dd>Queda anotado quién hizo cada cambio: <a href="#/actividad">ver registro</a>.</dd><dt>Sesiones</dt><dd>Se cierran solas tras 12 horas sin uso.</dd></dl>')}
     </div>`;
 
   V.ajustes = (q) => {
@@ -673,7 +789,7 @@
     const B = {
       general: row('Nombre de la tienda', '<input type="text" value="Reycar Store">') + row('Dirección', '<input type="text" value="Quinta Normal, Región Metropolitana">', 'Aparece en el pie de página y en la opción de retiro en tienda.') + row('WhatsApp de atención', '<input type="text" value="+56 9 6355 5437">') + row('Correo de avisos de pedidos', '<input type="text" placeholder="ventas@…">', 'Recibe un aviso por cada pedido pagado.'),
       pagos: row('Estado', '<span class="st-wait">Faltan credenciales de Klap</span>', 'Klap entrega primero las credenciales de prueba; con ellas se prueba el pago completo antes de cobrar de verdad.') + row('Modo', '<select><option>Pruebas (sandbox)</option><option>Producción</option></select>') + row('<label for="kk">Clave de la API (apikey)</label>', secret('kk', 'Se guarda cifrada en el servidor'), 'Nunca se muestra después de guardarla ni se envía al navegador.') + row('Medios de pago', '<label class="switch"><input type="checkbox" checked> Tarjetas de crédito y débito</label><br><label class="switch"><input type="checkbox" checked> Google Pay</label><br><label class="switch"><input type="checkbox" checked> Apple Pay</label>') + row('Pedido sin pagar', '<select><option>Cancelar a los 60 minutos</option><option>Cancelar a las 24 horas</option></select>', 'Mientras tanto el producto no se descuenta del stock.'),
-      envios: row('Estado', '<span class="st-wait">Por configurar</span>') + row('<label for="sk">Token de Sendu</label>', secret('sk', 'Se guarda cifrado en el servidor')) + row('Couriers', '<label class="switch"><input type="checkbox" checked> Starken</label><br><label class="switch"><input type="checkbox" checked> Chilexpress</label><br><label class="switch"><input type="checkbox" checked> Blue Express</label>') + row('Retiro en tienda', '<label class="switch"><input type="checkbox" checked> Ofrecer retiro gratis en Quinta Normal</label>') + row('Envío gratis', '<input type="text" placeholder="Monto mínimo, ej. 60.000">', 'Vacío = sin envío gratis.'),
+      envios: row('Estado', '<span class="st-wait">Por configurar</span>') + row('<label for="sk">Token de Sendu</label>', secret('sk', 'Se guarda cifrado en el servidor')) + row('Couriers', '<label class="switch"><input type="checkbox" checked> Starken</label><br><label class="switch"><input type="checkbox" checked> Chilexpress</label><br><label class="switch"><input type="checkbox" checked> Blue Express</label>') + row('Retiro en tienda', '<label class="switch"><input type="checkbox" checked> Ofrecer retiro gratis en Quinta Normal</label>') + row('Envío gratis', '<input type="text" placeholder="Monto mínimo, ej. 60.000">', 'Vacío = sin envío gratis.') + row('Tarifas propias', `<div style="overflow-x:auto"><table class="mini zones"><thead><tr><td><b>Zona</b></td><td><b>Regiones</b></td><td class="num"><b>Tarifa ($)</b></td><td><b>Plazo</b></td></tr></thead><tbody>${ZONES.map(([z, r, t, d], i) => `<tr><td><b>${z}</b></td><td class="muted small">${r}</td><td class="num"><input type="number" value="${t}" step="10" min="0" style="width:96px;min-height:32px" aria-label="Tarifa ${z}"></td><td><input type="text" value="${d}" style="width:150px;min-height:32px" aria-label="Plazo ${z}"></td></tr>`).join('')}</tbody></table></div>`, 'Se usan si el cotizador de Sendu no responde, y para mostrar el plazo de entrega en la ficha del producto.'),
       bsale: row('Estado', '<span class="st-wait">Falta el token de acceso</span>', 'Lo solicita el administrador de la cuenta de Bsale. Es un token nuevo, distinto del que usa hoy WordPress.') + row('<label for="bk">Token de acceso</label>', secret('bk', 'Se guarda cifrado en el servidor')) + row('Sucursal', '<select disabled><option>Casa Matriz (se carga al conectar)</option></select>', 'El stock web sale de esta sucursal.') + row('Lista de precios', '<select disabled><option>Lista web (se carga al conectar)</option></select>') + row('Documento al pagar', '<label class="switch"><input type="checkbox" checked> Emitir boleta o factura automáticamente cuando Klap aprueba el pago</label>', 'También descuenta el stock y envía el PDF al cliente.') + row('Avisos de Bsale', '<label class="switch"><input type="checkbox" checked> Actualizar precio y stock al instante cuando cambian en Bsale</label>'),
       seguimiento: row('<label for="ga">Google Analytics 4</label>', '<input type="text" id="ga" placeholder="G-XXXXXXXXXX">') + row('<label for="gtm">Google Tag Manager</label>', '<input type="text" id="gtm" placeholder="GTM-XXXXXXX">', 'El contenedor actual sigue funcionando: la tienda envía los mismos eventos que hoy (vista de producto, agregar al carro, compra).') + row('<label for="px">Píxel de Meta</label>', '<input type="text" id="px" placeholder="ID del píxel">') + row('<label for="capi">API de conversiones de Meta</label>', secret('capi', 'Token de acceso'), 'Envía las compras también desde el servidor, para que Meta no pierda ventas por bloqueadores o iPhone.') + row('Catálogos de productos', '<a href="#/seo">Meta: /feeds/meta.xml</a><br><a href="#/seo">Google Merchant: /feeds/google.xml</a>', 'Con los mismos ID de producto que hoy, para no reiniciar campañas ni públicos.') + row('Aviso de cookies', '<select><option>Pedir consentimiento (Consent Mode v2)</option><option>Solo informar</option></select>'),
       correos: [['Pedido recibido', 'Apenas Klap aprueba el pago, con el detalle y la boleta adjunta.'], ['Listo para retiro', 'Cuando se marca "preparado" en Despachos y el cliente eligió retiro.'], ['Pedido enviado', 'Con el courier y el número de seguimiento de Sendu.'], ['Carrito abandonado', 'Una hora después, con el carro listo para pagar.'], ['Pedido cancelado o reembolsado', 'Con la nota de crédito si corresponde.']].map(([t, d]) => row(t, `<label class="switch"><input type="checkbox" checked> Enviar</label> <button class="button" data-act="ver-correo">Vista previa</button>`, d)).join('') + row('Remitente', '<input type="text" value="Reycar Store" aria-label="Nombre del remitente">', 'Los correos llevan el logo y los colores de la tienda.'),
@@ -741,6 +857,7 @@
       <tbody>${rows.length ? rows.map((x) => `<tr><td><img class="thumb" src="${img(x.p)}" alt="" loading="lazy"></td><td><a class="row-title" href="#/producto/${x.p.fam || x.p.id}">${esc(x.p.n)}</a><div class="muted small">${esc(x.p.b || '')}</div></td><td class="hide-m">${esc(x.p.sku || '—')}</td><td class="num">${x.p.stk == null ? '—' : x.p.stk}</td><td class="num hide-m">${x.u}</td><td class="num nw">${x.days === Infinity ? '<span class="muted">—</span>' : plural(Math.max(0, Math.round(x.days)), 'día', 'días')}</td><td class="hide-m">${pillOf(INV_ST[x.st])}</td><td class="num hide-m">${x.sug ? `<b>${x.sug}</b>` : '—'}</td></tr>`).join('') : '<tr class="no-items"><td colspan="8">Nada por reponer.</td></tr>'}</tbody></table>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>`;
   };
+  const fmtOf = (v, p) => (v.n.match(/\d+(?:[.,]\d+)?\s?(?:ml|cc|l|lt|lts|litros?|gr?|kg|galón|gal)\b/i) || [v === p ? 'Principal' : 'Formato'])[0];
   const pillOf = ([l, cls]) => `<mark class="order-status status-${cls}"><span>${l}</span></mark>`;
 
   /* ───────── marketing ───────── */
@@ -748,10 +865,11 @@
   const FEED_WARN = (p) => { const w = []; if (!p.b) w.push('Sin marca'); if (p.sku && !/^\d{8,14}$/.test(p.sku)) w.push('SKU no es código de barras'); return w; };
   V.marketing = (q) => {
     const tab = q.get('tab') || 'anuncios';
-    const tabs = [['anuncios', 'Anuncios'], ['cupones', 'Cupones'], ['carritos', 'Carritos abandonados'], ['catalogos', 'Catálogos'], ['pixel', 'Píxel y eventos']];
+    const tabs = [['anuncios', 'Anuncios'], ['cupones', 'Cupones'], ['correos', 'Correos'], ['carritos', 'Carritos abandonados'], ['catalogos', 'Catálogos'], ['pixel', 'Píxel y eventos']];
     const head = `<div class="wrap-h"><h1>Marketing</h1>${tab === 'anuncios' ? segR(q) : ''}</div><nav class="nav-tab-wrapper">${tabs.map(([k, l]) => `<a class="nav-tab${k === tab ? ' nav-tab-active' : ''}" href="#/marketing?tab=${k}">${l}</a>`).join('')}</nav>`;
     return head + (MK[tab] || MK.anuncios)(q);
   };
+  V.marketing.after = (q) => { if (q.get('tab') === 'correos') drawMail(); };
   const rangeOf = (q) => ([7, 30, 90].includes(+q.get('r')) ? +q.get('r') : 30);
   const segR = (q) => `<span class="seg" role="group">${[[7, '7 días'], [30, '30 días'], [90, '90 días']].map(([v, l]) => `<button type="button" data-q="r=${v}" aria-pressed="${v === rangeOf(q)}">${l}</button>`).join('')}</span>`;
   const x1 = (n) => `${n.toFixed(1).replace('.', ',')}×`;
@@ -880,11 +998,12 @@
     const os = ORDERS.filter((o) => String(o.id).includes(s) || deacc(`${custName(o.c)} ${o.c.email}`.toLowerCase()).includes(s)).slice(0, 4);
     const ps = HEADS.filter((p) => deacc(`${p.n} ${p.sku} ${p.b}`.toLowerCase()).includes(s)).slice(0, 5);
     const buyers = new Set(ORDERS.map((o) => o.c));
+    const pl = s.replace(/[^a-z0-9]/g, '').toUpperCase(), bs = pl.length >= 3 ? BOOK.filter((b) => b.plate.includes(pl)).slice(0, 3) : [];
     const cs = CUST.filter((c) => buyers.has(c) && deacc(`${custName(c)} ${c.email} ${c.emp ? c.emp.name : ''}`.toLowerCase()).includes(s)).slice(0, 3);
     const sec = (t, items) => (items.length ? `<div class="gres__t">${t}</div>${items.join('')}` : '');
     res.innerHTML = sec('Pedidos', os.map((o) => `<a href="#/pedido/${o.id}"><b>#${o.id}</b><span class="gres__m">${esc(custName(o.c))}</span>${pill(o.st)}</a>`))
       + sec('Productos', ps.map((p) => `<a href="#/producto/${p.id}"><img src="${img(p)}" alt=""><span class="gres__m">${esc(p.n)}</span><span class="muted">${clp(p.p)}</span></a>`))
-      + sec('Clientes', cs.map((c) => `<a href="#/pedidos?cliente=${c.id}"><span class="gres__m"><b>${esc(custName(c))}</b></span><span class="muted">${esc(c.comuna)}</span></a>`)) || '<p class="gres__none">Sin resultados para esa búsqueda.</p>';
+      + sec('Taller', bs.map((b) => `<a href="#/taller?w=${weekOf(b.day)}"><b>${fmtPlate(b.plate)}</b><span class="gres__m">${esc(b.car)} · ${esc(b.sv.n)}</span><span class="muted">${fDay(b.day)}</span></a>`)) + sec('Clientes', cs.map((c) => `<a href="#/cliente/${c.id}"><span class="gres__m"><b>${esc(custName(c))}</b></span><span class="muted">${esc(c.comuna)}</span></a>`)) || '<p class="gres__none">Sin resultados para esa búsqueda.</p>';
     res.hidden = false;
   }
   function bellItems() {
@@ -895,6 +1014,8 @@
       [ORDERS.filter((o) => o.st === 'failed' && NOW - o.t < 7 * DAY).length, 'pagos rechazados esta semana', '#/pedidos?estado=failed', 'st-bad'],
       [inv.filter((x) => x.st === 'now').length, 'productos para reponer ya', '#/inventario', 'st-wait'],
       [CARTS.filter((c) => c.st === 'pend').length, 'carritos abandonados por recuperar', '#/marketing?tab=carritos', 'st-info'],
+      [REVIEWS.filter((r) => r.st === 'pend').length, 'reseñas nuevas por aprobar', '#/resenas', 'st-info'],
+      [BOOK.filter((b) => b.st === 'agendado' && b.day - sod(NOW) <= DAY && b.day >= sod(NOW)).length, 'reservas del taller sin confirmar para hoy o mañana', '#/taller', 'st-wait'],
       [1, 'Bsale: falta el token para conectar precios y stock', '#/ajustes?tab=bsale', 'st-bad'],
     ].filter((x) => x[0]);
   }
@@ -912,14 +1033,428 @@
   }
   const stamp = () => { const d = new Date(); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
 
+  /* ───────── ventana modal ───────── */
+  function modal(title, body, foot) {
+    $('#dlgT').textContent = title; $('#dlgB').innerHTML = body; $('#dlgF').innerHTML = foot;
+    const d = $('#dlg'); if (!d.open) d.showModal();
+    const f = $('#dlgB input:not([type=hidden]):not([disabled]), #dlgB select, #dlgB textarea'); if (f) f.focus();
+  }
+  const closeModal = () => { const d = $('#dlg'); if (d.open) d.close(); };
+  const confirmBox = (title, txt, act, label, id = '') => modal(title, `<p style="margin:0">${txt}</p>`, `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="${act}" data-id="${id}">${label}</button>`);
+
+  /* ───────── utilidades de validación ───────── */
+  const rutOk = (s) => {
+    const m = String(s).replace(/[.\s]/g, '').toUpperCase().match(/^(\d{7,8})-?([\dK])$/); if (!m) return false;
+    let sum = 0, mul = 2; for (let i = m[1].length - 1; i >= 0; i--) { sum += +m[1][i] * mul; mul = mul === 7 ? 2 : mul + 1; }
+    const dv = 11 - (sum % 11); return m[2] === (dv === 11 ? '0' : dv === 10 ? 'K' : String(dv));
+  };
+  const emailOk = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(s);
+  const slugify = (s) => deacc(s.toLowerCase()).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 80);
+  const ean13 = () => { const d = '20' + Array.from({ length: 10 }, () => Math.floor(Math.random() * 10)).join(''); const s = [...d].reduce((a, x, i) => a + +x * (i % 2 ? 3 : 1), 0); return d + ((10 - (s % 10)) % 10); };
+  const pctTxt = (x) => `${(x * 100).toFixed(1).replace('.', ',')} %`;
+  const nextId = (arr) => 1 + Math.max(0, ...arr.map((x) => x.id));
+
+  /* ───────── documento tributario al pagar ───────── */
+  function emitDoc(o) {
+    const type = o.fac ? 'Factura electrónica' : 'Boleta electrónica';
+    const folio = 1 + Math.max(0, ...ORDERS.filter((x) => x.doc && x.doc.type === type).map((x) => x.doc.folio));
+    o.doc = { type, folio };
+    o.lines.forEach((l) => { if (l.p.stk != null) l.p.stk = Math.max(0, l.p.stk - l.q); });
+    o.notes.push({ t: Date.now(), txt: `${type} N° ${folio} emitida en Bsale${o.c.email !== '—' ? ` y enviada a ${o.c.email}` : ''}. Stock descontado en la sucursal Casa Matriz.`, kind: 'system', by: 'Reycar Store' });
+  }
+
+  /* ───────── pedido manual: ventas por WhatsApp, teléfono o en el local ───────── */
+  let DRAFT = null;
+  const newDraft = (c = null) => ({ lines: [], c, fac: false, ship: 0, shipCost: 0, pay: 'link', cp: null });
+  const SHIP_M = [['Retiro en tienda — Quinta Normal', 0], ['Starken a domicilio', 4490], ['Chilexpress a domicilio', 4490], ['Blue Express a domicilio', 3990], ['Envío por pagar (lo paga quien recibe)', 0]];
+  const PAYS = [['link', 'Enviar link de pago (Klap)', 'Le llega por WhatsApp y correo. El pedido se confirma solo cuando paga.'], ['transfer', 'Transferencia bancaria', 'Queda "En espera" hasta que confirmes que llegó la transferencia.'], ['local', 'Pagado en el local', 'Efectivo o tarjeta en la máquina del local. La boleta se emite al tiro.']];
+  const draftTot = (d) => {
+    const sub = d.lines.reduce((s, l) => s + l.q * l.p.p, 0), cp = d.cp;
+    const base = cp && /Motor Clean/.test(cp.scope) ? d.lines.filter((l) => l.p.b === 'Motor Clean').reduce((s, l) => s + l.q * l.p.p, 0) : sub;
+    let disc = 0, ship = d.shipCost;
+    if (cp) { if (cp.type === 'pct') disc = Math.round((base * cp.val) / 100); else if (cp.type === 'fix') disc = Math.min(base, cp.val); else ship = 0; }
+    return { sub, disc, ship, total: Math.max(0, sub - disc) + ship };
+  };
+  V.nuevoPedido = () => {
+    DRAFT = DRAFT || newDraft();
+    return `
+      <div class="wrap-h"><h1>Nuevo pedido</h1><button class="button" data-act="d-reset">Empezar de nuevo</button></div>
+      <p class="muted" style="margin:-8px 0 18px">Para ventas por WhatsApp, teléfono o en el local. Descuenta stock, emite la boleta y aparece en Despachos igual que una compra web.</p>
+      <div class="cols"><div>
+        <div class="postbox"><h2 class="hndle">Productos</h2><div class="inside">
+          <div class="picker"><input type="search" id="dps" placeholder="Buscar producto por nombre, marca o SKU" autocomplete="off" aria-label="Buscar producto para agregar"><div class="picker__r" id="dpr" hidden></div></div>
+          <div id="dLines"></div>
+        </div></div>
+        <div class="postbox"><h2 class="hndle">Cliente</h2><div class="inside" id="dCust"></div></div>
+      </div><div>
+        <div class="postbox"><h2 class="hndle">Envío</h2><div class="inside">
+          <div class="field"><label for="dship">Método</label><select id="dship" style="width:100%">${SHIP_M.map(([m, c], i) => `<option value="${i}">${esc(m)}${c ? ` · ${clp(c)}` : ''}</option>`).join('')}</select></div>
+          <div class="field" style="margin:0"><label for="dshipc">Costo de envío cobrado ($)</label><input type="number" id="dshipc" min="0" step="10" style="width:100%"></div>
+        </div></div>
+        <div class="postbox"><h2 class="hndle">Pago</h2><div class="inside">
+          ${PAYS.map(([v, l, d]) => `<label class="radio-card"><input type="radio" name="dpay" value="${v}"${DRAFT.pay === v ? ' checked' : ''}><span><b>${l}</b><small>${d}</small></span></label>`).join('')}
+          <div class="field" style="margin:14px 0 0"><label for="dcp">Cupón</label><span style="display:flex;gap:6px"><input type="text" id="dcp" placeholder="Código" style="flex:1;text-transform:uppercase"><button class="button" data-act="d-cupon">Aplicar</button></span></div>
+        </div></div>
+        <div class="postbox"><h2 class="hndle">Resumen</h2><div class="inside" id="dTot"></div><div class="major-publishing-actions"><span class="muted small">Precios con IVA</span><button class="button button-primary" data-act="d-crear">Crear pedido</button></div></div>
+      </div></div>`;
+  };
+  V.nuevoPedido.after = () => { $('#dship').value = String(DRAFT.ship); $('#dshipc').value = DRAFT.shipCost; drawDraft('lct'); };
+  function drawDraft(parts) {
+    if (!DRAFT || !$('#dLines')) return;
+    const d = DRAFT, T = draftTot(d);
+    if (parts.includes('l')) $('#dLines').innerHTML = d.lines.length ? `<table class="items" style="margin-top:12px"><tbody>${d.lines.map((l, i) => `<tr><td style="width:52px;padding-left:0"><img class="thumb" src="${img(l.p)}" alt=""></td><td>${esc(l.p.n)}<div class="sku">SKU ${esc(l.p.sku || '—')} · ${clp(l.p.p)} · ${l.p.stk == null ? 'stock sin control' : `${l.p.stk} en stock`}</div></td><td class="num" style="width:84px"><input type="number" class="dq" data-i="${i}" min="1" max="${l.p.stk || 999}" value="${l.q}" aria-label="Cantidad de ${esc(l.p.n)}" style="width:68px;min-height:34px"></td><td class="num nw" id="dlt${i}">${clp(l.q * l.p.p)}</td><td class="num" style="width:44px;padding-right:0"><button class="tb-btn" data-act="d-del" data-i="${i}" aria-label="Quitar ${esc(l.p.n)}" style="width:32px;height:32px">×</button></td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:12px 0 0">Busca y agrega los productos del pedido.</p>';
+    if (parts.includes('c')) {
+      const c = d.c;
+      $('#dCust').innerHTML = c ? `<div class="custcard"><span class="av">${esc(c.first[0] || '?')}</span><div><b>${esc(custName(c))}</b><div class="muted small">${esc(c.email)} · ${esc(c.phone)} · ${esc(c.comuna)}</div>${c.emp ? `<div class="small">${esc(c.emp.name)} · RUT ${c.emp.rut}</div>` : ''}</div><button class="button" data-act="d-cust-x">Cambiar</button></div>
+        <label class="switch" style="margin-top:12px"><input type="checkbox" id="dfac"${d.fac ? ' checked' : ''}${c.emp ? '' : ' disabled'}> Emitir factura${c.emp ? '' : ' <span class="muted small">(el cliente no tiene datos de empresa)</span>'}</label>`
+        : `<div class="picker"><input type="search" id="dcs" placeholder="Buscar cliente por nombre, correo o teléfono" autocomplete="off" aria-label="Buscar cliente"><div class="picker__r" id="dcr" hidden></div></div>
+        <p class="muted small" style="margin:14px 0 8px">¿Cliente nuevo? Completa sus datos:</p>
+        <div class="grid2"><div class="field"><label for="nf">Nombre</label><input type="text" id="nf" autocomplete="off"></div><div class="field"><label for="nl">Apellido</label><input type="text" id="nl" autocomplete="off"></div>
+        <div class="field"><label for="ne">Correo</label><input type="email" id="ne" autocomplete="off"></div><div class="field"><label for="nph">Teléfono</label><input type="text" id="nph" placeholder="+56 9 …" autocomplete="off"></div>
+        <div class="field"><label for="nco">Comuna</label><input type="text" id="nco" list="comunas" autocomplete="off"><datalist id="comunas">${COMUNAS.map((x) => `<option>${esc(x.n)}</option>`).join('')}</datalist></div><div class="field"><label for="nrut">RUT (opcional)</label><input type="text" id="nrut" placeholder="12.345.678-5" autocomplete="off"></div></div>`;
+    }
+    if (parts.includes('t')) $('#dTot').innerHTML = `<table class="totals sumtable"><tbody><tr><td>Subtotal</td><td>${clp(T.sub)}</td></tr>${d.cp ? `<tr><td>Cupón <code>${esc(d.cp.code)}</code> <button class="button-link-delete" data-act="d-cupon-x">quitar</button></td><td>${d.cp.type === 'ship' ? 'Envío gratis' : '−' + clp(T.disc)}</td></tr>` : ''}<tr><td>Envío</td><td>${T.ship ? clp(T.ship) : 'Gratis'}</td></tr><tr class="grand"><td>Total</td><td>${clp(T.total)}</td></tr><tr><td class="muted">IVA incluido</td><td class="muted">${clp(T.total - T.total / 1.19)}</td></tr></tbody></table>`;
+  }
+  const pickerOut = (id, items) => { const r = $(id); r.innerHTML = items.join('') || '<p class="muted small" style="margin:0;padding:10px 12px">Sin resultados.</p>'; r.hidden = false; };
+  function draftSearch(el) {
+    const s = deacc(el.value.trim().toLowerCase());
+    if (el.id === 'dps') {
+      if (s.length < 2) return ($('#dpr').hidden = true);
+      pickerOut('#dpr', ALL.filter((p) => p.p > 0 && deacc(`${p.n} ${p.sku} ${p.b}`.toLowerCase()).includes(s)).slice(0, 8).map((p) => `<button type="button" data-act="d-add" data-id="${p.id}"><img src="${img(p)}" alt=""><span class="gres__m">${esc(p.n)}</span><span class="muted nw">${clp(p.p)} · ${p.stk == null ? '—' : p.stk + ' u.'}</span></button>`));
+    }
+    if (el.id === 'dcs') {
+      if (s.length < 2) return ($('#dcr').hidden = true);
+      const digits = s.replace(/\D/g, '');
+      pickerOut('#dcr', CUST.filter((c) => deacc(`${custName(c)} ${c.email} ${c.emp ? c.emp.name : ''}`.toLowerCase()).includes(s) || (digits.length > 3 && c.phone.replace(/\D/g, '').includes(digits))).slice(0, 6).map((c) => `<button type="button" data-act="d-cust" data-id="${c.id}"><span class="av" style="width:28px;height:28px;font-size:12px">${esc(c.first[0] || '?')}</span><span class="gres__m"><b>${esc(custName(c))}</b> <span class="muted">${esc(c.email)}</span></span><span class="muted">${esc(c.comuna)}</span></button>`));
+    }
+  }
+  function draftCreate() {
+    const d = DRAFT;
+    if (!d.lines.length) return toast('Agrega al menos un producto.');
+    for (const l of d.lines) if (l.p.stk != null && l.q > l.p.stk) return toast(`No hay stock suficiente de "${l.p.n}" (quedan ${l.p.stk}).`);
+    let c = d.c;
+    if (!c) {
+      const v = (id) => $(id).value.trim(), f = v('#nf'), la = v('#nl'), em = v('#ne'), ph = v('#nph'), co = v('#nco'), ru = v('#nrut');
+      if (!f) return toast('Falta el nombre del cliente (o búscalo si ya compró antes).');
+      if (!em && !ph) return toast('Indica correo o teléfono para enviarle la boleta.');
+      if (em && !emailOk(em)) return toast('El correo no parece válido.');
+      if (ru && !rutOk(ru)) return toast('El RUT no es válido: revisa el dígito verificador.');
+      const com = COMUNAS.find((x) => deacc(x.n.toLowerCase()) === deacc(co.toLowerCase()));
+      c = { id: nextId(CUST), first: f, last: la, email: em || '—', phone: ph || '—', rut: ru || '—', street: '—', comuna: com ? com.n : co || '—', region: com ? com.r : '—', emp: null, since: Date.now(), tags: [], consent: { mail: false, wa: false }, cnotes: [] };
+      CUST.push(c);
+    }
+    const T = draftTot(d), now = Date.now(), m = SHIP_M[d.ship][0], paid = d.pay === 'local';
+    const o = { id: nextId(ORDERS), t: now, st: paid ? 'processing' : d.pay === 'transfer' ? 'on-hold' : 'pending', c, lines: d.lines.map((l) => ({ p: l.p, q: l.q, price: l.p.p })), sub: T.sub, disc: T.disc, cpCode: d.cp ? d.cp.code : '',
+      ship: { m, carrier: (m.match(/^(Starken|Chilexpress|Blue Express)/) || [])[1], cost: T.ship, track: '' }, total: T.total, pay: { link: 'Link de pago Klap', transfer: 'Transferencia bancaria', local: 'Pago en el local' }[d.pay],
+      auth: paid ? 'LOCAL' : '', src: MANUAL, camp: '', dev: 'Panel', pages: 0, landing: '—', doc: null, fac: d.fac && !!c.emp, nc: null, cnote: '', notes: [] };
+    o.notes.push({ t: now, txt: `Pedido creado a mano desde el panel (${o.pay}).`, kind: 'system', by: 'Guillermo' });
+    if (d.pay === 'link') o.notes.push({ t: now, txt: `Link de pago por ${clp(o.total)} enviado por WhatsApp y correo. Vence en 24 horas.`, kind: 'customer', by: 'Reycar Store' });
+    if (d.pay === 'transfer') o.notes.push({ t: now, txt: 'Datos de transferencia enviados al cliente. Cuando llegue, cambia el estado a Procesando: se emite la boleta y se descuenta el stock.', kind: 'customer', by: 'Reycar Store' });
+    if (paid) emitDoc(o);
+    if (d.cp) d.cp.uses++;
+    ORDERS.unshift(o); oId.set(o.id, o); CS = null;
+    log(`Pedido #${o.id}`, `Creó un pedido manual por ${clp(o.total)} (${o.pay})`);
+    DRAFT = null;
+    location.hash = `/pedido/${o.id}`;
+    toast(paid ? `Pedido #${o.id} creado y pagado. Boleta emitida; ya está en Despachos.` : `Pedido #${o.id} creado. ${d.pay === 'link' ? 'En la versión real el cliente recibe el link de pago.' : 'Queda en espera de la transferencia.'}`);
+  }
+
+  /* ───────── reembolso total o parcial ───────── */
+  function refundModal(o) {
+    const left = (l) => l.q - (l.rq || 0);
+    modal(`Reembolso del pedido #${o.id}`, `
+      <p class="muted" style="margin-top:0">Elige qué se devuelve. El dinero vuelve por Klap al mismo medio de pago y se emite la nota de crédito en Bsale.</p>
+      <table class="items"><thead><tr><th style="padding-left:0">Artículo</th><th class="num">Precio</th><th class="num">Devolver</th></tr></thead><tbody>${o.lines.map((l, i) => `<tr><td style="padding-left:0">${esc(l.p.n)}</td><td class="num">${clp(l.price)}</td><td class="num nw"><input type="number" data-rq="${i}" min="0" max="${left(l)}" value="0" style="width:64px;min-height:34px" aria-label="Unidades a devolver de ${esc(l.p.n)}"${left(l) ? '' : ' disabled'}> <span class="muted small">de ${left(l)}</span></td></tr>`).join('')}</tbody></table>
+      ${o.ship.cost && !o.shipRef ? `<label class="switch" style="margin-top:12px"><input type="checkbox" id="rfShip"> Devolver también el envío (${clp(o.ship.cost)})</label>` : ''}
+      <div class="grid2" style="margin-top:12px"><div class="field"><label for="rfWhy">Motivo</label><select id="rfWhy" style="width:100%"><option>Producto dañado o con falla</option><option>Producto equivocado</option><option>El cliente se arrepintió</option><option>No había stock</option><option>Otro</option></select></div><div class="field" style="align-self:end"><label class="switch"><input type="checkbox" id="rfStock" checked> Reponer el stock en Bsale</label></div></div>`,
+      `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="rf-ok" data-id="${o.id}" id="rfBtn" disabled>Reembolsar $0</button>`);
+  }
+  const rfAmount = (o) => {
+    const k = o.disc ? 1 - o.disc / o.sub : 1; let a = 0;
+    $$('[data-rq]').forEach((el) => { const l = o.lines[+el.dataset.rq]; a += Math.max(0, Math.min(Math.floor(+el.value || 0), l.q - (l.rq || 0))) * l.price * k; });
+    if ($('#rfShip') && $('#rfShip').checked) a += o.ship.cost;
+    return Math.round(Math.min(a, o.total - (o.refunded || 0)));
+  };
+  function refundApply(o) {
+    const a = rfAmount(o); if (!a) return toast('Indica qué se devuelve.');
+    const now = Date.now(), restock = $('#rfStock').checked, why = $('#rfWhy').value, items = [];
+    $$('[data-rq]').forEach((el) => { const l = o.lines[+el.dataset.rq], n = Math.max(0, Math.min(Math.floor(+el.value || 0), l.q - (l.rq || 0))); if (!n) return; l.rq = (l.rq || 0) + n; items.push(`${n} × ${l.p.n}`); if (restock && l.p.stk != null) l.p.stk += n; });
+    if ($('#rfShip') && $('#rfShip').checked) { o.shipRef = true; items.push('envío'); }
+    const f = 1 + Math.max(411, ...ORDERS.flatMap((x) => (x.ncs || []).map((n) => n.f)));
+    o.ncs = [...(o.ncs || []), { f, a, t: now }]; o.refunded = (o.refunded || 0) + a; o.nc = o.nc || f;
+    o.notes.push({ t: now, txt: `Reembolso de ${clp(a)} realizado en Klap (${items.join(', ')}). Motivo: ${why}.`, kind: 'private', by: 'Guillermo' });
+    o.notes.push({ t: now, txt: `Nota de crédito electrónica N° ${f} por ${clp(a)} emitida en Bsale.${restock && items.some((x) => x !== 'envío') ? ' Stock repuesto.' : ''}`, kind: 'system', by: 'Reycar Store' });
+    log(`Pedido #${o.id}`, `Reembolsó ${clp(a)} (nota de crédito N° ${f})`);
+    if (o.refunded >= o.total - 1) setStatus(o, 'refunded');
+    closeModal(); route(); toast(`Reembolso de ${clp(a)} registrado. Nota de crédito N° ${f}.`);
+  }
+
+  /* ───────── ficha de cliente ───────── */
+  V.cliente = (q, id) => {
+    const c = CUST.find((x) => x.id === +id);
+    if (!c) return `<div class="wrap-h"><h1>Cliente no encontrado</h1></div><p><a href="#/clientes">Volver a clientes</a></p>`;
+    const x = cstats().get(c), os = x.orders.slice().sort((a, b) => b.t - a.t), bk = BOOK.filter((b) => b.c === c).sort((a, b) => b.day - a.day || b.start - a.start), rv = REVIEWS.filter((r) => r.c === c);
+    const wa = c.phone.replace(/\D/g, '');
+    return `
+      <div class="wrap-h"><h1 class="cust-h"><span class="av av--lg">${esc((c.first[0] || '?') + (c.last[0] || ''))}</span>${esc(custName(c))}</h1>${pillOf(SEGS[segOf(c)])}<button class="button" data-act="d-for" data-id="${c.id}">Nuevo pedido para este cliente</button></div>
+      <p class="muted" style="margin:-8px 0 18px">Cliente desde ${fDate(x.first || c.since || NOW)}${c.emp ? ` · ${esc(c.emp.name)}` : ''}${x.brands.size ? ` · Compra ${[...x.brands].slice(0, 4).map(esc).join(', ')}` : ''}</p>
+      <div class="tiles">${tile('Total gastado', clp(x.v), 'pedidos pagados, con IVA')}${tile('Pedidos pagados', miles(x.n), `${x.orders.length} en total`)}${tile('Ticket promedio', clp(x.n ? x.v / x.n : 0), '')}${tile('Última compra', x.last ? ago(x.last) : '—', x.last ? fDate(x.last) : 'sin compras pagadas')}</div>
+      <div class="cols"><div>
+        ${box('Pedidos', os.length ? `<table class="mini"><tbody>${os.map((o) => `<tr><td><a href="#/pedido/${o.id}"><b>#${o.id}</b></a><div class="muted small">${fDate(o.t)} · ${plural(qty(o), 'producto', 'productos')}</div></td><td>${pill(o.st)}</td><td class="num">${clp(o.total)}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:0;padding:16px 18px">Sin pedidos.</p>', '', true)}
+        ${bk.length ? box('Visitas al taller', `<table class="mini"><tbody>${bk.slice(0, 8).map((b) => `<tr><td><b>${esc(b.sv.n)}</b><div class="muted small">${fDate(b.day)} · ${hm(b.start)} · ${esc(b.car)} ${fmtPlate(b.plate)}</div></td><td>${pillOf(BK_ST[b.st])}</td><td class="num">${clp(b.price)}</td></tr>`).join('')}</tbody></table>`, '', true) : ''}
+        ${rv.length ? box('Reseñas', `<ul class="rows">${rv.map((r) => `<li>${stars(r.r)} <span class="muted small">${fDate(r.t)} · ${esc(r.p.n)}</span><div>${esc(r.txt)}</div></li>`).join('')}</ul>`) : ''}
+        ${box('Notas internas', `<ul class="notes" id="cnotes">${c.cnotes.map(noteHtml).join('') || '<li class="muted" style="padding:0">Sin notas. Solo las ve el equipo.</li>'}</ul><div class="field" style="margin-top:12px"><label for="cnn">Añadir nota</label><textarea id="cnn" rows="2" placeholder="Ej: prefiere que lo llamen después de las 18:00"></textarea></div><button class="button" data-act="c-nota" data-id="${c.id}">Guardar nota</button>`)}
+      </div><div>
+        ${box('Contacto', `<dl class="kv"><dt>Correo</dt><dd>${c.email !== '—' ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</dd><dt>Teléfono</dt><dd>${esc(c.phone)}${wa.length > 8 ? ` · <a href="#" data-act="wa-cliente">WhatsApp</a>` : ''}</dd><dt>RUT</dt><dd>${esc(c.rut)}</dd><dt>Dirección</dt><dd>${esc(c.street)}<br>${esc(c.comuna)}${c.region !== '—' ? `, ${esc(c.region)}` : ''}</dd></dl>`)}
+        ${c.emp ? box('Facturación', `<dl class="kv"><dt>Razón social</dt><dd>${esc(c.emp.name)}</dd><dt>RUT</dt><dd>${c.emp.rut}</dd><dt>Giro</dt><dd>${esc(c.emp.giro)}</dd></dl>`) : ''}
+        ${box('Etiquetas', `<div class="chips" id="ctags">${c.tags.map((t, i) => `<span class="chip">${esc(t)}<button data-act="c-untag" data-id="${c.id}" data-i="${i}" aria-label="Quitar etiqueta ${esc(t)}">×</button></span>`).join('') || '<span class="muted small">Sin etiquetas.</span>'}</div><div class="addrow"><input type="text" id="ctag" placeholder="Ej: Mayorista, Detailer" list="taglist" aria-label="Nueva etiqueta"><datalist id="taglist">${['Mayorista', 'Detailer profesional', 'Cliente del taller', 'Empresa', 'VIP'].map((t) => `<option>${t}</option>`).join('')}</datalist><button class="button" data-act="c-tag" data-id="${c.id}">Agregar</button></div>`)}
+        ${box('Permisos de contacto', `<label class="switch"><input type="checkbox" data-consent="mail" data-id="${c.id}"${c.consent.mail ? ' checked' : ''}> Acepta correos con novedades y ofertas</label><br><label class="switch"><input type="checkbox" data-consent="wa" data-id="${c.id}"${c.consent.wa ? ' checked' : ''}> Acepta mensajes por WhatsApp</label><p class="muted small" style="margin:8px 0 0">Los correos del pedido (boleta, seguimiento) siempre llegan; esto es solo para promociones.</p>`)}
+        ${box('Privacidad (Ley 21.719)', `<p class="muted small" style="margin-top:0">Si el cliente pide sus datos o que se borren, se atiende desde aquí y queda registrado.</p><div class="stack"><button class="button" data-act="c-export" data-id="${c.id}">Descargar sus datos</button><button class="button-link-delete" data-act="c-borrar" data-id="${c.id}">Borrar sus datos personales</button></div>`)}
+      </div></div>`;
+  };
+
+  /* ───────── agenda del taller ───────── */
+  const hm = (m) => `${Math.floor(m / 60)}:${p2(m % 60)}`;
+  const fmtPlate = (p) => `${p.slice(0, 2)}·${p.slice(2, 4)}·${p.slice(4)}`;
+  const WDAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const H0 = 540, H1 = 1140, PXM = 0.95;
+  V.taller = (q) => {
+    const w = Math.max(-1, Math.min(6, +q.get('w') || 0)), m0 = addDays(mondayOf(NOW), w * 7), days = [0, 1, 2, 3, 4, 5].map((i) => addDays(m0, i)), today = sod(NOW), nowMin = (NOW - today) / MIN;
+    const wk = BOOK.filter((b) => b.day >= m0 && b.day < addDays(m0, 7));
+    const live = wk.filter((b) => b.st !== 'noshow'), mins = live.reduce((s, b) => s + b.sv.min, 0), cap = 2 * (5 * 600 + 300);
+    const top = groupBy(live.map((b) => ({ total: b.price, b })), (x) => x.b.sv.n).sort((x, y) => y.n - x.n)[0];
+    const rail = `<div class="cal__rail" aria-hidden="true"><div class="cal__dh">&nbsp;</div><div class="cal__body" style="height:${(H1 - H0) * PXM}px">${[9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map((h) => `<span style="top:${(h * 60 - H0) * PXM}px">${h}:00</span>`).join('')}</div></div>`;
+    const col = (day, i) => `<div class="cal__col${day === today ? ' is-today' : ''}"><div class="cal__dh"><b>${WDAYS[i]}</b> ${fDay(day)}</div><div class="cal__body" style="height:${(H1 - H0) * PXM}px">
+        ${closeOf(day) < H1 ? `<div class="cal__closed" style="top:${(closeOf(day) - H0) * PXM}px">Cerrado</div>` : ''}
+        ${day === today && nowMin > H0 && nowMin < H1 ? `<div class="cal__now" style="top:${(nowMin - H0) * PXM}px"></div>` : ''}
+        ${BOOK.filter((b) => b.day === day).map((b) => `<button class="bk bk--${b.st} bk--b${b.box}" style="top:${(b.start - H0) * PXM}px;height:${b.sv.min * PXM - 3}px" data-act="bk-ver" data-id="${b.id}" title="${esc(`${hm(b.start)} · ${b.sv.n} · ${b.car} · ${custName(b.c)}`)}"><b>${hm(b.start)} ${esc(b.sv.n)}</b><span>${esc(b.car)} · ${fmtPlate(b.plate)}</span><span>${esc(custName(b.c))}</span></button>`).join('')}
+      </div></div>`;
+    const next = BOOK.filter((b) => b.day + b.start * MIN >= NOW && b.st !== 'noshow').sort((a, b) => a.day - b.day || a.start - b.start).slice(0, 8);
+    return `
+      <div class="wrap-h"><h1>Agenda del taller</h1><span class="weeknav"><a class="button" href="#/taller?w=${w - 1}" aria-label="Semana anterior"${w <= -1 ? ' aria-disabled="true" tabindex="-1"' : ''}>‹</a><a class="button" href="#/taller">Esta semana</a><a class="button" href="#/taller?w=${w + 1}" aria-label="Semana siguiente">›</a></span><button class="button button-primary" data-act="bk-nueva">Nueva reserva</button></div>
+      <p class="muted" style="margin:-8px 0 18px">Semana del ${fDay(m0)} al ${fDate(addDays(m0, 5))} · 2 boxes · lunes a viernes de 9:00 a 19:00 y sábado de 9:00 a 14:00.</p>
+      <div class="tiles">${tile('Reservas de la semana', miles(live.length), `${wk.filter((b) => b.st === 'agendado').length} por confirmar`)}${tile('Ingresos estimados', clp(live.reduce((s, b) => s + b.price, 0)), 'según el precio de cada servicio')}${tile('Ocupación', `${Math.round((mins / cap) * 100)} %`, 'de las horas de los 2 boxes')}${tile('Servicio más pedido', top ? `<span class="val-txt">${esc(top.l)}</span>` : '—', top ? plural(top.n, 'reserva', 'reservas') : '')}</div>
+      <div class="cal-legend"><span><i class="lg lg--b1"></i>Box 1</span><span><i class="lg lg--b2"></i>Box 2</span>${Object.entries(BK_ST).filter(([k]) => k !== 'listo').map(([k, [l]]) => `<span><i class="lg lg--${k}"></i>${l}</span>`).join('')}</div>
+      <div class="cal-wrap"><div class="cal">${rail}${days.map(col).join('')}</div></div>
+      <div class="dash" style="margin-top:20px">
+        ${box('Próximas reservas', next.length ? `<table class="mini"><tbody>${next.map((b) => `<tr class="clickable" data-act="bk-ver" data-id="${b.id}"><td><b>${WDAYS[(new Date(b.day).getDay() + 6) % 7]} ${fDay(b.day)} · ${hm(b.start)}</b><div class="muted small">${esc(b.sv.n)} · ${esc(b.car)} ${fmtPlate(b.plate)} · ${esc(custName(b.c))}</div></td><td>${pillOf(BK_ST[b.st])}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:0;padding:16px 18px">Sin reservas próximas.</p>', '', true)}
+        ${box('Servicios y precios', `<table class="mini"><thead><tr><td><b>Servicio</b></td><td class="num"><b>Duración (min)</b></td><td class="num"><b>Precio ($)</b></td></tr></thead><tbody>${SERVICES.map((s, i) => `<tr><td>${esc(s.n)}</td><td class="num"><input type="number" data-svm="${i}" value="${s.min}" min="30" step="30" style="width:84px;min-height:32px" aria-label="Duración de ${esc(s.n)}"></td><td class="num"><input type="number" data-svp="${i}" value="${s.p}" min="0" step="1000" style="width:110px;min-height:32px" aria-label="Precio de ${esc(s.n)}"></td></tr>`).join('')}</tbody></table><div class="major-publishing-actions"><span class="muted small">Valores de ejemplo. Son los que se muestran en "Servicios de taller" de la tienda.</span><button class="button" data-act="sv-save">Guardar</button></div>`, '', true)}
+      </div>`;
+  };
+  function bookingModal(b) {
+    modal(`${b.sv.n} · ${WDAYS[(new Date(b.day).getDay() + 6) % 7]} ${fDay(b.day)} ${hm(b.start)}`, `
+      <dl class="kv"><dt>Cliente</dt><dd><a href="#/cliente/${b.c.id}">${esc(custName(b.c))}</a> · ${esc(b.c.phone)}</dd><dt>Vehículo</dt><dd>${esc(b.car)} · patente <b>${fmtPlate(b.plate)}</b></dd><dt>Horario</dt><dd>${hm(b.start)} a ${hm(b.start + b.sv.min)} · Box ${b.box}</dd><dt>Precio</dt><dd>${clp(b.price)}</dd>${b.note ? `<dt>Nota</dt><dd>${esc(b.note)}</dd>` : ''}</dl>
+      <div class="field" style="margin-top:16px"><label for="bkst">Estado</label><select id="bkst" style="width:100%">${Object.entries(BK_ST).map(([k, [l]]) => `<option value="${k}"${k === b.st ? ' selected' : ''}>${l}</option>`).join('')}</select></div>`,
+      `<button class="button-link-delete" data-act="bk-del" data-id="${b.id}">Cancelar reserva</button><span style="flex:1"></span><button class="button" data-act="bk-wa" data-id="${b.id}">Recordatorio por WhatsApp</button><button class="button button-primary" data-act="bk-save" data-id="${b.id}">Guardar</button>`);
+  }
+  function newBookingModal() {
+    const t0 = addDays(sod(NOW), 1), iso = (t) => { const d = new Date(t); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
+    modal('Nueva reserva', `
+      <div class="grid2"><div class="field"><label for="bn">Nombre del cliente</label><input type="text" id="bn" autocomplete="off"></div><div class="field"><label for="bp">Teléfono</label><input type="text" id="bp" placeholder="+56 9 …" autocomplete="off"></div>
+      <div class="field"><label for="bcar">Vehículo</label><input type="text" id="bcar" list="cars" placeholder="Marca y modelo"><datalist id="cars">${CARS.map((x) => `<option>${x}</option>`).join('')}</datalist></div><div class="field"><label for="bpl">Patente</label><input type="text" id="bpl" placeholder="BBCL12" maxlength="8" style="text-transform:uppercase"></div></div>
+      <div class="field"><label for="bsv">Servicio</label><select id="bsv" style="width:100%">${SERVICES.map((s, i) => `<option value="${i}">${esc(s.n)} · ${hm(s.min).replace(':00', ' h').replace(':30', ' h 30')} · ${clp(s.p)}</option>`).join('')}</select></div>
+      <div class="grid2"><div class="field"><label for="bd">Día</label><input type="date" id="bd" min="${iso(sod(NOW))}" value="${iso(t0)}"></div><div class="field"><label for="bh">Hora</label><select id="bh" style="width:100%">${Array.from({ length: 19 }, (_, i) => 540 + i * 30).map((m) => `<option value="${m}">${hm(m)}</option>`).join('')}</select></div></div>
+      <div class="field"><label for="bnote">Nota (opcional)</label><input type="text" id="bnote" placeholder="Ej: tiene manchas de savia en el capó"></div>`,
+      `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="bk-ok">Reservar</button>`);
+  }
+  function bookingCreate() {
+    const v = (id) => $(id).value.trim(), name = v('#bn'), ph = v('#bp'), car = v('#bcar') || 'Vehículo sin especificar', pl = v('#bpl').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const sv = SERVICES[+$('#bsv').value], start = +$('#bh').value, dv = v('#bd');
+    if (!name) return toast('Falta el nombre del cliente.');
+    if (ph.replace(/\D/g, '').length < 8) return toast('Indica un teléfono para confirmar la reserva.');
+    if (!/^([A-Z]{2}\d{4}|[A-Z]{4}\d{2})$/.test(pl)) return toast('La patente debe tener el formato BBCL12 o AB1234.');
+    if (!dv) return toast('Elige el día.');
+    const [y, mo, d] = dv.split('-').map(Number), day = new Date(y, mo - 1, d).getTime();
+    if (new Date(day).getDay() === 0) return toast('El taller no atiende los domingos.');
+    if (day + start * MIN < Date.now()) return toast('Esa hora ya pasó.');
+    if (start + sv.min > closeOf(day)) return toast(`"${sv.n}" dura ${sv.min / 60} h: no alcanza antes del cierre (${hm(closeOf(day))}). Elige una hora más temprana.`);
+    const busy = (box, s, e) => BOOK.some((b) => b.day === day && b.box === box && b.st !== 'noshow' && s < b.start + b.sv.min && b.start < e);
+    const box = [1, 2].find((bx) => !busy(bx, start, start + sv.min));
+    if (!box) { let alt = null; for (let m = 540; m + sv.min <= closeOf(day) && !alt; m += 30) if ([1, 2].some((bx) => !busy(bx, m, m + sv.min)) && day + m * MIN > Date.now()) alt = m; return toast(`Los 2 boxes están ocupados a esa hora.${alt != null ? ` Primera hora libre ese día: ${hm(alt)}.` : ' Ese día no queda espacio.'}`); }
+    const digits = ph.replace(/\D/g, '').slice(-8);
+    let c = CUST.find((x) => x.phone.replace(/\D/g, '').endsWith(digits));
+    if (!c) { const [first, ...rest] = name.split(/\s+/); c = { id: nextId(CUST), first, last: rest.join(' '), email: '—', phone: ph, rut: '—', street: '—', comuna: '—', region: '—', emp: null, since: Date.now(), tags: ['Cliente del taller'], consent: { mail: false, wa: true }, cnotes: [] }; CUST.push(c); CS = null; }
+    const b = { id: nextId(BOOK), day, start, box, sv, c, car, plate: pl, st: 'confirmado', price: sv.p, note: v('#bnote') };
+    BOOK.push(b); log('Taller', `Reservó ${sv.n} el ${fDay(day)} a las ${hm(start)} (Box ${box}) para ${custName(c)}`);
+    closeModal(); location.hash = `/taller?w=${weekOf(day)}`; route();
+    toast(`Reserva confirmada en el Box ${box}. En la versión real le llega la confirmación por WhatsApp.`);
+  }
+
+  /* ───────── reseñas ───────── */
+  const stars = (r) => `<span class="stars" role="img" aria-label="${r} de 5 estrellas">${'★'.repeat(r)}<span>${'★'.repeat(5 - r)}</span></span>`;
+  V.resenas = (q) => {
+    const f = q.get('f') || 'pend', page = Math.max(1, +q.get('pag') || 1), per = 20, base = '#/resenas';
+    const pub = REVIEWS.filter((r) => r.st === 'ok'), avg = pub.length ? pub.reduce((s, r) => s + r.r, 0) / pub.length : 0;
+    const L = { pend: REVIEWS.filter((r) => r.st === 'pend'), bajas: REVIEWS.filter((r) => r.r <= 3 && !r.reply && r.st !== 'hid'), todas: REVIEWS };
+    const list = L[f] || L.pend, rows = list.slice((page - 1) * per, page * per);
+    const dist = [5, 4, 3, 2, 1].map((k) => { const n = pub.filter((r) => r.r === k).length; return { l: `${k} ${k === 1 ? 'estrella' : 'estrellas'}`, v: n, n }; });
+    return `
+      <div class="wrap-h"><h1>Reseñas</h1></div>
+      <p class="muted" style="margin:-8px 0 18px">Solo opinan clientes con compra verificada: el correo para opinar llega 7 días después de la entrega.</p>
+      <div class="tiles">${tile('Calificación promedio', `${avg.toFixed(1).replace('.', ',')} ★`, `${plural(pub.length, 'reseña publicada', 'reseñas publicadas')}`)}${tile('Por aprobar', miles(L.pend.length), 'llegaron esta semana')}${tile('Con 5 estrellas', pub.length ? `${Math.round((dist[0].n / pub.length) * 100)} %` : '—', 'de las publicadas')}${tile('Bajas sin responder', miles(L.bajas.length), 'responder genera confianza')}</div>
+      <div class="dash">
+        ${box('Distribución', bars(dist, 0, { fmt: (x) => `${x.v}<small>${pub.length ? Math.round((x.v / pub.length) * 100) : 0} %</small>`, tip: (x) => `<b>${x.l}</b><br>${plural(x.v, 'reseña', 'reseñas')}` }), 'reseñas publicadas', true)}
+        ${box('Dónde se usan', '<ul class="checks"><li>En la ficha de cada producto, con estrellas y el nombre de pila del cliente.</li><li>En los catálogos de Google: las estrellas aparecen en los anuncios de Shopping.</li><li>Las reseñas negativas no se ocultan: se responden. Solo se oculta el spam o lo ofensivo.</li></ul>')}
+      </div>
+      <ul class="subsubsub">${[['pend', 'Por aprobar'], ['bajas', '1 a 3 estrellas sin respuesta'], ['todas', 'Todas']].map(([k, l]) => `<li><a href="${href(base, q, { f: k, pag: '' })}" class="${f === k ? 'current' : ''}">${l} <span class="n">(${L[k].length})</span></a></li>`).join('')}</ul>
+      <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
+      <table class="wp-list-table"><thead><tr><th style="width:60px"><span class="screen-reader-text">Foto</span></th><th>Reseña</th><th class="hide-m">Fecha</th><th>Estado</th></tr></thead><tbody>
+      ${rows.map((r) => `<tr><td><img class="thumb" src="${img(r.p)}" alt="" loading="lazy"></td><td>${stars(r.r)} <span class="muted small">${esc(r.p.n.slice(0, 60))}</span><div style="margin:4px 0">${esc(r.txt)}</div><div class="muted small">${esc(r.c.first)} ${esc((r.c.last[0] || '') + '.')} · compra verificada · <a href="#/pedido/${r.o.id}">pedido #${r.o.id}</a></div>${r.reply ? `<div class="reply"><b>Respuesta de Reycar:</b> ${esc(r.reply)}</div>` : ''}
+        <div class="rv-a">${r.st === 'pend' ? `<button class="button button-primary" data-act="rv-ok" data-id="${r.id}">Aprobar</button>` : ''}<button class="button" data-act="rv-reply" data-id="${r.id}">${r.reply ? 'Editar respuesta' : 'Responder'}</button>${r.st === 'hid' ? `<button class="button" data-act="rv-show" data-id="${r.id}">Volver a publicar</button>` : `<button class="button-link-delete" data-act="rv-hide" data-id="${r.id}">Ocultar (spam)</button>`}</div></td>
+        <td class="hide-m nw">${fDate(r.t)}</td><td>${pillOf(RV_ST[r.st])}</td></tr>`).join('') || '<tr class="no-items"><td colspan="4">No hay reseñas en esta lista.</td></tr>'}
+      </tbody></table>
+      <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>`;
+  };
+
+  /* ───────── correos a clientes ───────── */
+  const TPL = {
+    novedades: ['Novedades en Reycar Store', 'Hola {nombre}:\n\nLlegaron productos nuevos para el cuidado de tu auto. Te dejamos los destacados de la semana.'],
+    promo: ['Solo esta semana: descuento en toda la tienda', 'Hola {nombre}:\n\nPor ser cliente de Reycar, tienes un descuento especial esta semana. Úsalo en cualquier producto.'],
+    volver: ['Te extrañamos: un regalo para volver', 'Hola {nombre}:\n\nHace tiempo que no te vemos. Te dejamos un descuento para tu próxima compra.'],
+  };
+  MK.correos = () => {
+    const sent = CAMPAIGNS.filter((c) => c.st === 'sent' && c.open != null), avgO = sent.reduce((s, c) => s + c.open, 0) / (sent.length || 1), avgC = sent.reduce((s, c) => s + c.click, 0) / (sent.length || 1);
+    CAMPAIGNS.forEach((c) => { if (c.n == null) c.n = Math.max(1, Math.round(segCount(c.seg) * 0.96)); });
+    const segName = (k) => (MAILSEG.find((x) => x[0] === k) || MAILSEG[0])[1];
+    return `
+      <div class="tiles">${tile('Clientes que aceptan correos', miles(segCount('all')), 'solo a ellos se les escribe')}${tile('Apertura promedio', pctTxt(avgO), `últimas ${sent.length} campañas`)}${tile('Clics promedio', pctTxt(avgC), 'abrieron un enlace')}${tile('Ventas por correo', clp(sent.reduce((s, c) => s + c.orders * 54000, 0)), 'pedidos atribuidos a campañas')}</div>
+      ${box('Campañas', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Asunto</b></td><td class="hide-m"><b>Para</b></td><td class="num"><b>Enviados</b></td><td class="num"><b>Abiertos</b></td><td class="num hide-m"><b>Clics</b></td><td class="num hide-m"><b>Pedidos</b></td><td><b>Estado</b></td></tr></thead><tbody>${CAMPAIGNS.map((c) => `<tr><td><b>${esc(c.subj)}</b><div class="muted small">${c.st === 'prog' ? 'Programada para el ' : ''}${fFull(c.t)}</div></td><td class="hide-m">${esc(segName(c.seg))}</td><td class="num">${miles(c.n)}</td><td class="num">${c.open != null ? pctTxt(c.open) : '—'}</td><td class="num hide-m">${c.click != null ? pctTxt(c.click) : '—'}</td><td class="num hide-m">${c.orders != null ? c.orders : '—'}</td><td>${pillOf(c.st === 'prog' ? ['Programada', 'pending'] : c.open == null ? ['Enviando', 'processing'] : ['Enviada', 'completed'])}</td></tr>`).join('')}</tbody></table></div>`, '', true)}
+      <div class="cols composer"><div>
+        ${box('Nueva campaña', `
+          <div class="field"><label for="mtpl">Plantilla</label><select id="mtpl" style="width:100%"><option value="novedades">Novedades y destacados</option><option value="promo">Promoción con cupón</option><option value="volver">Recuperar clientes</option></select></div>
+          <div class="field"><label for="mseg">Para</label><select id="mseg" style="width:100%">${MAILSEG.map(([k, l]) => `<option value="${k}">${l} (${segCount(k)})</option>`).join('')}</select></div>
+          <div class="field"><label for="ms">Asunto</label><input type="text" id="ms" maxlength="90" value="${esc(TPL.novedades[0])}" style="width:100%"></div>
+          <div class="field"><label for="mtxt">Mensaje</label><textarea id="mtxt" rows="6">${esc(TPL.novedades[1])}</textarea><p class="muted small" style="margin:4px 0 0">{nombre} se reemplaza por el nombre de cada cliente. Se muestran los productos destacados de la portada.</p></div>
+          <div class="field"><label for="mcp">Cupón (opcional)</label><select id="mcp" style="width:100%"><option value="">Sin cupón</option>${COUPONS.filter((c) => cpState(c)[0] === 'Activo').map((c) => `<option>${esc(c.code)}</option>`).join('')}</select></div>
+          <div class="field"><label for="mwhen">Programar (opcional)</label><input type="datetime-local" id="mwhen"></div>
+          <p class="muted small" id="mcount" style="margin:0"></p>`)}
+      </div><div>
+        <div class="postbox"><h2 class="hndle">Vista previa <span class="act">así le llega</span></h2><div class="inside" id="mprev"></div><div class="major-publishing-actions"><button class="button" data-act="mail-test">Enviarme una prueba</button><button class="button button-primary" data-act="mail-send">Enviar</button></div></div>
+      </div></div>
+      <p class="muted small">Todos los correos incluyen el enlace para darse de baja, como exige la ley. El envío lo hace el servidor de la tienda: no hace falta Mailchimp ni otra plataforma.</p>`;
+  };
+  function drawMail() {
+    const el = $('#mprev'); if (!el) return;
+    const subj = $('#ms').value.trim() || 'Asunto del correo', txt = $('#mtxt').value.replace(/\{nombre\}/g, 'Camila'), cp = COUPONS.find((c) => c.code === $('#mcp').value);
+    const prods = [...featured].slice(0, 4).map((i) => byId.get(i)).filter(Boolean), n = segCount($('#mseg').value);
+    $('#mcount').textContent = `Se enviará a ${plural(n, 'cliente', 'clientes')}.`;
+    el.innerHTML = `<div class="mail"><div class="mail__h"><img src="/assets/logo.png" alt="" width="30" height="31"><svg class="brand__wm" viewBox="0 0 627 91" aria-hidden="true"><use href="#rc-wm"/></svg></div><div class="mail__b"><div class="mail__s">${esc(subj)}</div><p>${esc(txt).replace(/\n/g, '<br>')}</p>${cp ? `<div class="mail__cp">Usa el código <b>${esc(cp.code)}</b> · ${cpVal(cp)}${cp.to ? ` hasta el ${fDate(cp.to)}` : ''}</div>` : ''}<div class="mail__g">${prods.map((p) => `<div><img src="${img(p)}" alt=""><span>${esc(p.n.slice(0, 44))}</span><b>${clp(p.p)}</b></div>`).join('')}</div><span class="mail__btn">Ver en la tienda</span></div><div class="mail__f">Recibes este correo porque aceptaste novedades de Reycar Store. <u>Darte de baja</u> · Quinta Normal, Santiago</div></div>`;
+  }
+
+  /* ───────── analítica: tráfico propio e informe de ventas ───────── */
+  const AN = {};
+  const anNav = (tab) => `<nav class="nav-tab-wrapper">${[['resumen', 'Resumen'], ['trafico', 'Tráfico y búsquedas'], ['informe', 'Informe de ventas']].map(([k, l]) => `<a class="nav-tab${k === tab ? ' nav-tab-active' : ''}" href="#/analitica${k === 'resumen' ? '' : '?tab=' + k}">${l}</a>`).join('')}</nav>`;
+  const CONV = { meta: 0.009, gads: 0.016, org: 0.014, dir: 0.024, ig: 0.008, wa: 0.035, yt: 0.007, mail: 0.028 };
+  AN.trafico = (q) => {
+    const r = rangeOf(q), a = agg(r), b = agg(r, r);
+    const vis = (x) => { const m = new Map(ORIG.filter((o) => CONV[o.k]).map((o) => [o.k, { o, n: 0, v: 0, s: 0 }])); x.list.forEach((o) => { const y = m.get(o.src.k); if (y) { y.n++; y.v += o.total; } }); m.forEach((y) => (y.s = Math.round((y.n + 0.7) / CONV[y.o.k]))); return [...m.values()].sort((p, z) => z.s - p.s); };
+    const cur = vis(a), S = cur.reduce((s, y) => s + y.s, 0), PS = vis(b).reduce((s, y) => s + y.s, 0);
+    const units = new Map(); a.list.forEach((o) => o.lines.forEach((l) => { const h = l.p.fam ? byId.get(l.p.fam) : l.p; units.set(h, (units.get(h) || 0) + l.q); }));
+    const pages = [['/', 'Portada', 0.31 * S], ['/tienda', 'Tienda', 0.18 * S], ['/motor-clean', 'Motor Clean', 0.07 * S], ...[...units.entries()].sort((x, y) => y[1] - x[1]).slice(0, 7).map(([p, u]) => [`/producto/${p.s}`, p.n, u * 52 + 90])].sort((x, y) => y[2] - x[2]);
+    const k = r / 30, terms = TERMS.map(([t, n]) => ({ t, n: Math.max(1, Math.round(n * k)), hits: searchHits(t) })), totalS = terms.reduce((s, x) => s + x.n, 0);
+    return `
+      <div class="wrap-h"><h1>Analítica</h1>${segR(q)}</div>${anNav('trafico')}
+      <div class="tiles">${tile('Visitas', miles(S), delta(S, PS))}${tile('Personas distintas', miles(Math.round(S * 0.74)), delta(S, PS))}${tile('Conversión', pctTxt(a.n / S), delta(a.n / S, b.n / PS))}${tile('Búsquedas en la tienda', miles(totalS), 'usaron el buscador')}</div>
+      <div class="dash">
+        ${box('Visitas por fuente', bars(cur.map((y) => ({ l: y.o.lbl, v: y.s, n: y.n, conv: y.n / y.s })), 0, { fmt: (y) => `${miles(y.v)}<small>${pctTxt(y.conv)}</small>`, tip: (y) => `<b>${esc(y.l)}</b><br>${miles(y.v)} visitas · ${plural(y.n, 'pedido', 'pedidos')}<br>Conversión ${pctTxt(y.conv)}` }), 'y conversión a compra', true)}
+        ${box('Páginas más vistas', `<table class="mini"><tbody>${pages.map(([u, n, v]) => `<tr><td><b>${esc(n.slice(0, 54))}</b><div class="muted small">${esc(u.slice(0, 60))}</div></td><td class="num">${miles(Math.round(v))}</td></tr>`).join('')}</tbody></table>`, 'visitas', true)}
+      </div>
+      ${box('Lo que buscan en la tienda', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Búsqueda</b></td><td class="num"><b>Veces</b></td><td class="num"><b>Resultados</b></td><td><b>Qué hacer</b></td></tr></thead><tbody>${terms.map((x) => `<tr><td><b>${esc(x.t)}</b></td><td class="num">${miles(x.n)}</td><td class="num">${x.hits}</td><td>${SYN.has(x.t) ? `<span class="tag tag--org">Lleva a: ${esc(gById.get(SYN.get(x.t)).name)}</span>` : x.hits === 0 ? `<span class="tag tag--bad">Sin resultados</span> <button class="button" data-act="syn" data-term="${esc(x.t)}">Redirigir búsqueda</button>` : x.hits <= 2 ? '<span class="tag tag--ads">Pocos resultados: oportunidad para traer más</span>' : '<span class="muted small">Bien cubierta</span>'}</td></tr>`).join('')}</tbody></table></div>`, 'resultados calculados con el catálogo real', true)}
+      <div class="notice"><p><b>Medición propia de la tienda:</b> no depende de Google Analytics ni usa cookies de terceros. GA4 y el píxel se mantienen solo para alimentar los anuncios. <span class="muted">(Visitas y búsquedas de esta maqueta son de ejemplo.)</span></p></div>`;
+  };
+  const monthKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}`; };
+  function salesReport(mk) {
+    const [y, m] = mk.split('-').map(Number), start = new Date(y, m - 1, 1).getTime(), end = new Date(y, m, 1).getTime(), nd = new Date(y, m, 0).getDate();
+    const docs = ORDERS.filter((o) => o.doc && o.t >= start && o.t < end), ncs = ORDERS.flatMap((o) => (o.ncs || []).map((n) => ({ ...n, o }))).filter((n) => n.t >= start && n.t < end);
+    const days = Array.from({ length: nd }, (_, i) => { const d0 = new Date(y, m - 1, i + 1).getTime(), d1 = new Date(y, m - 1, i + 2).getTime(); const ds = docs.filter((o) => o.t >= d0 && o.t < d1), ns = ncs.filter((n) => n.t >= d0 && n.t < d1); const total = ds.reduce((s, o) => s + o.total, 0) - ns.reduce((s, n) => s + n.a, 0); return { d: d0, bol: ds.filter((o) => !o.fac).length, fac: ds.filter((o) => o.fac).length, nc: ns.length, total, neto: Math.round(total / 1.19) }; }).filter((x) => x.d <= Date.now());
+    const T = days.reduce((s, x) => ({ bol: s.bol + x.bol, fac: s.fac + x.fac, nc: s.nc + x.nc, total: s.total + x.total, neto: s.neto + x.neto }), { bol: 0, fac: 0, nc: 0, total: 0, neto: 0 });
+    return { y, m, days, T, docs, ncs, pay: groupBy(docs, (o) => o.pay), ship: docs.reduce((s, o) => s + o.ship.cost, 0), disc: docs.reduce((s, o) => s + (o.disc || 0), 0) };
+  }
+  AN.informe = (q) => {
+    const months = Array.from({ length: 6 }, (_, i) => { const d = new Date(NOW); d.setDate(1); d.setMonth(d.getMonth() - i); return monthKey(d.getTime()); });
+    const mk = months.includes(q.get('m')) ? q.get('m') : months[0], R = salesReport(mk);
+    return `
+      <div class="wrap-h no-print"><h1>Analítica</h1><select aria-label="Mes" data-qsel="m">${months.map((k) => { const [y, m] = k.split('-'); return `<option value="${k}"${k === mk ? ' selected' : ''}>${MESL[+m - 1]} ${y}</option>`; }).join('')}</select><button class="button" data-act="csv-informe" data-m="${mk}">Exportar a Excel</button><button class="button" data-act="imprimir">Imprimir</button></div>
+      <div class="no-print">${anNav('informe')}</div>
+      <div class="print-only print-head"><img src="/assets/logo.png" alt="" width="40" height="41"><div><b>Reycar Store · Informe de ventas de ${MESL[R.m - 1]} ${R.y}</b><br>Generado el ${fFull(Date.now())}</div></div>
+      <div class="tiles">${tile('Ventas del mes (con IVA)', clp(R.T.total), 'boletas + facturas − notas de crédito')}${tile('Neto', clp(R.T.neto), 'sin IVA')}${tile('IVA débito', clp(R.T.total - R.T.neto), '19 %')}${tile('Documentos emitidos', miles(R.T.bol + R.T.fac + R.T.nc), `${plural(R.T.bol, 'boleta', 'boletas')} · ${plural(R.T.fac, 'factura', 'facturas')} · ${plural(R.T.nc, 'nota de crédito', 'notas de crédito')}`)}</div>
+      <div class="dash">
+        ${box('Por medio de pago', `<table class="mini"><tbody>${R.pay.map((x) => `<tr><td>${esc(x.l)}</td><td class="num">${plural(x.n, 'venta', 'ventas')}</td><td class="num">${clp(x.v)}</td></tr>`).join('') || '<tr><td class="muted">Sin ventas.</td></tr>'}</tbody></table>`, '', true)}
+        ${box('Otros totales', `<dl class="kv"><dt>Envíos cobrados</dt><dd>${clp(R.ship)}</dd><dt>Descuentos con cupón</dt><dd>${clp(R.disc)}</dd><dt>Devoluciones</dt><dd>${clp(R.ncs.reduce((s, n) => s + n.a, 0))}</dd><dt>Ticket promedio</dt><dd>${clp(R.docs.length ? R.docs.reduce((s, o) => s + o.total, 0) / R.docs.length : 0)}</dd></dl>`)}
+      </div>
+      ${box('Detalle por día', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Día</b></td><td class="num"><b>Boletas</b></td><td class="num"><b>Facturas</b></td><td class="num"><b>N. crédito</b></td><td class="num"><b>Neto</b></td><td class="num"><b>IVA</b></td><td class="num"><b>Total</b></td></tr></thead><tbody>${R.days.map((x) => `<tr><td class="nw">${fDate(x.d)}</td><td class="num">${x.bol}</td><td class="num">${x.fac}</td><td class="num">${x.nc}</td><td class="num">${clp(x.neto)}</td><td class="num">${clp(x.total - x.neto)}</td><td class="num"><b>${clp(x.total)}</b></td></tr>`).join('')}<tr class="sumrow"><td><b>Total</b></td><td class="num"><b>${R.T.bol}</b></td><td class="num"><b>${R.T.fac}</b></td><td class="num"><b>${R.T.nc}</b></td><td class="num"><b>${clp(R.T.neto)}</b></td><td class="num"><b>${clp(R.T.total - R.T.neto)}</b></td><td class="num"><b>${clp(R.T.total)}</b></td></tr></tbody></table></div>`, `${MESL[R.m - 1]} ${R.y}`, true)}
+      <div class="notice"><p>Para revisar con el contador. Los documentos son los emitidos en Bsale; el registro oficial de ventas es el del SII.</p></div>`;
+  };
+
+  /* ───────── productos: crear, stock y edición en lote ───────── */
+  V.nuevoProducto = () => {
+    const brands = [...new Set(HEADS.map((x) => x.b).filter(Boolean))].sort((a, z) => a.localeCompare(z, 'es'));
+    return `
+      <div class="wrap-h"><h1>Nuevo producto</h1><a class="button" href="#/productos">Cancelar</a></div>
+      <p class="muted" style="margin:-8px 0 18px">Se crea a la vez en Bsale (con su SKU, precio y stock) y en la tienda. No hace falta entrar a Bsale.</p>
+      <div class="cols"><div>
+        ${box('Datos principales', `<div class="field"><label for="npN">Nombre</label><input type="text" id="npN" maxlength="150" placeholder="Ej: Shampoo pH neutro Motor Clean 1 L" style="width:100%"></div>
+          <div class="grid2"><div class="field"><label for="npP">Precio con IVA ($)</label><input type="number" id="npP" min="0" step="10" style="width:100%"></div><div class="field"><label for="npS">Stock inicial</label><input type="number" id="npS" min="0" step="1" value="0" style="width:100%"></div></div>
+          <div class="field"><label for="npK">Código de barras o SKU</label><span style="display:flex;gap:6px"><input type="text" id="npK" placeholder="Escanéalo con la pistola o genera uno" style="flex:1"><button class="button" data-act="np-ean">Generar</button></span><p class="muted small" style="margin:4px 0 0">Mejor el código de barras del fabricante: Google lo usa para mostrar el producto en Shopping.</p></div>
+          <div class="field" style="margin:0"><label for="npD">Descripción</label><textarea id="npD" rows="6" placeholder="Para qué sirve, cómo se usa, rendimiento y formato."></textarea><p class="muted small" style="margin:4px 0 0">Sin descripción, Meta y Google rechazan el producto en los catálogos de anuncios.</p></div>`)}
+      </div><div>
+        ${box('Organización', `<div class="field"><label for="npB">Marca</label><input type="text" id="npB" list="npBl" style="width:100%"><datalist id="npBl">${brands.map((x) => `<option>${esc(x)}</option>`).join('')}</datalist></div>
+          <div class="field"><label for="npG">Categoría</label><select id="npG" style="width:100%"><option value="">Elegir…</option>${GROUPS.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></div>
+          <div class="field"><label for="npSC">Subcategoría</label><select id="npSC" style="width:100%" disabled><option value="">Primero elige la categoría</option></select></div>
+          <label class="switch"><input type="checkbox" id="npV"> Publicar en la tienda al crearlo</label>`)}
+        ${box('Foto', '<div class="dropzone"><b>Arrastra la foto aquí</b><span>o</span><button class="button" data-act="foto">Elegir archivo</button><small>Se recorta, centra y optimiza sola. Ideal fondo blanco.</small></div>')}
+        <div class="postbox"><div class="major-publishing-actions" style="border-top:0"><span class="muted small">Se crea en Bsale y en la tienda</span><button class="button button-primary" data-act="np-crear">Crear producto</button></div></div>
+      </div></div>`;
+  };
+  function productCreate() {
+    const v = (id) => $(id).value.trim(), n = v('#npN'), price = Math.round(+v('#npP')), stk = +v('#npS'), sku = v('#npK') || ean13(), g = v('#npG');
+    if (n.length < 5) return toast('Escribe el nombre completo del producto.');
+    if (!(price > 0)) return toast('Indica el precio con IVA.');
+    if (!Number.isInteger(stk) || stk < 0) return toast('El stock debe ser un número entero, 0 o más.');
+    if (!g) return toast('Elige la categoría.');
+    if (ALL.some((p) => p.sku === sku)) return toast('Ya existe un producto con ese código.');
+    let s = slugify(n), k = 2; while (ALL.some((p) => p.s === s)) s = `${slugify(n)}-${k++}`;
+    const p = { id: nextId(ALL), n, s, p: price, b: v('#npB'), g, sc: v('#npSC'), c: [], im: [], stk, d: v('#npD'), sku, mov: [{ t: Date.now(), type: 'in', n: stk, before: 0, after: stk, r: 'Stock inicial', by: 'Guillermo' }] };
+    ALL.push(p); HEADS.push(p); byId.set(p.id, p);
+    if (!$('#npV').checked) hidden.add(p.id);
+    log('Productos', `Creó "${n}" (SKU ${sku}, ${clp(price)}, ${stk} u.)`);
+    location.hash = `/producto/${p.id}`;
+    toast(`Producto creado en Bsale y en la tienda${hidden.has(p.id) ? ' (oculto hasta que lo publiques)' : ''}. Falta subir la foto.`);
+  }
+  function stockModal(p) {
+    const vs = p.vs || [p];
+    modal('Ajustar stock', `
+      ${vs.length > 1 ? `<div class="field"><label for="saV">Formato</label><select id="saV" style="width:100%">${vs.map((x) => `<option value="${x.id}">${esc(x.n)} · ${x.stk ?? '—'} en stock</option>`).join('')}</select></div>` : `<input type="hidden" id="saV" value="${p.id}"><p style="margin-top:0"><b>${esc(p.n)}</b> · ${p.stk ?? '—'} en stock</p>`}
+      <div class="field"><label for="saT">Movimiento</label><select id="saT" style="width:100%"><option value="in">Llegó mercadería (suma)</option><option value="out">Merma, daño o uso en el taller (resta)</option><option value="set">Corrección por conteo (deja el total)</option></select></div>
+      <div class="grid2"><div class="field"><label for="saN">Cantidad</label><input type="number" id="saN" min="0" step="1"></div><div class="field"><label for="saR">Detalle</label><input type="text" id="saR" placeholder="Ej: factura N° 1234"></div></div>
+      <p class="muted small" style="margin:0">Se registra en Bsale como recepción o consumo de stock en Casa Matriz, y queda en el historial.</p>`,
+      `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="stock-ok" data-id="${p.id}">Guardar movimiento</button>`);
+  }
+  function stockApply(head) {
+    const p = byId.get(+$('#saV').value), type = $('#saT').value, n = +$('#saN').value, r = $('#saR').value.trim();
+    if (!Number.isInteger(n) || n < 0 || $('#saN').value === '') return toast('La cantidad debe ser un número entero.');
+    const before = p.stk || 0;
+    if (type === 'out' && n > before) return toast(`No puedes restar ${n}: hay ${before} en stock.`);
+    if (type !== 'set' && !n) return toast('La cantidad debe ser mayor que 0.');
+    const after = type === 'in' ? before + n : type === 'out' ? before - n : n;
+    p.stk = after;
+    (head.mov = head.mov || []).unshift({ t: Date.now(), type, n, before, after, r, by: 'Guillermo', v: p !== head ? p.n : '' });
+    log('Stock', `${{ in: 'Ingreso', out: 'Salida', set: 'Corrección' }[type]} de "${p.n}": ${before} → ${after}${r ? ` (${r})` : ''}`);
+    closeModal(); route(); toast(`Stock actualizado: ${before} → ${after}. Registrado en Bsale.`);
+  }
+  const PERMS = [['Pedidos y despachos', 1, 1, 1], ['Ventas manuales', 1, 1, 0], ['Productos y stock', 1, 1, 1], ['Cambiar precios', 1, 0, 0], ['Clientes', 1, 1, 0], ['Exportar datos de clientes', 1, 0, 0], ['Marketing, cupones y correos', 1, 1, 0], ['Portada', 1, 1, 0], ['Agenda del taller', 1, 1, 1], ['Analítica e informe de ventas', 1, 1, 0], ['Ajustes, claves y usuarios', 1, 0, 0]];
+  function shortcutsModal() {
+    modal('Atajos de teclado', `<table class="mini keys"><tbody>${[['/', 'Buscar pedidos, productos o clientes'], ['n', 'Nuevo pedido'], ['g  e', 'Ir al escritorio'], ['g  p', 'Ir a pedidos'], ['g  d', 'Ir a despachos'], ['g  r', 'Ir a productos'], ['g  c', 'Ir a clientes'], ['g  t', 'Ir a la agenda del taller'], ['g  m', 'Ir a marketing'], ['g  a', 'Ir a analítica'], ['?', 'Ver esta ayuda'], ['Esc', 'Cerrar ventanas y menús']].map(([k, d]) => `<tr><td class="nw">${k.split('  ').map((x) => `<kbd>${x}</kbd>`).join(' luego ')}</td><td>${d}</td></tr>`).join('')}</tbody></table>`, '<button class="button button-primary" data-act="dlg-close">Entendido</button>');
+  }
+
   /* ───────── enrutador (#/seccion/id?filtros) ───────── */
-  const TITLES = { despachos: 'Despachos', inventario: 'Inventario y reposición', marketing: 'Marketing', portada: 'Portada', actividad: 'Registro de actividad', dash: 'Escritorio', pedidos: 'Pedidos', pedido: 'Editar pedido', productos: 'Productos', producto: 'Editar producto', clientes: 'Clientes', analitica: 'Analítica', seo: 'SEO', usuarios: 'Usuarios', ajustes: 'Ajustes' };
+  const TITLES = { taller: 'Agenda del taller', resenas: 'Reseñas', cliente: 'Cliente', despachos: 'Despachos', inventario: 'Inventario y reposición', marketing: 'Marketing', portada: 'Portada', actividad: 'Registro de actividad', dash: 'Escritorio', pedidos: 'Pedidos', pedido: 'Editar pedido', productos: 'Productos', producto: 'Editar producto', clientes: 'Clientes', analitica: 'Analítica', seo: 'SEO', usuarios: 'Usuarios', ajustes: 'Ajustes' };
   function route() {
     const h = location.hash.replace(/^#/, '') || '/';
     const [path, qs] = h.split('?'), q = new URLSearchParams(qs || ''), parts = path.split('/').filter(Boolean);
     const sec = parts[0] || '', key = sec === '' || sec === 'escritorio' ? 'dash' : sec, view = V[key];
     hideTip();
-    drawMenu(sec, q);
+    drawMenu(sec, q, path);
     setMenu(false);
     closePops();
     charts.length = 0;
@@ -939,9 +1474,15 @@
   $('#scrim').addEventListener('click', () => setMenu(false));
   function closeBell() { $('#bellPanel').hidden = true; $('#bellBtn').setAttribute('aria-expanded', 'false'); }
   function closePops() { $('#gres').hidden = true; $('#gsearch').value = ''; closeBell(); }
+  let gKey = 0, DRAFT_MAIL = null;
   addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') { setMenu(false); closePops(); }
-    if (e.key === '/' && !e.target.closest('input, textarea, select')) { e.preventDefault(); $('#gsearch').focus(); }
+    if (e.key === 'Escape') { setMenu(false); closePops(); return; }
+    if ($('#dlg').open || e.target.closest('input, textarea, select, [contenteditable]') || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '/') { e.preventDefault(); $('#gsearch').focus(); return; }
+    if (e.key === '?') { e.preventDefault(); shortcutsModal(); return; }
+    if (e.key === 'g') { gKey = Date.now(); return; }
+    if (Date.now() - gKey < 1500) { gKey = 0; const to = { e: '/', p: '/pedidos', d: '/despachos', r: '/productos', c: '/clientes', t: '/taller', m: '/marketing', a: '/analitica' }[e.key]; if (to) { e.preventDefault(); location.hash = to; } return; }
+    if (e.key === 'n') { e.preventDefault(); location.hash = '/pedido/nuevo'; }
   });
   $('#gsearch').addEventListener('input', (e) => gsearch(e.target.value));
   $('#gsearch').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const f = $('#gres a'); if (f) location.hash = f.getAttribute('href').slice(1); } });
@@ -961,11 +1502,30 @@
     e.preventDefault();
     const cur = new URLSearchParams((location.hash.split('?')[1]) || '');
     const fd = new FormData(f); const set = { pag: '' };
-    for (const [k, v] of fd) if (k !== 'bulk') set[k] = String(v).trim();
+    for (const [k, v] of fd) if (k !== 'bulk' && k !== 'pbulk') set[k] = String(v).trim();
     location.hash = href(`#/${f.dataset.form}`, cur, set).slice(1);
   });
-  document.addEventListener('input', (e) => { const b = e.target.dataset && e.target.dataset.ban; if (b != null) HOME.banners[+b][e.target.dataset.k] = e.target.value; });
+  document.addEventListener('input', (e) => {
+    const t = e.target, b = t.dataset && t.dataset.ban;
+    if (b != null) HOME.banners[+b][t.dataset.k] = t.value;
+    if (t.id === 'dps' || t.id === 'dcs') draftSearch(t);
+    if (t.matches('.dq') && DRAFT) { const l = DRAFT.lines[+t.dataset.i]; if (!l) return; const n = Math.max(1, Math.min(Math.floor(+t.value || 1), l.p.stk || 999)); l.q = n; $('#dlt' + t.dataset.i).textContent = clp(n * l.p.p); drawDraft('t'); }
+    if (t.id === 'dshipc') { DRAFT.shipCost = Math.max(0, Math.round(+t.value || 0)); drawDraft('t'); }
+    if (t.matches('[data-rq], #rfShip')) { const o = oId.get(+$('#rfBtn').dataset.id), a = rfAmount(o); $('#rfBtn').textContent = `Reembolsar ${clp(a)}`; $('#rfBtn').disabled = !a; }
+    if (t.closest('.composer')) drawMail();
+    if (t.matches('[data-svp]')) SERVICES[+t.dataset.svp].p = Math.max(0, +t.value || 0);
+    if (t.matches('[data-svm]')) SERVICES[+t.dataset.svm].min = Math.max(30, +t.value || 30);
+  });
   document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (t.id === 'dship') { DRAFT.ship = +t.value; DRAFT.shipCost = SHIP_M[DRAFT.ship][1]; $('#dshipc').value = DRAFT.shipCost; drawDraft('t'); }
+    if (t.name === 'dpay') DRAFT.pay = t.value;
+    if (t.id === 'dfac') DRAFT.fac = t.checked;
+    if (t.matches('.dq')) setTimeout(() => { if (DRAFT && $('#dLines')) drawDraft('l'); });
+    if (t.id === 'npG') { const g = gById.get(t.value), sc = $('#npSC'); sc.innerHTML = g && (g.subs || []).length ? '<option value="">Sin subcategoría</option>' + g.subs.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('') : '<option value="">No tiene subcategorías</option>'; sc.disabled = !(g && (g.subs || []).length); }
+    if (t.id === 'mtpl') { const [sj, tx] = TPL[t.value]; $('#ms').value = sj; $('#mtxt').value = tx; if (t.value !== 'novedades' && !$('#mcp').value && $('#mcp').options.length > 1) $('#mcp').selectedIndex = 1; drawMail(); }
+    if (t.matches('[data-consent]')) { const c = CUST.find((x) => x.id === +t.dataset.id); c.consent[t.dataset.consent] = t.checked; log('Cliente', `${t.checked ? 'Activó' : 'Quitó'} el permiso de ${t.dataset.consent === 'mail' ? 'correos' : 'WhatsApp'} de ${custName(c)}`); toast('Permiso actualizado. Queda registrado con fecha y responsable.'); }
+    if (t.matches('[data-qsel]')) { const cur = new URLSearchParams((location.hash.split('?')[1]) || ''); location.hash = href(location.hash.split('?')[0], cur, { [t.dataset.qsel]: t.value }).slice(1); }
     if (e.target.matches('[data-all]')) $$('tbody input[type=checkbox]', e.target.closest('table')).forEach((c) => (c.checked = e.target.checked));
   });
   document.addEventListener('click', (e) => {
@@ -974,6 +1534,8 @@
     const tab = e.target.closest('.pdata [data-tab]');
     if (tab) { const w = tab.closest('.pdata'); $$('[data-tab]', w).forEach((b) => b.setAttribute('aria-selected', String(b === tab))); $$('[data-panel]', w).forEach((p) => (p.hidden = p.dataset.panel !== tab.dataset.tab)); return; }
     if (!e.target.closest('.tb-search')) $('#gres').hidden = true;
+    if (!e.target.closest('.picker')) $$('.picker__r').forEach((r) => (r.hidden = true));
+    if (e.target === $('#dlg')) closeModal();
     if (!e.target.closest('.tb-pop')) closeBell();
     const a = e.target.closest('[data-act]');
     if (a && a.matches('input')) {
@@ -994,7 +1556,89 @@
       }
       if (act === 'guardar-pedido') { const o = oId.get(id), to = $('#ost').value, ac = $('#oact').value; const ch = to !== o.st; if (ch) setStatus(o, to); if (ac) o.notes.push({ t: Date.now(), txt: `Acción realizada: ${ac}.`, kind: 'system', by: 'Guillermo' }); route(); return toast(ch || ac ? `Pedido actualizado. ${NOSAVE}` : 'No hay cambios que guardar.'); }
       if (act === 'nota') { const o = oId.get(id), txt = $('#nn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); const n = { t: Date.now(), txt, kind: $('#nk').value, by: 'Guillermo' }; o.notes.push(n); $('#notes').insertAdjacentHTML('afterbegin', noteHtml(n)); $('#nn').value = ''; return toast(n.kind === 'customer' ? 'Nota añadida. En la versión real le llega al cliente por correo.' : 'Nota privada añadida.'); }
-      if (act === 'guardar-producto') { const v = $('#pv').value === '1'; v ? hidden.delete(id) : hidden.add(id); $('#pf').checked ? featured.add(id) : featured.delete(id); seo.set(id, { t: $('#seoT').value, d: $('#seoD').value }); route(); return toast(`Producto actualizado. ${NOSAVE}`); }
+      if (act === 'guardar-producto') {
+        const p = byId.get(id), multi = $$('[data-vp]').length > 1, name = $('#pt').value.trim(), price = multi ? p.p : Math.round(+$('#pp').value), offer = $('#po').value ? Math.round(+$('#po').value) : 0;
+        if (name.length < 5) return toast('El nombre es muy corto.');
+        if (!(price > 0)) return toast('El precio debe ser mayor que 0.');
+        if (offer && offer >= price) return toast('El precio de oferta debe ser menor que el precio normal.');
+        if ($('#pod').value && $('#poh').value && $('#poh').value < $('#pod').value) return toast('La oferta termina antes de empezar: revisa las fechas.');
+        const vps = multi ? $$('[data-vp]') : []; for (const el of vps) if (!(+el.value > 0)) return toast('Cada formato necesita un precio mayor que 0.');
+        const ch = []; if (name !== p.n) ch.push('nombre'); if (price !== p.p) ch.push(`precio ${clp(p.p)} → ${clp(price)}`);
+        p.n = name; p.p = price; p.po = offer || ''; p.pod = $('#pod').value; p.poh = $('#poh').value;
+        vps.forEach((el) => { const v = byId.get(+el.dataset.vp), np = Math.round(+el.value); if (v.p !== np) { ch.push(`${v.n.slice(0, 30)}: ${clp(v.p)} → ${clp(np)}`); v.p = np; } });
+        if (multi) { p.vs.sort((x, y) => x.p - y.p); }
+        const v = $('#pv').value === '1'; v ? hidden.delete(id) : hidden.add(id); $('#pf').checked ? featured.add(id) : featured.delete(id); seo.set(id, { t: $('#seoT').value, d: $('#seoD').value });
+        log('Productos', `Actualizó "${name}"${ch.length ? ': ' + ch.join(', ') : ''}`); route();
+        return toast(ch.length ? `Guardado y sincronizado con Bsale (${ch.join(', ')}). ${NOSAVE}` : `Producto actualizado. ${NOSAVE}`);
+      }
+      if (act === 'dlg-close') return closeModal();
+      if (act === 'reembolso') return refundModal(oId.get(id));
+      if (act === 'rf-ok') return refundApply(oId.get(id));
+      if (act === 'd-add') { const p = byId.get(id), l = DRAFT.lines.find((x) => x.p === p); if (p.stk === 0) return toast('Ese producto está agotado.'); if (l) l.q = Math.min(l.q + 1, p.stk || 999); else DRAFT.lines.push({ p, q: 1 }); $('#dps').value = ''; $('#dpr').hidden = true; drawDraft('lt'); return $('#dps').focus(); }
+      if (act === 'd-del') { DRAFT.lines.splice(+a.dataset.i, 1); return drawDraft('lt'); }
+      if (act === 'd-cust') { DRAFT.c = CUST.find((x) => x.id === id); DRAFT.fac = !!DRAFT.c.emp && false; return drawDraft('ct'); }
+      if (act === 'd-cust-x') { DRAFT.c = null; DRAFT.fac = false; return drawDraft('c'); }
+      if (act === 'd-reset') { DRAFT = null; return route(); }
+      if (act === 'd-for') { DRAFT = newDraft(CUST.find((x) => x.id === id)); location.hash = '/pedido/nuevo'; return; }
+      if (act === 'd-cupon') {
+        const code = $('#dcp').value.trim().toUpperCase(), c = COUPONS.find((x) => x.code === code), T = draftTot(DRAFT);
+        if (!code) return toast('Escribe el código del cupón.');
+        if (!c) return toast('Ese cupón no existe.');
+        const st = cpState(c)[0]; if (st !== 'Activo') return toast(`El cupón ${code} está ${st.toLowerCase()}.`);
+        if (c.min && T.sub < c.min) return toast(`${code} requiere una compra mínima de ${clp(c.min)}.`);
+        if (/primera/.test(c.scope) && DRAFT.c && cstats().get(DRAFT.c) && cstats().get(DRAFT.c).n) return toast(`${code} es solo para la primera compra, y este cliente ya compró.`);
+        if (/Motor Clean/.test(c.scope) && !DRAFT.lines.some((l) => l.p.b === 'Motor Clean')) return toast(`${code} es solo para productos Motor Clean.`);
+        DRAFT.cp = c; $('#dcp').value = ''; drawDraft('t'); return toast(`Cupón ${code} aplicado.`);
+      }
+      if (act === 'd-cupon-x') { DRAFT.cp = null; return drawDraft('t'); }
+      if (act === 'd-crear') return draftCreate();
+      if (act === 'c-nota') { const c = CUST.find((x) => x.id === id), txt = $('#cnn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); c.cnotes.unshift({ t: Date.now(), txt, kind: 'private', by: 'Guillermo' }); log('Cliente', `Agregó una nota a ${custName(c)}`); route(); return toast('Nota guardada. Solo la ve el equipo.'); }
+      if (act === 'c-tag') { const c = CUST.find((x) => x.id === id), t = $('#ctag').value.trim(); if (!t) return toast('Escribe la etiqueta.'); if (!c.tags.includes(t)) c.tags.push(t); return route(); }
+      if (act === 'c-untag') { const c = CUST.find((x) => x.id === id); c.tags.splice(+a.dataset.i, 1); return route(); }
+      if (act === 'c-export') {
+        const c = CUST.find((x) => x.id === id), st = cstats().get(c);
+        const data = { exportado: new Date().toISOString(), cliente: { nombre: custName(c), correo: c.email, telefono: c.phone, rut: c.rut, direccion: c.street, comuna: c.comuna, region: c.region, empresa: c.emp, etiquetas: c.tags, permisos: c.consent }, pedidos: st.orders.map((o) => ({ numero: o.id, fecha: new Date(o.t).toISOString(), estado: ST[o.st], total: o.total, productos: o.lines.map((l) => `${l.q} × ${l.p.n}`) })), taller: BOOK.filter((b) => b.c === c).map((b) => ({ fecha: new Date(b.day + b.start * MIN).toISOString(), servicio: b.sv.n, vehiculo: b.car, patente: b.plate })), resenas: REVIEWS.filter((r) => r.c === c).map((r) => ({ fecha: new Date(r.t).toISOString(), estrellas: r.r, texto: r.txt })) };
+        const el = document.createElement('a'); el.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })); el.download = `datos-cliente-${c.id}.json`; document.body.appendChild(el); el.click(); setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 500);
+        log('Privacidad', `Exportó los datos personales de ${custName(c)} a pedido del cliente`); return toast('Se descargó el archivo con todos sus datos. Queda en el registro de actividad.');
+      }
+      if (act === 'c-borrar') return confirmBox('Borrar datos personales', 'Se borran nombre, correo, teléfono, RUT y dirección, y se quitan los permisos de contacto. Los pedidos y boletas se conservan sin datos personales, por obligación tributaria. No se puede deshacer.', 'c-borrar-ok', 'Borrar datos', id);
+      if (act === 'c-borrar-ok') { const c = CUST.find((x) => x.id === id); const was = custName(c); Object.assign(c, { first: 'Cliente', last: `eliminado #${c.id}`, email: '—', phone: '—', rut: '—', street: '—', tags: [], cnotes: [], consent: { mail: false, wa: false } }); if (c.emp) c.emp = { ...c.emp, name: 'Empresa eliminada' }; log('Privacidad', `Borró los datos personales de ${was} a pedido del cliente`); closeModal(); route(); return toast('Datos personales borrados. Queda registrado.'); }
+      if (act === 'bk-ver') return bookingModal(BOOK.find((b) => b.id === id));
+      if (act === 'bk-save') { const b = BOOK.find((x) => x.id === id), st = $('#bkst').value; if (st !== b.st) { log('Taller', `${fmtPlate(b.plate)}: ${BK_ST[b.st][0]} → ${BK_ST[st][0]}`); b.st = st; } closeModal(); route(); return toast(st === 'listo' ? 'Marcado como listo. En la versión real se avisa al cliente por WhatsApp.' : 'Reserva actualizada.'); }
+      if (act === 'bk-wa') { const b = BOOK.find((x) => x.id === id); return toast(`En la versión real abre WhatsApp con: "Hola ${b.c.first}, te esperamos el ${fDay(b.day)} a las ${hm(b.start)} para ${b.sv.n.toLowerCase()}".`); }
+      if (act === 'bk-del') return confirmBox('Cancelar reserva', 'La hora queda libre para otro cliente.', 'bk-del-ok', 'Cancelar reserva', id);
+      if (act === 'bk-del-ok') { const i = BOOK.findIndex((x) => x.id === id), b = BOOK[i]; BOOK.splice(i, 1); log('Taller', `Canceló la reserva de ${fmtPlate(b.plate)} del ${fDay(b.day)}`); closeModal(); route(); return toast('Reserva cancelada.'); }
+      if (act === 'bk-nueva') return newBookingModal();
+      if (act === 'bk-ok') return bookingCreate();
+      if (act === 'sv-save') { log('Taller', 'Actualizó servicios y precios'); return toast(`Servicios guardados. ${NOSAVE}`); }
+      if (act === 'rv-ok' || act === 'rv-show') { const r = REVIEWS.find((x) => x.id === id); r.st = 'ok'; log('Reseñas', `Publicó una reseña de ${r.r} estrellas`); route(); return toast('Reseña publicada en la tienda.'); }
+      if (act === 'rv-hide') return confirmBox('Ocultar reseña', 'Úsalo solo para spam u ofensas. Ocultar opiniones negativas genuinas afecta la confianza y puede infringir la ley del consumidor.', 'rv-hide-ok', 'Ocultar', id);
+      if (act === 'rv-hide-ok') { const r = REVIEWS.find((x) => x.id === id); r.st = 'hid'; log('Reseñas', 'Ocultó una reseña como spam'); closeModal(); route(); return toast('Reseña oculta.'); }
+      if (act === 'rv-reply') { const r = REVIEWS.find((x) => x.id === id); return modal('Responder reseña', `<p style="margin-top:0">${stars(r.r)} ${esc(r.txt)}</p><div class="field"><label for="rvt">Respuesta pública</label><textarea id="rvt" rows="4" maxlength="600">${esc(r.reply || `Hola ${r.c.first}, gracias por tu opinión. `)}</textarea></div><p class="muted small" style="margin:0">Se muestra debajo de la reseña, firmada por Reycar Store.</p>`, `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="rv-reply-ok" data-id="${r.id}">Publicar respuesta</button>`); }
+      if (act === 'rv-reply-ok') { const r = REVIEWS.find((x) => x.id === id), t = $('#rvt').value.trim(); if (t.length < 5) return toast('Escribe la respuesta.'); r.reply = t; if (r.st === 'pend') r.st = 'ok'; log('Reseñas', 'Respondió una reseña'); closeModal(); route(); return toast('Respuesta publicada.'); }
+      if (act === 'mail-test') return toast('Prueba enviada a guillermo@ejemplo.cl (en la maqueta no sale ningún correo).');
+      if (act === 'mail-send') {
+        const subj = $('#ms').value.trim(), txt = $('#mtxt').value.trim(), seg = $('#mseg').value, n = segCount(seg), when = $('#mwhen').value;
+        if (subj.length < 5) return toast('Escribe el asunto.'); if (txt.length < 10) return toast('Escribe el mensaje.'); if (!n) return toast('Ese grupo no tiene clientes con permiso para recibir correos.');
+        if (when && new Date(when).getTime() < Date.now()) return toast('La fecha programada ya pasó.');
+        DRAFT_MAIL = { subj, seg, n, when };
+        return confirmBox(when ? 'Programar campaña' : 'Enviar campaña', `"${esc(subj)}" ${when ? `se enviará el ${fFull(new Date(when).getTime())}` : 'se enviará ahora'} a <b>${plural(n, 'cliente', 'clientes')}</b>.`, 'mail-ok', when ? 'Programar' : 'Enviar ahora');
+      }
+      if (act === 'mail-ok') { const m = DRAFT_MAIL; CAMPAIGNS.unshift({ subj: m.subj, seg: m.seg, n: m.n, t: m.when ? new Date(m.when).getTime() : Date.now(), st: m.when ? 'prog' : 'sent', open: null, click: null, orders: null }); log('Marketing', `${m.when ? 'Programó' : 'Envió'} la campaña "${m.subj}" a ${m.n} clientes`); closeModal(); route(); return toast(m.when ? 'Campaña programada.' : `Campaña en envío a ${plural(m.n, 'cliente', 'clientes')} (en la maqueta no sale ningún correo).`); }
+      if (act === 'syn') { const term = a.dataset.term; return modal(`Redirigir "${term}"`, `<p style="margin-top:0">Nadie encuentra nada al buscar <b>${esc(term)}</b>. Elige a dónde llevarlo:</p><div class="field"><label for="synG">Mostrar la categoría</label><select id="synG" style="width:100%">${GROUPS.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></div>`, `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="syn-ok" data-term="${esc(term)}">Guardar</button>`); }
+      if (act === 'syn-ok') { SYN.set(a.dataset.term, $('#synG').value); log('Tienda', `La búsqueda "${a.dataset.term}" ahora lleva a ${gById.get($('#synG').value).name}`); closeModal(); route(); return toast('Listo: esa búsqueda ya no queda vacía.'); }
+      if (act === 'csv-informe') { const R2 = salesReport(a.dataset.m); csv(`informe-ventas-${a.dataset.m}.csv`, ['Día', 'Boletas', 'Facturas', 'Notas de crédito', 'Neto', 'IVA', 'Total'], R2.days.map((x) => [fDate(x.d), x.bol, x.fac, x.nc, x.neto, x.total - x.neto, x.total])); log('Exportación', `Exportó el informe de ventas de ${a.dataset.m}`); return toast('Se descargó el informe del mes.'); }
+      if (act === 'stock-adj') return stockModal(byId.get(id));
+      if (act === 'stock-ok') return stockApply(byId.get(id));
+      if (act === 'np-ean') { $('#npK').value = ean13(); return toast('Código interno generado (empieza con 2: solo para uso en la tienda).'); }
+      if (act === 'np-crear') return productCreate();
+      if (act === 'atajos') return shortcutsModal();
+      if (act === 'pbulk') {
+        const v = $('[name=pbulk]').value, ids = $$('tbody input[type=checkbox]:checked').map((c) => +c.value).filter(Boolean);
+        if (!v || !ids.length) return toast('Elige una acción y marca al menos un producto.');
+        ids.forEach((i) => { const p = byId.get(i); if (v === 'show') hidden.delete(i); if (v === 'hide') hidden.add(i); if (v === 'feat') featured.add(i); if (v === 'unfeat') featured.delete(i); if (v.startsWith('g:')) [p, ...(p.vs || [])].forEach((x) => { x.g = v.slice(2); x.sc = ''; }); });
+        log('Productos', `Acción en lote sobre ${ids.length} productos`); route(); return toast(`${plural(ids.length, 'producto actualizado', 'productos actualizados')}. ${NOSAVE}`);
+      }
       const o = oId.get(id), note = (txt, kind = 'private', by = 'Ventas y despacho') => o.notes.push({ t: Date.now(), txt, kind, by });
       if (act === 'prep') { o.prep = true; note('Pedido preparado y embalado.'); log(`Pedido #${o.id}`, 'Lo marcó como preparado', 'Ventas y despacho'); route(); return toast(`#${o.id} preparado. ${isPick(o) ? 'Ahora avisa al cliente que puede retirarlo.' : 'Ahora genera la etiqueta.'}`); }
       if (act === 'avisar') { note(`Se avisó por WhatsApp que el pedido está listo para retiro en Quinta Normal.`, 'customer'); return toast(`En la versión real abre WhatsApp con: "Hola ${o.c.first}, tu pedido #${o.id} ya está listo para retiro en Quinta Normal".`); }
@@ -1035,7 +1679,8 @@
     if (!o || o.st === to) return;
     o.notes.push({ t: Date.now(), txt: `El estado del pedido cambió de ${ST[o.st]} a ${ST[to]}.`, kind: 'system', by: 'Guillermo' });
     log(`Pedido #${o.id}`, `Cambió el estado de ${ST[o.st]} a ${ST[to]}`);
-    o.st = to;
+    if (to === 'processing' && !o.doc && ['pending', 'on-hold'].includes(o.st)) emitDoc(o);
+    o.st = to; CS = null;
   }
 
   route();

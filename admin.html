@@ -23,6 +23,7 @@
   <nav id="adminmenu" aria-label="Menú principal"></nav>
   <div class="side__foot">
     <a class="side__store" href="/" target="_blank" rel="noopener">Ver la tienda <span aria-hidden="true">↗</span></a>
+    <button class="side__keys" data-act="atajos">Atajos de teclado <kbd>?</kbd></button>
     <div class="me"><span class="av" aria-hidden="true">G</span><span><b>Guillermo Araya</b><small>Administrador</small></span></div>
   </div>
 </aside>
@@ -47,6 +48,7 @@
   </header>
   <main id="wpbody" tabindex="-1"></main>
 </div>
+<dialog id="dlg" aria-labelledby="dlgT"><div class="dlg"><header class="dlg__h"><h2 id="dlgT"></h2><button class="tb-btn" data-act="dlg-close" aria-label="Cerrar">×</button></header><div class="dlg__b" id="dlgB"></div><footer class="dlg__f" id="dlgF"></footer></div></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="tip" role="tooltip"></div>
 <script src="/data/products.js"></script>
