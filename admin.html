@@ -39,7 +39,7 @@
       <kbd aria-hidden="true">/</kbd>
       <div class="gres" id="gres" hidden></div>
     </div>
-    <span class="tb-demo" title="Pedidos, clientes y cifras de ejemplo. Nada se guarda.">Maqueta · datos de ejemplo</span>
+    <span class="tb-demo" title="El panel aún no está conectado a la base de datos ni a Bsale: puedes usar todo, pero los cambios se pierden al recargar.">Vista previa · sin conexión</span>
     <div class="tb-pop">
       <button class="tb-btn" id="bellBtn" aria-label="Avisos" aria-expanded="false" aria-controls="bellPanel"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3a6 6 0 0 0-6 6v3.6L4.4 16h15.2L18 12.6V9a6 6 0 0 0-6-6zM9.8 19a2.3 2.3 0 0 0 4.4 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg><span class="tb-dot" id="bellN" hidden></span></button>
       <div class="bell" id="bellPanel" hidden></div>
@@ -50,7 +50,7 @@
 </div>
 <dialog id="dlg" aria-labelledby="dlgT"><div class="dlg"><header class="dlg__h"><h2 id="dlgT"></h2><button class="tb-btn" data-act="dlg-close" aria-label="Cerrar">×</button></header><div class="dlg__b" id="dlgB"></div><footer class="dlg__f" id="dlgF"></footer></div></dialog>
 <div id="toast" role="status" aria-live="polite"></div>
-<div id="tip" role="tooltip"></div>
+<div id="tip" aria-hidden="true"></div>
 <script src="/data/products.js"></script>
 <script src="/assets/admin/admin.js"></script>
 </body>

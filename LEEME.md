@@ -97,9 +97,13 @@ toda la tienda desde un solo lugar:
 - Portada, SEO, usuarios con permisos por perfil, registro de actividad y ajustes (Klap, envíos con tarifas
   propias, Bsale, seguimiento, correos y privacidad Ley 21.719).
 
-Los productos y el stock son los reales; pedidos, clientes, reservas, reseñas y cifras son de ejemplo (semilla
-fija) y nada se guarda. No se indexa (`noindex` y robots.txt). Falta para la versión real: base de datos, inicio de
-sesión y las conexiones con Bsale, Klap, Sendu, el envío de correos y las plataformas de anuncios.
+Sin datos de prueba: los productos, el stock y la revisión de catálogos son los reales; pedidos, clientes,
+reservas, reseñas, cupones y campañas parten vacíos, y cada pantalla explica qué aparecerá ahí. Es una vista previa
+sin base de datos (aviso "Vista previa · sin conexión"): todo funciona, pero lo creado se pierde al recargar. Los
+botones de WhatsApp abren la conversación con el mensaje listo (wa.me). Los pedidos nuevos parten en el N° 1001
+(`ORDER_BASE`); al migrar se continúa desde el último número de WooCommerce. No se indexa (`noindex` y robots.txt).
+Falta para conectarlo: base de datos, inicio de sesión y las conexiones con Bsale, Klap, Sendu, el envío de correos y
+las plataformas de anuncios (al conectar, `CONNECTED = true` cambia los textos de "listo para emitirse" a "emitido").
 
 ## Salida a producción
 

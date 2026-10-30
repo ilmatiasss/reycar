@@ -436,21 +436,22 @@ const steps = (d, n = 12) => (d || '').split('\n').map((l) => l.trim())
 const vehicleOf = (p) => (/SUV|camioneta/i.test(p.n) ? 'Camioneta · SUV XL' : /sed[aá]n|hatch/i.test(p.n) ? 'Sedán · Hatchback' : 'Servicio en taller');
 
 /* ───────── logo grande con neón por el borde y reflejos (portada) ─────────
-   El contorno sigue la silueta del escudo dorado, medida sobre assets/reycars-crest.webp (768×786). */
-const SHIELD = 'M383 30 C330 30 290 36 257 42 C150 58 100 110 97 190 L97 540 C98 590 140 630 230 680 C290 712 355 750 383 771 C411 750 476 712 536 680 C626 630 668 590 669 540 L669 190 C666 110 616 58 509 42 C476 36 436 30 383 30 Z';
+   El contorno se calculó desde la imagen (assets/reycars-crest.webp, 768×786): borde exterior del escudo dorado,
+   desplazado 17 px hacia afuera a distancia constante y suavizado; en la franja del auto sigue la pared recta. */
+const SHIELD = 'M373.7 13C384.5 12.8 395.3 12.6 406 13C416.7 13.4 427.5 14.3 438.2 15.3C448.9 16.3 459.6 17.5 470.2 18.9C480.9 20.4 491.6 21.9 502.1 24C512.6 26.2 523.1 28.8 533.4 31.8C543.7 34.8 554 38.1 564 42C573.9 45.9 583.8 50.2 593.3 55.1C602.7 60 612.1 65.3 620.8 71.4C629.5 77.5 638.2 84.1 645.5 91.5C652.9 98.9 659.4 107.3 664.8 115.8C670.2 124.3 674.5 133.3 677.7 142.7C680.9 152.2 682.6 162.2 684 172.4C685.4 182.6 685.7 193.2 686 203.8C686.3 214.4 686 225.3 686 236.1C686 246.9 686.3 257.7 686 268.4C685.7 279 684.5 289.4 684 299.8C683.5 310.2 682.7 320.5 683 330.8C683.3 341.2 685.5 351.3 686 361.8C686.5 372.4 686 383.4 686 394.1C686 404.9 686 415.6 686 426.4C686 437.1 686 447.9 686 458.6C686 469.4 686 480.1 686 490.9C686 501.7 686.7 512.7 686 523.2C685.3 533.6 685 544.3 682 553.8C679 563.3 672.9 571.5 668 580.2C663.1 589 659 598.1 652.8 606.2C646.6 614.3 638.8 622 631 629C623.1 636 614.1 641.9 605.5 648.2C597 654.6 588.5 660.8 579.9 667.1C571.3 673.4 562.8 679.8 554.1 685.9C545.4 691.9 536.5 697.7 527.7 703.6C518.9 709.6 510.2 715.7 501.5 721.7C492.8 727.8 484.2 734.1 475.6 740.2C466.9 746.4 458.3 752.5 449.5 758.5C440.7 764.5 432.4 771.6 422.9 776.1C413.3 780.5 402.7 784.2 392.2 785.3C381.8 786.4 370.4 785.6 360.3 782.8C350.2 780.1 340.8 774.2 331.6 768.8C322.5 763.5 314.1 756.8 305.4 750.7C296.7 744.6 288.1 738.5 279.4 732.4C270.7 726.3 262 720.1 253.3 714.1C244.5 708.1 235.5 702.4 226.8 696.4C218.1 690.4 209.5 684.1 200.9 677.9C192.3 671.7 183.8 665.3 175.2 659.1C166.6 652.8 157.8 646.9 149.4 640.4C141 633.9 132.1 627.4 124.9 619.9C117.7 612.4 111.8 603.8 106.3 595.3C100.8 586.8 96.2 578 92 569C87.8 560 83 551.2 81 541.3C79 531.4 80.2 520.1 80 509.4C79.8 498.7 80 487.9 80 477.2C80 466.4 80 455.7 80 444.9C80 434.1 80 423.4 80 412.6C80 401.9 79.8 391.1 80 380.4C80.2 369.7 80.3 359 81 348.5C81.7 338 84 327.8 84 317.5C84 307.2 81.7 297 81 286.5C80.3 276 80.2 265.3 80 254.6C79.8 243.9 80 233.1 80 222.4C80 211.6 79.4 200.6 80 190.1C80.6 179.6 81.5 169.2 83.7 159.3C85.8 149.5 88.8 140 93 131C97.2 121.9 102.5 113.3 108.8 105.2C115 97.1 122.7 89.3 130.6 82.4C138.5 75.5 147.4 69.3 156.4 63.8C165.5 58.2 175.2 53.4 184.9 49C194.7 44.6 204.8 40.8 214.9 37.4C225.1 33.9 235.5 30.9 245.9 28.3C256.3 25.7 266.8 23.4 277.4 21.6C288 19.7 298.7 18.4 309.4 17.2C320.1 16 330.8 14.8 341.5 14.1C352.2 13.4 363 13.2 373.7 13Z';
 function crestHTML() {
   return `<div class="crest an an--crest" id="crest" style="--d:.05s">
     <span class="crest__floor" aria-hidden="true"></span>
     <div class="crest__tilt">
       <svg class="crest__neon" viewBox="0 0 768 786" aria-hidden="true" focusable="false">
         <defs>
-          <filter id="neonGlow" x="-25%" y="-25%" width="150%" height="150%">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b1"/>
-            <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="b2"/>
-            <feMerge><feMergeNode in="b2"/><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
+          <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="b1"/>
+            <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="b2"/>
+            <feMerge><feMergeNode in="b2"/><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
           </filter>
         </defs>
-        <g transform="translate(383 400) scale(1.055) translate(-383 -400)" filter="url(#neonGlow)">
+        <g filter="url(#neonGlow)">
           <path class="neon neon--tube" d="${SHIELD}"/>
           <path class="neon neon--run" d="${SHIELD}" pathLength="100"/>
           <path class="neon neon--run neon--run2" d="${SHIELD}" pathLength="100"/>

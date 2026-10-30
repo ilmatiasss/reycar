@@ -1,10 +1,8 @@
-/* Panel de administración de Reycar Store — MAQUETA NAVEGABLE.
-   Con la identidad de Reycar; la lógica (pedidos, estados, notas, atribución) es la que el equipo ya conoce de
-   WooCommerce. Sirve para que Guillermo y su equipo la validen antes de construir la versión real.
-   Los productos son los reales del catálogo (data/products.js); clientes y pedidos son de demostración,
-   generados con una semilla fija (mismos datos en cada visita). Nada se guarda: los cambios viven en
-   memoria hasta recargar. En la versión real: pedidos y clientes en base de datos, precio/stock/boletas
-   desde Bsale, pagos desde Klap, envíos desde Sendu y analítica cruzada con GA4. */
+/* Panel de administración de Reycar Store, con la identidad de la tienda.
+   La lógica (pedidos, estados, notas, atribución) es la que el equipo ya conoce de WooCommerce.
+   Vista previa sin base de datos: los productos y el stock son los reales (data/products.js); pedidos, clientes,
+   reservas y demás parten vacíos y lo que se cree vive en memoria hasta recargar. Al conectarlo: base de datos,
+   precio/stock/boletas desde Bsale, pagos desde Klap, envíos desde Sendu y anuncios desde Meta y Google. */
 (() => {
   'use strict';
 
@@ -23,11 +21,11 @@
   const fTime = (t) => { const d = new Date(t); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
   const fFull = (t) => `${fDate(t)}, ${fTime(t)}`;
   const NOW = Date.now(), MIN = 6e4, HOUR = 36e5, DAY = 864e5;
-  const ago = (t) => { const s = NOW - t; if (s < HOUR) return `hace ${Math.max(1, Math.round(s / MIN))} min`; if (s < DAY) { const h = Math.round(s / HOUR); return `hace ${h} hora${h > 1 ? 's' : ''}`; } return fDate(t); };
+  const ago = (t) => { const s = Math.max(0, Date.now() - t); if (s < HOUR) return `hace ${Math.max(1, Math.round(s / MIN))} min`; if (s < DAY) { const h = Math.round(s / HOUR); return `hace ${h} hora${h > 1 ? 's' : ''}`; } return fDate(t); };
   const plural = (n, a, b) => `${miles(n)} ${n === 1 ? a : b}`;
   const deacc = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
   const toast = (msg) => { const el = $('#toast'); el.textContent = msg; el.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('on'), 3200); };
-  const NOSAVE = 'Es una maqueta: el cambio se ve, pero se pierde al recargar.';
+  const NOSAVE = '(Vista previa: se pierde al recargar.)';
 
   /* ───────── catálogo real ───────── */
   const ALL = window.PRODUCTS || [], GROUPS = window.GROUPS || [];
@@ -44,172 +42,54 @@
   const hidden = new Set();
   const seo = new Map();
 
-  /* ───────── datos de demostración (semilla fija) ───────── */
-  let seed = 21719;
-  const rnd = () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const pick = (a) => a[Math.floor(rnd() * a.length)];
-  const wpick = (a) => { let r = rnd() * a.reduce((s, x) => s + x.w, 0); for (const x of a) if ((r -= x.w) < 0) return x; return a[a.length - 1]; };
-
-  const FIRST = ['Camila', 'Felipe', 'Javiera', 'Matías', 'Valentina', 'Benjamín', 'Catalina', 'Sebastián', 'Francisca', 'Diego', 'Constanza', 'Nicolás', 'Fernanda', 'Tomás', 'Daniela', 'Joaquín', 'Antonia', 'Cristóbal', 'Ignacia', 'Vicente', 'Paula', 'Rodrigo', 'Carolina', 'Gonzalo', 'Macarena', 'Andrés', 'Bárbara', 'Ricardo', 'Josefa', 'Claudio', 'Martín', 'Isidora', 'Pablo', 'Florencia', 'Esteban', 'Trinidad'];
-  const LAST = ['González', 'Muñoz', 'Rojas', 'Díaz', 'Pérez', 'Soto', 'Contreras', 'Silva', 'Martínez', 'Sepúlveda', 'Morales', 'Rodríguez', 'López', 'Fuentes', 'Hernández', 'Torres', 'Araneda', 'Espinoza', 'Valenzuela', 'Castillo', 'Tapia', 'Reyes', 'Gutiérrez', 'Castro', 'Pizarro', 'Álvarez', 'Vásquez', 'Sánchez', 'Fernández', 'Ramírez'];
+  /* ───────── datos de la tienda ─────────
+     Vista previa sin base de datos: pedidos, clientes, reservas, reseñas, cupones, campañas y registro parten vacíos;
+     lo que se crea aquí funciona igual que en la versión conectada, pero se pierde al recargar. Los productos, el stock
+     y la revisión de catálogos son los reales. En la versión real todo viene de la base de datos, Bsale, Klap y Sendu. */
+  const CONNECTED = false;
+  const ORDER_BASE = 1000; // al migrar se continúa desde el último número de pedido de WooCommerce
   const RM = 'Región Metropolitana';
-  const COMUNAS = [['Maipú', RM, 9], ['Puente Alto', RM, 8], ['Santiago', RM, 7], ['La Florida', RM, 7], ['Quinta Normal', RM, 5], ['Ñuñoa', RM, 5], ['Las Condes', RM, 5], ['Providencia', RM, 4], ['Pudahuel', RM, 4], ['San Bernardo', RM, 3], ['Peñalolén', RM, 3], ['Viña del Mar', 'Valparaíso', 4], ['Valparaíso', 'Valparaíso', 2], ['Concepción', 'Biobío', 4], ['Rancagua', "O'Higgins", 3], ['Talca', 'Maule', 2], ['Temuco', 'La Araucanía', 3], ['La Serena', 'Coquimbo', 3], ['Antofagasta', 'Antofagasta', 3], ['Puerto Montt', 'Los Lagos', 2], ['Iquique', 'Tarapacá', 1], ['Punta Arenas', 'Magallanes', 1]].map(([n, r, w]) => ({ n, r, w }));
-  const CALLES = ['Av. Pajaritos', 'Los Aromos', 'San Pablo', 'Av. Matta', 'Pasaje Los Pinos', 'Av. Vicuña Mackenna', 'Las Camelias', 'Av. Grecia', 'Santa Rosa', 'Av. Los Leones', 'Los Carrera', 'Av. Libertad', 'O\'Higgins', 'Los Boldos', 'Av. Alemania'];
-  const EMPRESAS = [['Detailing Pro SpA', 'Lavado y estética de vehículos'], ['Lavado Express Limitada', 'Lavado de vehículos'], ['Autoestética Sur SpA', 'Estética automotriz'], ['Taller Brillo Total SpA', 'Servicios automotrices'], ['Car Spa Oriente EIRL', 'Lavado de vehículos'], ['Transportes Andinos Ltda.', 'Transporte de carga']];
-  const rut = () => { const n = 8e6 + Math.floor(rnd() * 17e6); let s = 0, m = 2; for (let x = n; x; x = Math.floor(x / 10)) { s += (x % 10) * m; m = m === 7 ? 2 : m + 1; } const dv = 11 - (s % 11); return `${miles(n)}-${dv === 11 ? 0 : dv === 10 ? 'K' : dv}`; };
+  const COMUNAS = [['Santiago', RM], ['Cerrillos', RM], ['Cerro Navia', RM], ['Conchalí', RM], ['El Bosque', RM], ['Estación Central', RM], ['Huechuraba', RM], ['Independencia', RM], ['La Cisterna', RM], ['La Florida', RM], ['La Granja', RM], ['La Pintana', RM], ['La Reina', RM], ['Las Condes', RM], ['Lo Barnechea', RM], ['Lo Espejo', RM], ['Lo Prado', RM], ['Macul', RM], ['Maipú', RM], ['Ñuñoa', RM], ['Pedro Aguirre Cerda', RM], ['Peñalolén', RM], ['Providencia', RM], ['Pudahuel', RM], ['Quilicura', RM], ['Quinta Normal', RM], ['Recoleta', RM], ['Renca', RM], ['San Joaquín', RM], ['San Miguel', RM], ['San Ramón', RM], ['Vitacura', RM], ['Puente Alto', RM], ['San Bernardo', RM], ['Colina', RM], ['Lampa', RM], ['Buin', RM], ['Talagante', RM], ['Peñaflor', RM], ['Melipilla', RM], ['Valparaíso', 'Valparaíso'], ['Viña del Mar', 'Valparaíso'], ['Quilpué', 'Valparaíso'], ['Villa Alemana', 'Valparaíso'], ['San Antonio', 'Valparaíso'], ['Los Andes', 'Valparaíso'], ['Rancagua', "O'Higgins"], ['San Fernando', "O'Higgins"], ['Talca', 'Maule'], ['Curicó', 'Maule'], ['Linares', 'Maule'], ['Chillán', 'Ñuble'], ['Concepción', 'Biobío'], ['Talcahuano', 'Biobío'], ['Los Ángeles', 'Biobío'], ['Temuco', 'La Araucanía'], ['Valdivia', 'Los Ríos'], ['Osorno', 'Los Lagos'], ['Puerto Montt', 'Los Lagos'], ['Coyhaique', 'Aysén'], ['Punta Arenas', 'Magallanes'], ['La Serena', 'Coquimbo'], ['Coquimbo', 'Coquimbo'], ['Copiapó', 'Atacama'], ['Antofagasta', 'Antofagasta'], ['Calama', 'Antofagasta'], ['Iquique', 'Tarapacá'], ['Arica', 'Arica y Parinacota']].map(([n, r]) => ({ n, r }));
+  const custName = (c) => `${c.first} ${c.last}`.trim();
 
-  const CUST = [];
-  for (let i = 0; i < 300; i++) {
-    const first = pick(FIRST), last = pick(LAST), last2 = pick(LAST), com = wpick(COMUNAS);
-    const emp = rnd() < 0.09 ? pick(EMPRESAS) : null;
-    CUST.push({ id: 1000 + i, first, last: `${last} ${last2}`, email: `${deacc(first).toLowerCase()}.${deacc(last).toLowerCase().replace(/\s/g, '')}${i % 7 ? i : ''}@ejemplo.cl`, phone: `+56 9 ${Math.floor(1e3 + rnd() * 9e3)} ${Math.floor(1e3 + rnd() * 9e3)}`, rut: rut(), street: `${pick(CALLES)} ${Math.floor(100 + rnd() * 4900)}${rnd() < 0.3 ? ', depto. ' + Math.floor(11 + rnd() * 1800) : ''}`, comuna: com.n, region: com.r, emp: emp && { name: emp[0], giro: emp[1], rut: rut() }, since: 0 });
-  }
-  const custName = (c) => `${c.first} ${c.last}`;
-
-  // orígenes: misma idea que la "atribución del pedido" de WooCommerce (fuente, tipo, campaña UTM, dispositivo)
+  // de dónde vino cada pedido: misma idea que la "atribución del pedido" de WooCommerce (fuente, tipo, campaña UTM, dispositivo)
   const ORIG = [
-    { k: 'meta', lbl: 'Meta Ads', type: 'Anuncio', src: 'facebook / instagram', med: 'paid_social', camps: ['Motor Clean · Octubre', 'Catálogo dinámico (Advantage+)', 'Remarketing 30 días'], w: 30, cls: 'ads' },
-    { k: 'gads', lbl: 'Google Ads', type: 'Anuncio', src: 'google', med: 'cpc', camps: ['Shopping · Todos los productos', 'Búsqueda · Marca Reycar', 'Performance Max · Detailing'], w: 19, cls: 'ads' },
-    { k: 'org', lbl: 'Google orgánico', type: 'Orgánico', src: 'google', med: 'organic', w: 20, cls: 'org' },
-    { k: 'dir', lbl: 'Directo', type: 'Directo', src: '(directo)', med: '(ninguno)', w: 14 },
-    { k: 'ig', lbl: 'Instagram', type: 'Referido', src: 'instagram.com', med: 'referral', w: 8, cls: 'ref' },
-    { k: 'wa', lbl: 'WhatsApp', type: 'Referido', src: 'wa.me', med: 'referral', w: 4, cls: 'ref' },
-    { k: 'yt', lbl: 'YouTube', type: 'Referido', src: 'youtube.com', med: 'referral', w: 2, cls: 'ref' },
-    { k: 'mail', lbl: 'Newsletter', type: 'Correo', src: 'newsletter', med: 'email', camps: ['Newsletter · Novedades del mes'], w: 3 },
+    { k: 'meta', lbl: 'Meta Ads', type: 'Anuncio', src: 'facebook / instagram', med: 'paid_social', cls: 'ads' },
+    { k: 'gads', lbl: 'Google Ads', type: 'Anuncio', src: 'google', med: 'cpc', cls: 'ads' },
+    { k: 'org', lbl: 'Google orgánico', type: 'Orgánico', src: 'google', med: 'organic', cls: 'org' },
+    { k: 'dir', lbl: 'Directo', type: 'Directo', src: '(directo)', med: '(ninguno)' },
+    { k: 'ig', lbl: 'Instagram', type: 'Referido', src: 'instagram.com', med: 'referral', cls: 'ref' },
+    { k: 'wa', lbl: 'WhatsApp', type: 'Referido', src: 'wa.me', med: 'referral', cls: 'ref' },
+    { k: 'yt', lbl: 'YouTube', type: 'Referido', src: 'youtube.com', med: 'referral', cls: 'ref' },
+    { k: 'mail', lbl: 'Correo', type: 'Correo', src: 'newsletter', med: 'email' },
   ];
+  const MANUAL = { k: 'manual', lbl: 'Venta directa', type: 'Directo', src: 'panel', med: 'whatsapp / local' };
+  ORIG.push(MANUAL);
   const oById = new Map(ORIG.map((o) => [o.k, o]));
-  const SHIP = [{ m: 'Retiro en tienda — Quinta Normal', w: 18, pick: true }, { m: 'Starken a domicilio', w: 38, c: 'Starken' }, { m: 'Chilexpress a domicilio', w: 24, c: 'Chilexpress' }, { m: 'Blue Express a domicilio', w: 20, c: 'Blue Express' }];
-  const PAY = [{ m: 'Tarjeta de débito', w: 34 }, { m: 'Tarjeta de crédito', w: 30 }, { m: 'Google Pay', w: 20 }, { m: 'Apple Pay', w: 16 }];
-  const DEV = [{ m: 'Móvil', w: 72 }, { m: 'Escritorio', w: 24 }, { m: 'Tablet', w: 4 }];
-  const CNOTES = ['¿Pueden enviarlo antes del viernes?', 'Dejar en conserjería, por favor.', 'Es para regalo, sin boleta dentro de la caja.', 'Llamar antes de llegar.', 'Retiro el sábado en la mañana.'];
-  const SELL = HEADS.filter((p) => p.p > 0 && p.im && p.im.length && !['cursos', 'servicios'].includes(p.g))
-    .map((p) => ({ p, w: (p.b === 'Motor Clean' ? 4 : 1) * (['lavado', 'proteccion', 'pulido', 'interior'].includes(p.g) ? 1.6 : 1) * (p.p < 30000 ? 1.4 : 1) }));
 
-  const ORDERS = [];
-  (() => {
-    const times = [];
-    for (let d = 179; d >= 0; d--) {
-      const dow = new Date(NOW - d * DAY).getDay();
-      const rate = (1.3 + 1.7 * (1 - d / 179)) * (dow === 0 || dow === 6 ? 1.25 : 1) * (d >= 15 && d <= 17 ? 2.4 : 1);
-      const n = Math.round(rate * (0.3 + 1.4 * rnd()));
-      for (let k = 0; k < n; k++) times.push(NOW - d * DAY - rnd() * DAY * (d === 0 ? 0.6 : 1));
-      if (d <= 1) times.push(NOW - d * DAY - rnd() * DAY * 0.6);
-    }
-    times.sort((a, b) => a - b);
-    let fb = 48211, ff = 3120, fnc = 412, auth = 731200, used = 0;
-    times.forEach((t, i) => {
-      let c;
-      if (used > 20 && rnd() < 0.3) c = CUST[Math.floor(Math.min(used, CUST.length) * rnd() ** 1.7)];
-      else { c = CUST[used % CUST.length]; used++; }
-      const src = wpick(ORIG), dev = wpick(DEV), ship = wpick(SHIP), pay = wpick(PAY);
-      const nl = pick([1, 1, 1, 1, 2, 2, 2, 3, 4]);
-      const lines = [];
-      for (let k = 0; k < nl; k++) {
-        let p = wpick(SELL).p;
-        if (p.vs) p = pick(p.vs);
-        if (lines.some((l) => l.p === p)) continue;
-        lines.push({ p, q: rnd() < 0.78 ? 1 : rnd() < 0.8 ? 2 : 3, price: p.p });
-      }
-      const sub = lines.reduce((s, l) => s + l.q * l.price, 0);
-      const rm = c.region === RM;
-      const cost = ship.pick ? 0 : rm ? pick([3990, 4490]) : pick([5990, 6990, 7990, 8990]);
-      const age = NOW - t;
-      const r = rnd();
-      let st;
-      if (age < 2 * HOUR) st = r < 0.18 ? 'pending' : 'processing';
-      else if (age < 2 * DAY) st = r < 0.8 ? 'processing' : r < 0.92 ? 'completed' : r < 0.95 ? 'pending' : 'cancelled';
-      else st = r < 0.88 ? 'completed' : r < 0.94 ? 'cancelled' : r < 0.97 ? 'refunded' : 'failed';
-      if (st === 'pending' && age > 3 * HOUR) st = 'cancelled';
-      const paid = ['processing', 'completed', 'refunded'].includes(st);
-      const fac = c.emp && rnd() < 0.8;
-      const camp = src.camps ? (src.k === 'meta' && NOW - t < 25 * DAY && NOW - t > 14 * DAY && rnd() < 0.6 ? 'CyberMonday · Hasta 30 %' : pick(src.camps)) : '';
-      const o = {
-        id: 21480 + i, t, st, c, lines, sub, ship: { m: ship.m, carrier: ship.c, cost, track: st === 'completed' && !ship.pick ? String(Math.floor(1e9 + rnd() * 8.9e9)) : '' },
-        total: sub + cost, pay: pay.m, auth: paid ? String(auth += 1 + Math.floor(rnd() * 40)) : '', src, camp, dev: dev.m,
-        pages: 1 + Math.floor(rnd() * rnd() * 16), landing: src.k === 'org' || src.k === 'gads' || src.k === 'meta' ? `/producto/${lines[0].p.s}` : pick(['/', '/tienda', '/motor-clean']),
-        doc: paid ? { type: fac ? 'Factura electrónica' : 'Boleta electrónica', folio: fac ? ff++ : fb++ } : null, fac, nc: st === 'refunded' ? fnc++ : null,
-        cnote: rnd() < 0.08 ? pick(CNOTES) : '', notes: [],
-      };
-      if (!c.since) c.since = t;
-      buildNotes(o);
-      ORDERS.push(o);
-    });
-    ORDERS.reverse();
-  })();
-  const oId = new Map(ORDERS.map((o) => [o.id, o]));
-
-  function buildNotes(o) {
-    const n = (dt, txt, kind = 'system', by = 'Reycar Store') => o.notes.push({ t: Math.min(o.t + dt, NOW - MIN), txt, kind, by });
-    n(0, 'Pedido creado. Esperando el pago en Klap.');
-    if (o.st === 'failed') return n(2 * MIN, 'Klap rechazó el pago (tarjeta sin fondos). El stock no se descontó.');
-    if (o.st === 'pending') return;
-    if (o.st === 'cancelled') return n(60 * MIN, 'Pedido cancelado: el pago no se completó en 60 minutos. El stock no se descontó.');
-    n(1.5 * MIN, `Klap aprobó el pago con ${o.pay}. Código de autorización ${o.auth}.`);
-    n(1.6 * MIN, 'El estado del pedido cambió de Pendiente de pago a Procesando.');
-    n(1.8 * MIN, `${o.doc.type} N° ${o.doc.folio} emitida en Bsale y enviada a ${o.c.email}. Stock descontado en la sucursal Casa Matriz.`);
-    if (o.cnote) n(2 * MIN, o.cnote, 'customer', custName(o.c));
-    if (o.st === 'processing') return;
-    if (o.ship.track) n(20 * HOUR, `Envío creado en Sendu con ${o.ship.carrier}. N° de seguimiento ${o.ship.track}.`, 'customer');
-    else n(20 * HOUR, 'El cliente retiró el pedido en la tienda.', 'private', 'Guillermo');
-    n(20.1 * HOUR, 'El estado del pedido cambió de Procesando a Completado.', 'system', 'Guillermo');
-    if (o.st === 'refunded') {
-      n(3 * DAY, `Reembolso de ${clp(o.total)} realizado en Klap. Motivo: producto no correspondía al vehículo.`, 'private', 'Guillermo');
-      n(3 * DAY + MIN, `Nota de crédito electrónica N° ${o.nc} emitida en Bsale. Stock repuesto.`);
-      n(3 * DAY + 2 * MIN, 'El estado del pedido cambió de Completado a Reembolsado.');
-    }
-  }
+  const CUST = [], ORDERS = [], CARTS = [], COUPONS = [], BOOK = [], REVIEWS = [], CAMPAIGNS = [], LOG = [], SEARCHES = [];
+  const oId = new Map();
 
   const ST = { pending: 'Pendiente de pago', processing: 'Procesando', 'on-hold': 'En espera', completed: 'Completado', cancelled: 'Cancelado', refunded: 'Reembolsado', failed: 'Fallido' };
   const PAID = new Set(['processing', 'completed']);
   const pill = (st) => `<mark class="order-status status-${st}"><span>${ST[st]}</span></mark>`;
   const otag = (o) => `<span class="tag${o.src.cls ? ' tag--' + o.src.cls : ''}">${esc(o.src.lbl)}</span>`;
   const qty = (o) => o.lines.reduce((s, l) => s + l.q, 0);
-
-  /* ───────── más datos de demostración: carritos, cupones, campañas, actividad, portada ───────── */
-  ORDERS.forEach((o) => { if (o.st === 'processing') o.prep = NOW - o.t > 18 * HOUR; });
   const isPick = (o) => /Retiro/.test(o.ship.m);
-
-  const CARTS = [];
-  for (let i = 0; i < 46; i++) {
-    const t = NOW - rnd() * 14 * DAY, known = rnd() < 0.62, c = known ? CUST[Math.floor(rnd() * CUST.length)] : null;
-    const lines = [];
-    for (let k = 0, nl = pick([1, 1, 2, 2, 3]); k < nl; k++) { let p = wpick(SELL).p; if (p.vs) p = pick(p.vs); if (!lines.some((l) => l.p === p)) lines.push({ p, q: rnd() < 0.85 ? 1 : 2 }); }
-    const r = rnd();
-    CARTS.push({ id: 900 + i, t, c, lines, total: lines.reduce((s, l) => s + l.q * l.p.p, 0), src: wpick(ORIG),
-      stage: !known ? 'Agregó al carro' : rnd() < 0.55 ? 'Llegó al pago' : 'Ingresó sus datos',
-      st: !known ? 'anon' : NOW - t > 2 * DAY ? (r < 0.27 ? 'rec' : r < 0.62 ? 'sent' : 'pend') : (r < 0.25 ? 'sent' : 'pend') });
-  }
-  CARTS.sort((a, b) => b.t - a.t);
+  const docTxt = (d) => `${d.type}${d.folio ? ` N° ${d.folio}` : ''}`;
   const CART_ST = { pend: ['Por recuperar', 'processing'], sent: ['Recordatorio enviado', 'pending'], rec: ['Recuperado', 'completed'], anon: ['Sin datos de contacto', 'cancelled'] };
-
-  const yr = new Date(NOW).getFullYear();
-  const COUPONS = [
-    { code: 'CYBER30', type: 'pct', val: 30, min: 0, uses: 41, limit: 0, from: NOW - 18 * DAY, to: NOW - 14 * DAY, scope: 'Toda la tienda' },
-    { code: 'MOTORCLEAN10', type: 'pct', val: 10, min: 0, uses: 23, limit: 200, from: NOW - 25 * DAY, to: NOW + 20 * DAY, scope: 'Solo productos Motor Clean' },
-    { code: 'BIENVENIDA5', type: 'pct', val: 5, min: 0, uses: 58, limit: 0, from: NOW - 160 * DAY, to: 0, scope: 'Solo primera compra' },
-    { code: 'ENVIOGRATIS', type: 'ship', val: 0, min: 50000, uses: 37, limit: 0, from: NOW - 60 * DAY, to: NOW + 40 * DAY, scope: 'Toda la tienda' },
-    { code: 'TALLER5000', type: 'fix', val: 5000, min: 30000, uses: 12, limit: 100, from: NOW - 90 * DAY, to: 0, scope: 'Clientes del taller' },
-    { code: 'NAVIDAD15', type: 'pct', val: 15, min: 0, uses: 0, limit: 300, from: new Date(yr, 11, 1).getTime(), to: new Date(yr, 11, 25, 23, 59).getTime(), scope: 'Toda la tienda' },
-  ];
   const cpState = (c, now = Date.now()) => (c.to && c.to < now ? ['Vencido', 'cancelled'] : c.from > now ? ['Programado', 'pending'] : c.limit && c.uses >= c.limit ? ['Agotado', 'failed'] : ['Activo', 'completed']);
   const cpVal = (c) => (c.type === 'pct' ? `${c.val} %` : c.type === 'fix' ? clp(c.val) : 'Envío gratis');
+  const log = (what, detail, who = 'Guillermo Araya') => LOG.unshift({ t: Date.now(), who, what, detail });
 
-  // retorno y costo por clic de cada campaña (de ejemplo; en la versión real vienen de Meta Ads y Google Ads)
-  const CAMP = new Map();
-  ORIG.filter((o) => o.cls === 'ads').forEach((o) => [...o.camps, ...(o.k === 'meta' ? ['CyberMonday · Hasta 30 %'] : [])].forEach((c) => CAMP.set(c, { roas: 2.1 + rnd() * 5.2, cpc: 140 + rnd() * 280 })));
-
-  const LOG = [];
-  const log = (what, detail, who = 'Guillermo') => LOG.unshift({ t: Date.now(), who, what, detail });
-  ORDERS.filter((o) => NOW - o.t < 30 * DAY).forEach((o) => o.notes.filter((n) => n.by === 'Guillermo' && n.t <= NOW).forEach((n) => LOG.push({ t: n.t, who: 'Guillermo', what: `Pedido #${o.id}`, detail: n.txt })));
-  for (let d = 0; d < 30; d++) {
-    LOG.push({ t: NOW - d * DAY - (2 + rnd() * 6) * HOUR, who: 'Guillermo', what: 'Inicio de sesión', detail: 'Correo, contraseña y código de verificación' });
-    if (d % 2 === 0) LOG.push({ t: NOW - d * DAY - rnd() * 8 * HOUR, who: 'Ventas y despacho', what: 'Inicio de sesión', detail: 'Correo, contraseña y código de verificación' });
+  // WhatsApp sin integraciones: abre la conversación con el mensaje escrito (wa.me)
+  function waOpen(phone, text) {
+    let d = String(phone || '').replace(/\D/g, '');
+    if (d.length === 9 && d[0] === '9') d = '56' + d;
+    if (d.length < 11) return toast('Este cliente no tiene un teléfono válido para WhatsApp.'), false;
+    open(`https://wa.me/${d}?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+    return true;
   }
-  LOG.push({ t: NOW - 3 * DAY, who: 'Guillermo', what: 'Portada', detail: 'Destacó 6 productos Motor Clean en la portada' },
-    { t: NOW - 15 * DAY - 3 * HOUR, who: 'Guillermo', what: 'Cupón', detail: 'Creó el cupón CYBER30 (30 %)' },
-    { t: NOW - 6 * DAY, who: 'Ventas y despacho', what: 'Despacho', detail: 'Generó 5 etiquetas en Sendu' },
-    { t: NOW - 9 * DAY, who: 'Equipo de desarrollo', what: 'Ajustes', detail: 'Actualizó el ID de Google Analytics 4' });
-  LOG.sort((a, b) => b.t - a.t);
 
   const firstPulido = HEADS.find((p) => p.g === 'pulido' && p.im && p.im.length);
   const HOME = {
@@ -217,17 +97,13 @@
     banners: [
       { t: 'Línea completa Motor Clean', s: 'Formatos de 1 L y 5 L para tu lavado', link: '/motor-clean', img: '/assets/brands/motor-clean.png', on: true },
       { t: 'Pulido profesional', s: 'Máquinas, pads y compuestos', link: '/tienda?g=pulido', img: firstPulido ? img(firstPulido) : '/assets/reycars-crest.webp', on: true },
-      { t: 'Servicios de taller', s: 'Agenda tu lavado o cerámico', link: '/asesoria', img: '/assets/reycars-crest.webp', on: false },
+      { t: 'Servicios de taller', s: 'Cerámicos para sedán, hatchback y SUV', link: '/asesoria', img: '/assets/reycars-crest.webp', on: false },
     ],
     secs: [['Banners principales', true], ['Categorías', true], ['Productos destacados', true], ['Espacio Motor Clean', true], ['Marcas', true], ['Servicios de taller', true], ['Contacto y ubicación', true]],
     mc: 'auto',
   };
 
-  /* ───────── más datos de ejemplo: ventas directas, clientes, taller, reseñas, correos, búsquedas ───────── */
-  const MANUAL = { k: 'manual', lbl: 'Venta directa', type: 'Directo', src: 'panel', med: 'whatsapp / local', w: 0 };
-  ORIG.push(MANUAL); oById.set('manual', MANUAL);
-  ORDERS.forEach((o) => { if (o.st === 'refunded' && o.nc) { const n = o.notes.find((x) => /^Nota de crédito/.test(x.txt)); o.ncs = [{ f: o.nc, a: o.total, t: n ? n.t : o.t }]; o.refunded = o.total; } });
-  CUST.forEach((c) => { c.tags = c.emp ? ['Empresa'] : []; c.consent = { mail: rnd() < 0.72, wa: rnd() < 0.45 }; c.cnotes = []; });
+  // clientes: totales y segmento (se recalcula cuando cambian los pedidos)
   let CS = null;
   const cstats = () => {
     if (CS) return CS;
@@ -242,7 +118,7 @@
   const SEGS = { vip: ['Gran comprador', 'processing'], freq: ['Frecuente', 'completed'], nuevo: ['Nuevo', 'pending'], ocas: ['Ocasional', 'on-hold'], riesgo: ['En riesgo', 'failed'], sin: ['Sin compras', 'cancelled'] };
   const segOf = (c) => {
     const x = cstats().get(c); if (!x || !x.n) return 'sin';
-    const age = NOW - x.last;
+    const age = Date.now() - x.last;
     if (x.v >= 250000 && age < 120 * DAY) return 'vip';
     if (x.n >= 3 && age < 60 * DAY) return 'freq';
     if (age > 90 * DAY) return 'riesgo';
@@ -250,60 +126,17 @@
     return 'ocas';
   };
 
-  // taller: 2 boxes, lunes a viernes 9:00–19:00 y sábado 9:00–14:00 (servicios y precios de ejemplo)
+  // taller: 2 boxes, lunes a viernes 9:00–19:00 y sábado 9:00–14:00; los servicios son los del catálogo (con su precio)
   const sod = (t) => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
   const addDays = (t, k) => { const d = new Date(t); d.setDate(d.getDate() + k); return d.getTime(); };
   const mondayOf = (t) => addDays(sod(t), -((new Date(t).getDay() + 6) % 7));
   const weekOf = (t) => Math.round((mondayOf(t) - mondayOf(NOW)) / (7 * DAY));
-  const SERVICES = [
-    { n: 'Lavado detallado', min: 120, p: 25000 }, { n: 'Lavado y sellado de pintura', min: 180, p: 45000 },
-    { n: 'Limpieza de interior y tapiz', min: 240, p: 60000 }, { n: 'Lavado de motor', min: 60, p: 20000 },
-    { n: 'Pulido 1 etapa', min: 300, p: 120000 }, { n: 'Corrección de pintura 2 etapas', min: 480, p: 220000 },
-    { n: 'Recubrimiento cerámico', min: 540, p: 350000 },
-  ];
-  const CARS = ['Toyota Yaris', 'Mazda 3', 'Hyundai Tucson', 'Kia Sportage', 'Chevrolet Sail', 'Suzuki Swift', 'Nissan Kicks', 'Peugeot 208', 'Subaru XV', 'Ford Ranger', 'Mitsubishi L200', 'Volkswagen Golf', 'Toyota Hilux', 'MG ZS'];
-  const LET = 'BCDFGHJKLPRSTVWXYZ';
-  const plate = () => Array.from({ length: 4 }, () => LET[Math.floor(rnd() * LET.length)]).join('') + Math.floor(10 + rnd() * 89);
+  const SERVICES = HEADS.filter((p) => p.g === 'servicios' && p.p > 0).sort((a, b) => a.p - b.p).map((p) => ({ n: p.n, min: 540, p: p.p, pid: p.id }));
   const BK_ST = { agendado: ['Agendado', 'pending'], confirmado: ['Confirmado', 'on-hold'], proceso: ['En proceso', 'processing'], listo: ['Listo para entregar', 'completed'], entregado: ['Entregado', 'completed'], noshow: ['No asistió', 'failed'] };
   const closeOf = (day) => (new Date(day).getDay() === 6 ? 840 : 1140);
-  const BOOK = [];
-  (() => {
-    const m0 = mondayOf(NOW), today = sod(NOW);
-    for (let w = -1; w <= 2; w++) for (let d = 0; d < 6; d++) for (let box = 1; box <= 2; box++) {
-      const day = addDays(m0, w * 7 + d), fill = [0.85, 0.8, 0.5, 0.25][w + 1], close = closeOf(day);
-      let t = 540;
-      while (t < close - 60) {
-        if (rnd() > fill) { t += 60; continue; }
-        const sv = pick(SERVICES);
-        if (t + sv.min > close) { t += 60; continue; }
-        const c = CUST[Math.floor(rnd() * CUST.length)], end = day + (t + sv.min) * MIN, beg = day + t * MIN;
-        const st = end < NOW ? (rnd() < 0.04 ? 'noshow' : day === today && rnd() < 0.5 ? 'listo' : 'entregado') : beg <= NOW ? 'proceso' : day - today <= DAY || rnd() < 0.45 ? 'confirmado' : 'agendado';
-        BOOK.push({ id: 5000 + BOOK.length, day, start: t, box, sv, c, car: pick(CARS), plate: plate(), st, price: sv.p, note: '' });
-        t += sv.min + (rnd() < 0.5 ? 30 : 60);
-      }
-    }
-    BOOK.forEach((b) => { if (!b.c.tags.includes('Cliente del taller')) b.c.tags.push('Cliente del taller'); });
-  })();
-
-  // reseñas: solo de compras completadas (compra verificada)
-  const RV_TXT = {
-    5: ['Excelente producto, se nota la diferencia desde la primera aplicación.', 'Llegó rapidísimo y muy bien embalado. Lo recomiendo.', 'El mejor que he probado, rinde muchísimo.', 'Muy buena atención, me asesoraron por WhatsApp antes de comprar.', 'Calidad profesional. Vuelvo a comprar seguro.'],
-    4: ['Muy bueno, aunque el envío se demoró un día más.', 'Buen producto, cumple lo que promete.', 'Buena relación precio-calidad.'],
-    3: ['Cumple, pero esperaba un poco más de brillo.', 'Está bien, nada extraordinario.'],
-    2: ['El envase llegó con una filtración; el producto bien.', 'No me convenció el aroma.'],
-    1: ['Me llegó un formato distinto al que pedí.', 'No noté ninguna diferencia.'],
-  };
   const RV_ST = { pend: ['Por aprobar', 'processing'], ok: ['Publicada', 'completed'], hid: ['Oculta', 'cancelled'] };
-  const REVIEWS = [];
-  ORDERS.filter((o) => o.st === 'completed' && NOW - o.t > 7 * DAY).slice().reverse().forEach((o) => {
-    if (rnd() > 0.3) return;
-    const r = wpick([{ v: 5, w: 60 }, { v: 4, w: 25 }, { v: 3, w: 8 }, { v: 2, w: 4 }, { v: 1, w: 3 }]).v, p = o.lines[0].p, t = o.t + (8 + rnd() * 6) * DAY;
-    if (t > NOW) return;
-    REVIEWS.push({ id: 7000 + REVIEWS.length, o, p: p.fam ? byId.get(p.fam) : p, c: o.c, r, txt: pick(RV_TXT[r]), t, st: NOW - t < 6 * DAY ? 'pend' : 'ok', reply: r <= 3 && rnd() < 0.6 ? 'Hola, gracias por contarnos. Te escribimos por WhatsApp para solucionarlo.' : '' });
-  });
-  REVIEWS.sort((a, b) => b.t - a.t);
 
-  // correos a clientes (solo a quienes dieron permiso)
+  // correos a clientes: solo a quienes dieron permiso
   const MAILSEG = [
     ['all', 'Todos los que aceptaron correos', (c) => c.consent.mail],
     ['freq', 'Compradores frecuentes', (c) => c.consent.mail && ['freq', 'vip'].includes(segOf(c))],
@@ -311,20 +144,20 @@
     ['mc', 'Compraron Motor Clean', (c, x) => c.consent.mail && x.brands.has('Motor Clean')],
     ['emp', 'Empresas y clientes del taller', (c) => c.consent.mail && (!!c.emp || c.tags.includes('Cliente del taller'))],
   ];
-  const segCount = (k) => { const s = MAILSEG.find((x) => x[0] === k) || MAILSEG[0], st = cstats(); return CUST.filter((c) => st.get(c) && st.get(c).orders.length && s[2](c, st.get(c))).length; };
-  const CAMPAIGNS = [
-    { subj: 'Llegó la línea completa Motor Clean', seg: 'all', t: NOW - 12 * DAY - 5 * HOUR, st: 'sent', open: 0.41, click: 0.067, orders: 9 },
-    { subj: 'CyberMonday: 30 % con CYBER30', seg: 'all', t: NOW - 17 * DAY - 3 * HOUR, st: 'sent', open: 0.46, click: 0.094, orders: 17 },
-    { subj: 'Te extrañamos: 10 % para volver', seg: 'riesgo', t: NOW - 38 * DAY, st: 'sent', open: 0.27, click: 0.041, orders: 3 },
-    { subj: 'Novedades de septiembre', seg: 'all', t: NOW - 52 * DAY, st: 'sent', open: 0.36, click: 0.052, orders: 5 },
-  ];
+  const segCount = (k) => { const s = MAILSEG.find((x) => x[0] === k) || MAILSEG[0], st = cstats(); return CUST.filter((c) => st.get(c) && s[2](c, st.get(c))).length; };
 
-  // lo que la gente escribe en el buscador de la tienda (veces de ejemplo por 30 días; los resultados se calculan con el catálogo real)
-  const TERMS = [['motor clean', 412], ['shampoo', 296], ['ceramico', 251], ['cera', 233], ['microfibra', 198], ['pulidora', 176], ['apc', 151], ['koch', 139], ['llantas', 128], ['quick detailer', 117], ['menzerna', 104], ['cuero', 96], ['hidrolavadora', 91], ['aspiradora', 77], ['vidrios', 74], ['grafeno', 66], ['aromatizante', 61], ['arcilla', 58], ['pad', 55], ['tapiz', 52], ['espuma', 47], ['meguiars', 44], ['chemical guys', 39], ['kit lavado', 36], ['toalla secado', 33], ['foam lance', 29], ['sonax', 25], ['iron', 22]];
+  // búsquedas en la tienda: se registran desde que la tienda nueva está publicada; los resultados se calculan con el catálogo
   const SYN = new Map();
   const searchHits = (term) => { const ws = deacc(term.toLowerCase()).split(/\s+/); return HEADS.filter((p) => { const h = deacc(`${p.n} ${p.b || ''} ${(gById.get(p.g) || {}).name || ''} ${subName(p)}`.toLowerCase()); return ws.every((w) => h.includes(w)); }).length; };
 
-  const ZONES = [['Región Metropolitana', 'Toda la región', 3990, '1 a 2 días hábiles'], ['Zona centro', "Valparaíso, O'Higgins y Maule", 5990, '2 a 3 días hábiles'], ['Zona sur', 'Ñuble a Los Lagos', 6990, '2 a 4 días hábiles'], ['Zona norte', 'Arica a Coquimbo', 7990, '3 a 5 días hábiles'], ['Zonas extremas', 'Aysén y Magallanes', 8990, '4 a 7 días hábiles']];
+  // tarifas propias por zona (se completan en Ajustes → Envíos)
+  const ZONES = [['Región Metropolitana', 'Toda la región', '', '1 a 2 días hábiles'], ['Zona centro', "Valparaíso, O'Higgins y Maule", '', '2 a 3 días hábiles'], ['Zona sur', 'Ñuble a Los Lagos', '', '2 a 4 días hábiles'], ['Zona norte', 'Arica a Coquimbo', '', '3 a 5 días hábiles'], ['Zonas extremas', 'Aysén y Magallanes', '', '4 a 7 días hábiles']];
+
+  // revisión de catálogos de anuncios con los productos reales (FEED_ERR y FEED_WARN están en Marketing)
+  const feedItems = () => ALL.filter((p) => p.p > 0 && !hidden.has(p.fam || p.id) && !['cursos', 'servicios'].includes(p.g)).map((p) => ({ p, e: FEED_ERR(p), w: FEED_WARN(p) }));
+
+  // bloque para pantallas sin datos todavía
+  const emptyState = (title, text, actions = '', icon = 'box') => `<div class="empty"><div class="empty__i" aria-hidden="true">${{ box: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5zM3.5 7.5 12 12l8.5-4.5M12 12v9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>', chart: '<svg viewBox="0 0 24 24"><path d="M4 20V10m6 10V4m6 16v-7m4 7H3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', user: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', star: '<svg viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>', link: '<svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>', mail: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m3.5 6.5 8.5 6 8.5-6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>', list: '<svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' }[icon]}</div><h2>${title}</h2><p>${text}</p>${actions ? `<div class="empty__a">${actions}</div>` : ''}</div>`;
 
   /* ───────── menú ───────── */
   const IC = {
@@ -447,44 +280,57 @@
     const pm = new Date(m.getFullYear(), m.getMonth() - 1, 1).getTime(), pmEnd = pm + (NOW - mStart);
     const inM = ORDERS.filter((o) => PAID.has(o.st) && o.t >= mStart), inP = ORDERS.filter((o) => PAID.has(o.st) && o.t >= pm && o.t < pmEnd);
     const sum = (l) => l.reduce((s, o) => s + o.total, 0);
-    const a30 = agg(30), proc = ORDERS.filter((o) => o.st === 'processing'), pend = ORDERS.filter((o) => o.st === 'pending');
+    const a30 = agg(30), proc = ORDERS.filter((o) => o.st === 'processing'), pend = ORDERS.filter((o) => o.st === 'pending' || o.st === 'on-hold');
     const low = HEADS.filter((p) => p.stk != null && p.stk > 0 && p.stk <= 2), out = HEADS.filter((p) => p.stk === 0);
-    const top = groupBy(a30.list, (o) => o.src.lbl);
+    const top = groupBy(a30.list, (o) => o.src.lbl), feed = feedItems(), ferr = feed.filter((x) => x.e.length).length;
+    const steps = [
+      [true, `Catálogo cargado: ${plural(HEADS.length, 'producto', 'productos')} con fotos, categorías y formatos`, '#/productos'],
+      [true, 'Direcciones antiguas redirigidas para no perder Google ni los anuncios', '#/seo'],
+      [false, 'Conectar Bsale (precios, stock y boletas)', '#/ajustes?tab=bsale'],
+      [false, 'Conectar Klap (pagos con tarjeta, Google Pay y Apple Pay)', '#/ajustes?tab=pagos'],
+      [false, 'Configurar envíos (Sendu y tarifas por zona)', '#/ajustes?tab=envios'],
+      [false, 'Conectar Google Analytics, Tag Manager y el píxel de Meta', '#/ajustes?tab=seguimiento'],
+      [!ferr, ferr ? `Completar ${plural(ferr, 'producto', 'productos')} sin descripción o sin foto (los rechazan los catálogos de anuncios)` : 'Catálogo listo para los anuncios', '#/marketing?tab=catalogos'],
+      [false, 'Invitar al equipo con su perfil', '#/usuarios'],
+    ];
+    const done = steps.filter((x) => x[0]).length;
     return `
-      <div class="wrap-h"><h1>Escritorio</h1></div>
-      <div class="notice"><p><b>Maqueta para validar.</b> Los productos son los reales de la tienda; los pedidos, clientes y cifras son <b>de demostración</b>. Puedes recorrer todo y probar los botones: nada se guarda ni se envía a nadie.</p></div>
+      <div class="wrap-h"><h1>Escritorio</h1><a class="page-title-action" href="#/pedido/nuevo">Nuevo pedido</a></div>
+      <div class="postbox setup"><h2 class="hndle"><span>Puesta en marcha</span><span class="act">${done} de ${steps.length} listos</span></h2><div class="inside">
+        <div class="meter meter--setup"><i style="width:${Math.round((done / steps.length) * 100)}%"></i></div>
+        <ol class="steps">${steps.map(([ok, t, h]) => `<li class="${ok ? 'is-done' : ''}"><a href="${h}"><span class="steps__c" aria-hidden="true">${ok ? '✓' : ''}</span><span>${t}</span><span class="screen-reader-text">${ok ? '(listo)' : '(pendiente)'}</span></a></li>`).join('')}</ol>
+      </div></div>
       <div class="tiles">
-        ${tile(`Ventas de ${MESL[m.getMonth()]}`, clp(sum(inM)), delta(sum(inM), sum(inP)))}
-        ${tile('Pedidos pagados del mes', miles(inM.length), delta(inM.length, inP.length))}
-        ${tile('Ticket promedio del mes', clp(inM.length ? sum(inM) / inM.length : 0), delta(inM.length ? sum(inM) / inM.length : 0, inP.length ? sum(inP) / inP.length : 0))}
-        ${tile('Por preparar y despachar', miles(proc.length), `<a href="#/pedidos?estado=processing">Ver pedidos en Procesando</a>`)}
+        ${tile(`Ventas de ${MESL[m.getMonth()]}`, clp(sum(inM)), inP.length ? delta(sum(inM), sum(inP)) : 'pedidos pagados del mes')}
+        ${tile('Pedidos pagados del mes', miles(inM.length), inP.length ? delta(inM.length, inP.length) : 'web, WhatsApp y local')}
+        ${tile('Ticket promedio del mes', inM.length ? clp(sum(inM) / inM.length) : '—', 'con IVA')}
+        ${tile('Por preparar y despachar', miles(proc.length), `<a href="#/despachos">Ir a despachos</a>`)}
       </div>
       <div class="dash">
         <div>
-          <div class="postbox"><h2 class="hndle"><span>Ventas de los últimos 30 días</span><span class="act"><a href="#/analitica">Ver analítica</a></span></h2><div class="chart" id="c30"></div></div>
-          ${box('Últimos pedidos', `<table class="mini"><tbody>${ORDERS.slice(0, 7).map((o) => `<tr><td><a href="#/pedido/${o.id}"><b>#${o.id}</b> ${esc(custName(o.c))}</a><div class="muted small">${ago(o.t)} · ${otag(o)}</div></td><td>${pill(o.st)}</td><td class="num">${clp(o.total)}</td></tr>`).join('')}</tbody></table>`, '<a href="#/pedidos">Ver todos</a>', true)}
+          ${a30.n ? '<div class="postbox"><h2 class="hndle"><span>Ventas de los últimos 30 días</span><span class="act"><a href="#/analitica">Ver analítica</a></span></h2><div class="chart" id="c30"></div></div>' : box('Ventas de los últimos 30 días', emptyState('Todavía no hay ventas', 'El gráfico se llena con el primer pedido pagado, venga de la tienda web, de WhatsApp o del local.', '<a class="button" href="#/pedido/nuevo">Registrar una venta</a>', 'chart'))}
+          ${box('Últimos pedidos', ORDERS.length ? `<table class="mini"><tbody>${ORDERS.slice(0, 7).map((o) => `<tr><td><a href="#/pedido/${o.id}"><b>#${o.id}</b> ${esc(custName(o.c))}</a><div class="muted small">${ago(o.t)} · ${otag(o)}</div></td><td>${pill(o.st)}</td><td class="num">${clp(o.total)}</td></tr>`).join('')}</tbody></table>` : emptyState('Sin pedidos aún', 'Los pedidos de la tienda llegan solos al conectar Klap. Las ventas por WhatsApp o en el local se registran con "Nuevo pedido".', '', 'list'), ORDERS.length ? '<a href="#/pedidos">Ver todos</a>' : '', true)}
         </div>
         <div>
           ${box('Para hoy', `<ul class="tasks">${[
             [ORDERS.filter((o) => o.st === 'processing' && !o.prep).length, 'pedidos por preparar', '#/despachos'],
             [ORDERS.filter((o) => o.st === 'processing' && o.prep).length, 'listos para enviar o retirar', '#/despachos'],
-            [CARTS.filter((c) => c.st === 'pend').length, 'carritos abandonados por recuperar', '#/marketing?tab=carritos'],
-            [invRows().filter((x) => x.st === 'now').length, 'productos para reponer ya', '#/inventario'],
-            [REVIEWS.filter((r) => r.st === 'pend').length, 'reseñas por aprobar', '#/resenas'],
+            [pend.length, 'pedidos esperando pago', '#/pedidos?estado=pending'],
             [BOOK.filter((b) => b.day === sod(NOW) && b.st !== 'noshow').length, 'autos en el taller hoy', '#/taller'],
+            [REVIEWS.filter((r) => r.st === 'pend').length, 'reseñas por aprobar', '#/resenas'],
+            [CARTS.filter((c) => c.st === 'pend').length, 'carritos abandonados por recuperar', '#/marketing?tab=carritos'],
           ].map(([n, t, h]) => `<li><a href="${h}"><b>${n}</b><span>${t}</span><span aria-hidden="true" class="tasks__go">→</span></a></li>`).join('')}</ul>`, '', true)}
-          ${box('Taller hoy', (() => { const l = BOOK.filter((b) => b.day === sod(NOW)).sort((a, b) => a.start - b.start); return l.length ? `<table class="mini"><tbody>${l.map((b) => `<tr class="clickable" data-act="bk-ver" data-id="${b.id}"><td class="nw"><b>${hm(b.start)}</b></td><td>${esc(b.sv.n)}<div class="muted small">${esc(b.car)} · ${fmtPlate(b.plate)} · Box ${b.box}</div></td><td>${pillOf(BK_ST[b.st])}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:0;padding:16px 18px">Hoy no hay reservas.</p>'; })(), '<a href="#/taller">Agenda</a>', true)}
-          ${box('Estado de la tienda', `<ul class="glance">
-            <li><a href="#/pedidos?estado=processing"><strong>${plural(proc.length, 'pedido', 'pedidos')}</strong>en Procesando</a></li>
-            <li><a href="#/pedidos?estado=pending"><strong>${plural(pend.length, 'pedido', 'pedidos')}</strong>esperando pago</a></li>
-            <li><a href="#/productos?stock=bajo"><strong>${plural(low.length, 'producto', 'productos')}</strong>con pocas unidades</a></li>
-            <li><a href="#/productos?stock=agotado"><strong>${plural(out.length, 'producto', 'productos')}</strong>agotados</a></li></ul>`, '', true)}
-          ${box('Origen de las ventas · 30 días', bars(top.slice(0, 6), a30.sales), '<a href="#/analitica">Detalle</a>', true)}
+          ${box('Inventario', `<ul class="glance">
+            <li><a href="#/inventario?f=reponer"><strong>${plural(out.length, 'producto', 'productos')}</strong>agotados</a></li>
+            <li><a href="#/inventario?f=reponer"><strong>${plural(low.length, 'producto', 'productos')}</strong>con 1 o 2 unidades</a></li>
+            <li><a href="#/marketing?tab=catalogos"><strong>${plural(ferr, 'producto', 'productos')}</strong>con errores para anuncios</a></li>
+            <li><a href="#/productos"><strong>${plural(HEADS.length, 'producto', 'productos')}</strong>en el catálogo</a></li></ul>`, '<a href="#/inventario">Ver inventario</a>', true)}
+          ${top.length ? box('Origen de las ventas · 30 días', bars(top.slice(0, 6), a30.sales), '<a href="#/analitica">Detalle</a>', true) : ''}
           ${box('Conexiones', `<ul class="integ">${INTEG.map(([n, d, st, cls]) => `<li><div><b>${n}</b><div class="muted small">${d}</div></div><span class="st ${cls}">${st}</span></li>`).join('')}</ul>`, '<a href="#/ajustes">Ajustes</a>', true)}
         </div>
       </div>`;
   };
-  V.dash.after = () => { const a = agg(30); lineChart($('#c30'), { label: 'Ventas diarias de los últimos 30 días', days: a.daily.map((d) => d.d), cur: a.daily.map((d) => d.v), cnt: a.daily.map((d) => d.n), h: 220 }); };
+  V.dash.after = () => { if (!$('#c30')) return; const a = agg(30); lineChart($('#c30'), { label: 'Ventas diarias de los últimos 30 días', days: a.daily.map((d) => d.d), cur: a.daily.map((d) => d.v), cnt: a.daily.map((d) => d.n), h: 220 }); };
   const INTEG = [
     ['Bsale', 'Productos, precios, stock y boletas', 'Falta token', 'st-wait'],
     ['Klap', 'Pago con tarjetas, Google Pay y Apple Pay', 'Faltan credenciales', 'st-wait'],
@@ -492,15 +338,16 @@
     ['Google Analytics 4', 'Visitas, conversión y origen', 'Por conectar', 'st-off'],
     ['Meta (píxel y API de conversiones)', 'Eventos para anuncios', 'Por conectar', 'st-off'],
     ['Google Tag Manager', 'Contenedor actual de la tienda', 'Por conectar', 'st-off'],
-    ['Catálogos Meta y Google Merchant', 'Productos para anuncios de catálogo', 'Listo para activar', 'st-ok'],
+    ['Catálogos Meta y Google Merchant', 'Productos para anuncios de catálogo', 'Se activan al publicar', 'st-wait'],
   ];
 
   V.pedidos = (q) => {
+    if (!ORDERS.length) return `<div class="wrap-h"><h1>Pedidos</h1><a class="page-title-action" href="#/pedido/nuevo">Nuevo pedido</a></div>${emptyState('Aún no hay pedidos', 'Cuando la tienda esté conectada a Klap, cada compra pagada aparece aquí sola, con su boleta de Bsale y de dónde vino el cliente. Las ventas por WhatsApp, teléfono o en el local se registran a mano.', '<a class="button button-primary" href="#/pedido/nuevo">Registrar una venta</a>', 'list')}`;
     const st = q.get('estado') || '', s = (q.get('q') || '').trim(), src = q.get('origen') || '', mon = q.get('mes') || '', cid = +q.get('cliente') || 0;
     const page = Math.max(1, +q.get('pag') || 1), per = 20;
     const ns = deacc(s.toLowerCase());
     let list = ORDERS.filter((o) => (!src || o.src.k === src) && (!cid || o.c.id === cid) && (!mon || `${new Date(o.t).getFullYear()}-${p2(new Date(o.t).getMonth() + 1)}` === mon)
-      && (!ns || String(o.id).includes(ns) || deacc(`${custName(o.c)} ${o.c.email} ${o.c.comuna} ${o.doc ? o.doc.folio : ''}`.toLowerCase()).includes(ns)));
+      && (!ns || String(o.id).includes(ns) || deacc(`${custName(o.c)} ${o.c.email} ${o.c.comuna} ${(o.doc && o.doc.folio) || ''}`.toLowerCase()).includes(ns)));
     const counts = {}; list.forEach((o) => (counts[o.st] = (counts[o.st] || 0) + 1));
     if (st) list = list.filter((o) => o.st === st);
     const months = [...new Set(ORDERS.map((o) => { const d = new Date(o.t); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}`; }))];
@@ -510,7 +357,7 @@
     const tabs = [['', 'Todos', Object.values(counts).reduce((a, b) => a + b, 0)], ...['pending', 'processing', 'completed', 'cancelled', 'refunded', 'failed'].map((k) => [k, ST[k], counts[k] || 0])].filter(([k, , n]) => !k || n);
     const c = cid && CUST.find((x) => x.id === cid);
     return `
-      <div class="wrap-h"><h1>Pedidos</h1><button class="page-title-action" data-act="nuevo-pedido">Añadir pedido</button><button class="button" data-act="csv-pedidos">Exportar a Excel (${miles(list.length)})</button></div>
+      <div class="wrap-h"><h1>Pedidos</h1><a class="page-title-action" href="#/pedido/nuevo">Nuevo pedido</a><button class="button" data-act="csv-pedidos">Exportar a Excel (${miles(list.length)})</button></div>
       ${c ? `<div class="notice"><p>Mostrando solo los pedidos de <b>${esc(custName(c))}</b>. <a href="${href(base, q, { cliente: '', pag: '' })}">Ver todos</a></p></div>` : ''}
       <ul class="subsubsub">${tabs.map(([k, l, n]) => `<li><a href="${href(base, q, { estado: k, pag: '' })}" class="${st === k ? 'current' : ''}">${l} <span class="n">(${miles(n)})</span></a></li>`).join('')}</ul>
       <form class="tablenav" data-form="pedidos">
@@ -529,7 +376,7 @@
           <td><a class="row-title" href="#/pedido/${o.id}">#${o.id} ${esc(custName(o.c))}</a>${o.cnote ? ' <span title="Tiene nota del cliente" aria-label="Tiene nota del cliente">💬</span>' : ''}<div class="muted small">${esc(o.c.comuna)}<span class="show-m"> · ${ago(o.t)}</span></div></td>
           <td class="hide-m nw"><time datetime="${new Date(o.t).toISOString()}" title="${fFull(o.t)}">${ago(o.t)}</time></td>
           <td>${pill(o.st)}</td>
-          <td class="hide-m nw">${o.doc ? `${o.doc.type.split(' ')[0]} N° ${o.doc.folio}` : '<span class="muted">—</span>'}</td>
+          <td class="hide-m nw">${o.doc ? `${o.doc.type.split(' ')[0]}${o.doc.folio ? ` N° ${o.doc.folio}` : '<div class="muted small">folio de Bsale</div>'}` : '<span class="muted">—</span>'}</td>
           <td class="hide-m">${esc(o.ship.m.replace(' a domicilio', '').replace(' — Quinta Normal', ''))}<div class="muted small">${o.ship.cost ? clp(o.ship.cost) : 'Gratis'}</div></td>
           <td class="hide-m">${otag(o)}</td>
           <td class="num nw">${clp(o.total)}<div class="muted small">${esc(o.pay)}</div></td></tr>`).join('') : '<tr class="no-items"><td colspan="8">No se encontraron pedidos.</td></tr>'}</tbody>
@@ -545,13 +392,13 @@
     const c = o.c, paidNote = o.notes.find((n) => n.txt.startsWith('Klap aprobó'));
     const notes = [...o.notes].reverse();
     return `
-      <div class="wrap-h no-print"><h1>Editar pedido</h1><button class="button" data-act="imprimir">Imprimir pedido</button><a class="button" href="https://wa.me/${c.phone.replace(/\D/g, '')}" target="_blank" rel="noopener" data-act="wa-cliente">WhatsApp al cliente</a></div>
+      <div class="wrap-h no-print"><h1>Editar pedido</h1><button class="button" data-act="imprimir">Imprimir pedido</button><a class="button" href="https://wa.me/${c.phone.replace(/\D/g, '')}" target="_blank" rel="noopener" data-act="wa-cliente" data-id="${c.id}">WhatsApp al cliente</a></div>
       <div class="print-only print-head"><img src="/assets/logo.png" alt="" width="40" height="41"><div><b>Reycar Store · Pedido #${o.id}</b><br>${fFull(o.t)} · ${esc(o.ship.m)}</div></div>
       <div class="cols">
         <div>
           <div class="postbox"><div class="inside">
             <h2 style="font-size:24px;font-weight:800;font-stretch:88%;letter-spacing:-.01em;margin:0 0 4px">Detalles del pedido #${o.id}</h2>
-            <p class="muted" style="margin:0 0 16px">${o.auth === 'LOCAL' ? 'Pagado en el local.' : o.auth ? `Pago con Klap (${esc(o.pay)}). Pagado el ${fFull(paidNote ? paidNote.t : o.t)}.` : o.doc ? `Pagado por ${esc(o.pay.toLowerCase())}.` : o.st === 'failed' ? 'Pago rechazado por Klap.' : o.st === 'on-hold' ? 'Esperando la transferencia.' : o.st === 'pending' && o.src === MANUAL ? 'Link de pago enviado; aún sin pagar.' : 'Aún sin pago.'} ${o.doc ? `${o.doc.type} N° ${o.doc.folio}.` : ''}${o.src === MANUAL ? ' Venta creada desde el panel.' : ''}</p>
+            <p class="muted" style="margin:0 0 16px">${o.auth === 'LOCAL' ? 'Pagado en el local.' : o.auth ? `Pago con Klap (${esc(o.pay)}). Pagado el ${fFull(paidNote ? paidNote.t : o.t)}.` : o.doc ? `Pagado por ${esc(o.pay.toLowerCase())}.` : o.st === 'failed' ? 'Pago rechazado por Klap.' : o.st === 'on-hold' ? 'Esperando la transferencia.' : o.st === 'pending' && o.src === MANUAL ? 'Link de pago enviado; aún sin pagar.' : 'Aún sin pago.'} ${o.doc ? `${docTxt(o.doc)}.` : ''}${o.src === MANUAL ? ' Venta creada desde el panel.' : ''}</p>
             <div class="grid3">
               <div>
                 <h3 style="font-size:14px;margin:0 0 10px">General</h3>
@@ -593,9 +440,9 @@
         </div>
         <div>
           <div class="postbox"><h2 class="hndle">Acciones del pedido</h2><div class="inside">
-            <select id="oact" style="width:100%"><option value="">Elige una acción…</option><option>Enviar detalles del pedido al cliente</option><option>Reenviar ${o.fac ? 'factura' : 'boleta'} al cliente</option><option>Generar envío en Sendu</option><option>Emitir documento en Bsale de nuevo</option></select>
-          </div><div class="major-publishing-actions"><button class="button-link-delete" data-act="papelera">Mover a la papelera</button><button class="button button-primary" data-act="guardar-pedido" data-id="${o.id}">Actualizar</button></div></div>
-          ${box('Documento tributario', o.doc ? `<dl class="kv"><dt>Tipo</dt><dd>${o.doc.type}</dd><dt>Folio</dt><dd>N° ${o.doc.folio}</dd>${(o.ncs || []).map((n) => `<dt>Nota de crédito</dt><dd>N° ${n.f} · ${clp(n.a)}</dd>`).join('')}<dt>Emitido</dt><dd>${o.src === MANUAL ? 'Desde el panel, al registrar el pago' : 'Automático, al aprobarse el pago'}</dd><dt>Stock</dt><dd>Descontado en Bsale</dd></dl><p style="margin:12px 0 0"><button class="button" data-act="pdf">Ver PDF en Bsale</button></p>` : `<p class="muted" style="margin:0">${o.st === 'on-hold' ? 'Se emite en Bsale cuando confirmes la transferencia (estado Procesando).' : 'Se emite automáticamente en Bsale cuando se paga.'}</p>`)}
+            <select id="oact" style="width:100%" aria-label="Acción del pedido"><option value="">Elige una acción…</option><option>Enviar detalles del pedido al cliente</option><option>Reenviar ${o.fac ? 'factura' : 'boleta'} al cliente</option><option>Generar envío en Sendu</option><option>Emitir documento en Bsale de nuevo</option></select>
+          </div><div class="major-publishing-actions"><button class="button-link-delete" data-act="papelera" data-id="${o.id}">Mover a la papelera</button><button class="button button-primary" data-act="guardar-pedido" data-id="${o.id}">Actualizar</button></div></div>
+          ${box('Documento tributario', o.doc ? `<dl class="kv"><dt>Tipo</dt><dd>${o.doc.type}</dd><dt>Folio</dt><dd>${o.doc.folio ? `N° ${o.doc.folio}` : 'Lo asigna Bsale al emitir'}</dd>${(o.ncs || []).map((n) => `<dt>Nota de crédito</dt><dd>${n.f ? `N° ${n.f} · ` : ''}${clp(n.a)}</dd>`).join('')}<dt>Emitido</dt><dd>${o.src === MANUAL ? 'Desde el panel, al registrar el pago' : 'Automático, al aprobarse el pago'}</dd><dt>Stock</dt><dd>Descontado en Bsale</dd></dl><p style="margin:12px 0 0"><button class="button" data-act="pdf">Ver PDF en Bsale</button></p>` : `<p class="muted" style="margin:0">${o.st === 'on-hold' ? 'Se emite en Bsale cuando confirmes la transferencia (estado Procesando).' : 'Se emite automáticamente en Bsale cuando se paga.'}</p>`)}
           ${box('De dónde vino', `<dl class="kv"><dt>Origen</dt><dd>${otag(o)}</dd><dt>Tipo de origen</dt><dd>${o.src.type}</dd><dt>Fuente / medio</dt><dd>${esc(o.src.src)} / ${esc(o.src.med)}</dd>${o.camp ? `<dt>Campaña</dt><dd>${esc(o.camp)}</dd>` : ''}<dt>Página de entrada</dt><dd>${esc(o.landing)}</dd><dt>Dispositivo</dt><dd>${o.dev}</dd><dt>Páginas vistas</dt><dd>${o.pages}</dd></dl>`)}
           ${box('Historial del cliente', (() => { const all = ORDERS.filter((x) => x.c === c && PAID.has(x.st)); return `<dl class="kv"><dt>Pedidos pagados</dt><dd>${all.length}</dd><dt>Total gastado</dt><dd>${clp(all.reduce((s, x) => s + x.total, 0))}</dd><dt>Ticket promedio</dt><dd>${clp(all.length ? all.reduce((s, x) => s + x.total, 0) / all.length : 0)}</dd></dl>`; })())}
           ${box('Notas del pedido', `<ul class="notes" id="notes">${notes.map(noteHtml).join('')}</ul>
@@ -700,7 +547,8 @@
   V.clientes = (q) => {
     const s = deacc((q.get('q') || '').trim().toLowerCase()), sort = q.get('orden') || 'gasto';
     const page = Math.max(1, +q.get('pag') || 1), per = 20, base = '#/clientes';
-    const m = new Map();
+    if (!CUST.length) return `<div class="wrap-h"><h1>Clientes</h1></div>${emptyState('Aún no hay clientes', 'Cada persona que compra en la tienda, por WhatsApp o reserva en el taller queda aquí con su historial, sus permisos de contacto y su ficha.', '<a class="button" href="#/pedido/nuevo">Registrar una venta</a>', 'user')}`;
+    const m = new Map(CUST.map((c) => [c, { c, n: 0, v: 0, last: c.since || 0 }]));
     ORDERS.forEach((o) => { const x = m.get(o.c) || { c: o.c, n: 0, v: 0, last: 0 }; if (PAID.has(o.st)) { x.n++; x.v += o.total; } x.last = Math.max(x.last, o.t); m.set(o.c, x); });
     const sg = q.get('seg') || '';
     let list = [...m.values()].filter((x) => !s || deacc(`${custName(x.c)} ${x.c.email} ${x.c.comuna} ${x.c.emp ? x.c.emp.name : ''} ${x.c.tags.join(' ')}`.toLowerCase()).includes(s));
@@ -712,7 +560,7 @@
     const rep = [...m.values()].filter((x) => x.n > 1).length;
     return `
       <div class="wrap-h"><h1>Clientes</h1><button class="button" data-act="csv-clientes">Exportar a Excel</button></div>
-      <div class="tiles">${tile('Clientes con pedidos', miles(m.size), 'últimos 180 días')}${tile('Compraron más de una vez', miles(rep), `${Math.round((rep / m.size) * 100)} % del total`)}${tile('Gasto promedio por cliente', clp([...m.values()].reduce((a, x) => a + x.v, 0) / m.size), 'pedidos pagados')}${tile('Con factura', miles([...m.values()].filter((x) => x.c.emp).length), 'empresas con RUT y giro')}</div>
+      <div class="tiles">${tile('Clientes', miles(m.size), 'con pedidos o reservas')}${tile('Compraron más de una vez', miles(rep), `${Math.round((rep / m.size) * 100)} % del total`)}${tile('Gasto promedio por cliente', clp([...m.values()].reduce((a, x) => a + x.v, 0) / m.size), 'pedidos pagados, con IVA')}${tile('Con factura', miles([...m.values()].filter((x) => x.c.emp).length), 'empresas con RUT y giro')}</div>
       <ul class="subsubsub">${[['', 'Todos', Object.values(segCnt).reduce((a, b) => a + b, 0)], ...Object.entries(SEGS).filter(([k]) => segCnt[k]).map(([k, [l]]) => [k, l, segCnt[k]])].map(([k, l, n]) => `<li><a href="${href(base, q, { seg: k, pag: '' })}" class="${sg === k ? 'current' : ''}">${l} <span class="n">(${n})</span></a></li>`).join('')}</ul>
       <form class="tablenav" data-form="clientes">
         <select name="orden" aria-label="Ordenar"><option value="gasto">Mayor gasto</option><option value="pedidos"${sort === 'pedidos' ? ' selected' : ''}>Más pedidos</option><option value="reciente"${sort === 'reciente' ? ' selected' : ''}>Compra más reciente</option></select><button class="button" type="submit">Ordenar</button>
@@ -727,6 +575,7 @@
   V.analitica = (q) => {
     const tab = q.get('tab') || 'resumen';
     if (tab !== 'resumen' && AN[tab]) return AN[tab](q);
+    if (!ORDERS.some((o) => PAID.has(o.st) || o.st === 'refunded')) return `<div class="wrap-h"><h1>Analítica</h1></div>${anNav('resumen')}${emptyState('Todavía no hay ventas para analizar', 'Aquí verás ventas por día, por origen (anuncios, Google, Instagram, WhatsApp…), por categoría y los productos más vendidos, comparados con el período anterior.', '<a class="button" href="#/pedido/nuevo">Registrar una venta</a>', 'chart')}`;
     const r = [7, 30, 90].includes(+q.get('r')) ? +q.get('r') : 30, view = q.get('ver') === 'tabla' ? 'tabla' : 'grafico';
     const a = agg(r), b = agg(r, r);
     const bySrc = groupBy(a.list, (o) => o.src.lbl), byType = groupBy(a.list, (o) => o.src.type);
@@ -765,7 +614,7 @@
     const tab = q.get('tab') || 'redir';
     const tabs = [['redir', 'Redirecciones'], ['sitemap', 'Mapa del sitio'], ['titulos', 'Títulos y metas']];
     let body = '';
-    if (tab === 'redir') body = `<p><button class="button" data-act="nueva-redir">Añadir nueva</button></p><table class="wp-list-table"><thead><tr><th>Dirección antigua</th><th>Lleva a</th><th>Tipo</th><th class="hide-m">Visitas (30 días)</th></tr></thead><tbody>${REDIR.map(([a, b, t], i) => `<tr><td><code>${esc(a)}</code></td><td><code>${esc(b)}</code></td><td>${t === 301 ? '301 permanente' : '302 temporal'}</td><td class="hide-m">${[412, 37, 655, 128, 240, 96, 21, 64, 88, 31, 19][i]}</td></tr>`).join('')}</tbody></table><p class="muted small">Las direcciones de productos se mantienen iguales que en el sitio actual (/producto/nombre), así no se pierde el posicionamiento ni se rompen los anuncios.</p>`;
+    if (tab === 'redir') body = `<p><button class="button" data-act="nueva-redir">Añadir nueva</button></p><table class="wp-list-table"><thead><tr><th>Dirección antigua</th><th>Lleva a</th><th>Tipo</th></tr></thead><tbody>${REDIR.map(([a, b, t]) => `<tr><td><code>${esc(a)}</code></td><td><code>${esc(b)}</code></td><td>${t === 301 ? '301 permanente' : '302 temporal'}</td></tr>`).join('')}</tbody></table><p class="muted small">Las direcciones de productos se mantienen iguales que en el sitio actual (/producto/nombre), así no se pierde el posicionamiento ni se rompen los anuncios.</p>`;
     if (tab === 'sitemap') body = `<table class="form-table"><tbody><tr><th>Mapa del sitio</th><td><a href="/sitemap.xml" target="_blank" rel="noopener">/sitemap.xml</a><p class="description">Se genera solo con cada cambio de catálogo: secciones, categorías, subcategorías y un enlace por producto.</p></td></tr><tr><th>Google Search Console</th><td><span class="st-wait">Por conectar</span><p class="description">Se envía el mapa del sitio y se ven aquí las búsquedas que traen visitas.</p></td></tr><tr><th>Productos agotados</th><td><label class="switch"><input type="checkbox" checked> Mantener su página visible con "Agotado"</label><p class="description">Recomendado: conserva el posicionamiento y los anuncios mientras vuelve el stock.</p></td></tr></tbody></table>`;
     if (tab === 'titulos') body = `<table class="form-table"><tbody><tr><th><label for="t1">Título de productos</label></th><td><input type="text" id="t1" value="%nombre% - Reycars Store"><p class="description">Igual que hoy en Rank Math. Cada producto puede tener el suyo.</p></td></tr><tr><th><label for="t2">Título de categorías</label></th><td><input type="text" id="t2" value="%categoria% - Reycars Store"></td></tr><tr><th><label for="t3">Imagen al compartir</label></th><td>Foto principal del producto<p class="description">Es la que muestran WhatsApp, Facebook e Instagram al compartir un enlace.</p></td></tr></tbody></table><p><button class="button button-primary" data-act="guardar">Guardar cambios</button></p>`;
     return `<div class="wrap-h"><h1>SEO</h1></div><nav class="nav-tab-wrapper">${tabs.map(([k, l]) => `<a class="nav-tab${k === tab ? ' nav-tab-active' : ''}" href="#/seo?tab=${k}">${l}</a>`).join('')}</nav>${body}`;
@@ -774,7 +623,7 @@
   V.usuarios = () => `
     <div class="wrap-h"><h1>Usuarios</h1><button class="page-title-action" data-act="nuevo-usuario">Añadir nuevo</button></div>
     <table class="wp-list-table"><thead><tr><th>Nombre de usuario</th><th>Nombre</th><th class="hide-m">Correo</th><th>Perfil</th><th class="hide-m">Último acceso</th></tr></thead><tbody>
-      ${[['guillermo', 'Guillermo Araya', 'Administrador', 2 * HOUR], ['desarrollo', 'Equipo de desarrollo', 'Administrador', 26 * HOUR], ['ventas', 'Ventas y despacho', 'Gestor de la tienda', 40 * MIN], ['taller', 'Bodega y taller', 'Despacho y taller', 3 * HOUR]].map(([u, n, r, t]) => `<tr><td><span class="av" style="margin-right:10px;width:30px;height:30px;font-size:13px">${u[0].toUpperCase()}</span><a class="row-title" href="#/usuarios">${u}</a></td><td>${n}</td><td class="hide-m">${u}@ejemplo.cl</td><td>${r}</td><td class="hide-m">${ago(NOW - t)}</td></tr>`).join('')}
+      <tr><td><span class="av" style="margin-right:10px;width:30px;height:30px;font-size:13px">G</span><a class="row-title" href="#/usuarios">guillermo</a></td><td>Guillermo Araya</td><td class="hide-m"><span class="muted">Se define al activar el acceso</span></td><td>Administrador</td><td class="hide-m">Sesión actual</td></tr>
     </tbody></table>
     <div class="dash" style="margin-top:20px">
       ${box('Qué puede hacer cada perfil', `<div style="overflow-x:auto"><table class="mini perms"><thead><tr><td><b>Área</b></td><td class="num"><b>Administrador</b></td><td class="num"><b>Gestor de la tienda</b></td><td class="num"><b>Despacho y taller</b></td></tr></thead><tbody>${PERMS.map(([a, ...r], i) => `<tr><td>${a}</td>${r.map((v, j) => `<td class="num"><input type="checkbox"${v ? ' checked' : ''}${j === 0 ? ' disabled' : ''} aria-label="${a}: ${['Administrador', 'Gestor de la tienda', 'Despacho y taller'][j]}"></td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="major-publishing-actions"><span class="muted small">El administrador siempre tiene todo.</span><button class="button" data-act="guardar">Guardar permisos</button></div>`, '', true)}
@@ -784,7 +633,8 @@
   V.ajustes = (q) => {
     const tab = q.get('tab') || 'general';
     const tabs = [['general', 'General'], ['pagos', 'Pagos (Klap)'], ['envios', 'Envíos (Sendu)'], ['bsale', 'Bsale'], ['seguimiento', 'Seguimiento y anuncios'], ['correos', 'Correos al cliente'], ['privacidad', 'Privacidad y datos']];
-    const row = (l, inner, d = '') => `<tr><th>${l}</th><td>${inner}${d ? `<p class="description">${d}</p>` : ''}</td></tr>`;
+    // los campos sin etiqueta propia toman el nombre de la fila (para lectores de pantalla)
+    const row = (l, inner, d = '') => { const nm = esc(String(l).replace(/<[^>]+>/g, '')); return `<tr><th>${l}</th><td>${inner.replace(/<(select|input)(?![^>]*type="(?:checkbox|radio)")(?![^>]*\b(?:id|aria-label)=)/g, `<$1 aria-label="${nm}"`)}${d ? `<p class="description">${d}</p>` : ''}</td></tr>`; };
     const secret = (id, ph) => `<input type="password" id="${id}" placeholder="${ph}" autocomplete="off">`;
     const B = {
       general: row('Nombre de la tienda', '<input type="text" value="Reycar Store">') + row('Dirección', '<input type="text" value="Quinta Normal, Región Metropolitana">', 'Aparece en el pie de página y en la opción de retiro en tienda.') + row('WhatsApp de atención', '<input type="text" value="+56 9 6355 5437">') + row('Correo de avisos de pedidos', '<input type="text" placeholder="ventas@…">', 'Recibe un aviso por cada pedido pagado.'),
@@ -831,30 +681,30 @@
 
   /* ───────── inventario: cuánto alcanza el stock ───────── */
   function invRows() {
-    const sold = new Map();
-    agg(30).list.forEach((o) => o.lines.forEach((l) => sold.set(l.p, (sold.get(l.p) || 0) + l.q)));
+    const sold = new Map(), sales = agg(30).list;
+    sales.forEach((o) => o.lines.forEach((l) => sold.set(l.p, (sold.get(l.p) || 0) + l.q)));
     return ALL.filter((p) => p.p > 0 && !['cursos', 'servicios'].includes(p.g)).map((p) => {
       const u = sold.get(p) || 0, per = u / 30, days = p.stk == null || !per ? Infinity : p.stk / per;
-      const st = p.stk === 0 ? 'out' : days <= 14 ? 'now' : days <= 30 ? 'soon' : !u && p.stk > 5 ? 'idle' : 'ok';
+      const st = p.stk === 0 ? 'out' : p.stk == null ? 'free' : per && days <= 14 ? 'now' : per && days <= 30 ? 'soon' : p.stk <= 2 ? 'low' : 'ok';
       return { p, u, days, st, sug: per ? Math.max(0, Math.ceil(per * 45 - (p.stk || 0))) : 0 };
     });
   }
-  const INV_ST = { out: ['Agotado', 'failed'], now: ['Reponer ya', 'failed'], soon: ['Reponer pronto', 'processing'], ok: ['Con stock', 'completed'], idle: ['Sin ventas en 30 días', 'cancelled'] };
+  const INV_ST = { out: ['Agotado', 'failed'], now: ['Reponer ya', 'failed'], soon: ['Reponer pronto', 'processing'], low: ['Stock bajo', 'processing'], ok: ['Con stock', 'completed'], free: ['Sin control de stock', 'cancelled'] };
   V.inventario = (q) => {
     const f = q.get('f') || 'reponer', page = Math.max(1, +q.get('pag') || 1), per = 25, base = '#/inventario';
-    const all = invRows(), cnt = (k) => all.filter((x) => x.st === k).length;
-    let list = f === 'reponer' ? all.filter((x) => ['out', 'now', 'soon'].includes(x.st)) : f === 'idle' ? all.filter((x) => x.st === 'idle') : all;
-    list.sort((a, b) => a.days - b.days || b.u - a.u || (a.p.stk ?? 99) - (b.p.stk ?? 99));
+    const all = invRows(), cnt = (...k) => all.filter((x) => k.includes(x.st)).length, hasSales = all.some((x) => x.u);
+    let list = f === 'reponer' ? all.filter((x) => ['out', 'now', 'soon', 'low'].includes(x.st)) : all;
+    list.sort((a, b) => a.days - b.days || (a.p.stk ?? 99) - (b.p.stk ?? 99) || b.u - a.u);
     V.inventario.last = list;
     const rows = list.slice((page - 1) * per, page * per);
     return `
       <div class="wrap-h"><h1>Inventario y reposición</h1><button class="button" data-act="csv-inventario">Exportar para el proveedor</button></div>
-      <div class="notice"><p>El stock es el real de Bsale. Con las ventas de los últimos 30 días se calcula para cuántos días alcanza y cuánto pedir para cubrir 45 días. <span class="muted">(Las ventas de esta maqueta son de ejemplo.)</span></p></div>
-      <div class="tiles">${tile('Reponer ya', miles(cnt('now')), 'alcanza para 14 días o menos')}${tile('Reponer pronto', miles(cnt('soon')), 'alcanza para 15 a 30 días')}${tile('Agotados', miles(cnt('out')), 'sin stock en Bsale')}${tile('Sin ventas en 30 días', miles(cnt('idle')), 'stock detenido')}</div>
-      <ul class="subsubsub">${[['reponer', 'Por reponer', cnt('out') + cnt('now') + cnt('soon')], ['idle', 'Sin ventas', cnt('idle')], ['todos', 'Todos', all.length]].map(([k, l, n]) => `<li><a href="${href(base, q, { f: k, pag: '' })}" class="${f === k ? 'current' : ''}">${l} <span class="n">(${miles(n)})</span></a></li>`).join('')}</ul>
+      <div class="notice"><p>Stock real de cada producto y formato. ${hasSales ? 'Con las ventas de los últimos 30 días se calcula para cuántos días alcanza y cuánto pedir para cubrir 45 días.' : 'Cuando haya ventas, aquí también se calcula para cuántos días alcanza el stock y cuánto conviene pedir.'}</p></div>
+      <div class="tiles">${tile('Agotados', miles(cnt('out')), 'sin stock')}${tile('Stock bajo', miles(cnt('low', 'now', 'soon')), hasSales ? 'por ventas o con 1–2 unidades' : 'con 1 o 2 unidades')}${tile('Con stock', miles(cnt('ok')), 'sin problemas')}${tile('Sin control de stock', miles(cnt('free')), 'se venden sin límite')}</div>
+      <ul class="subsubsub">${[['reponer', 'Por reponer', cnt('out', 'now', 'soon', 'low')], ['todos', 'Todos', all.length]].map(([k, l, n]) => `<li><a href="${href(base, q, { f: k, pag: '' })}" class="${f === k ? 'current' : ''}">${l} <span class="n">(${miles(n)})</span></a></li>`).join('')}</ul>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
-      <table class="wp-list-table"><thead><tr><th style="width:60px"><span class="screen-reader-text">Foto</span></th><th>Producto</th><th class="hide-m">SKU</th><th class="num">Stock</th><th class="num hide-m">Vendidos 30 días</th><th class="num">Alcanza para</th><th class="hide-m">Estado</th><th class="num hide-m">Sugerido pedir</th></tr></thead>
-      <tbody>${rows.length ? rows.map((x) => `<tr><td><img class="thumb" src="${img(x.p)}" alt="" loading="lazy"></td><td><a class="row-title" href="#/producto/${x.p.fam || x.p.id}">${esc(x.p.n)}</a><div class="muted small">${esc(x.p.b || '')}</div></td><td class="hide-m">${esc(x.p.sku || '—')}</td><td class="num">${x.p.stk == null ? '—' : x.p.stk}</td><td class="num hide-m">${x.u}</td><td class="num nw">${x.days === Infinity ? '<span class="muted">—</span>' : plural(Math.max(0, Math.round(x.days)), 'día', 'días')}</td><td class="hide-m">${pillOf(INV_ST[x.st])}</td><td class="num hide-m">${x.sug ? `<b>${x.sug}</b>` : '—'}</td></tr>`).join('') : '<tr class="no-items"><td colspan="8">Nada por reponer.</td></tr>'}</tbody></table>
+      <table class="wp-list-table"><thead><tr><th style="width:60px"><span class="screen-reader-text">Foto</span></th><th>Producto</th><th class="hide-m">SKU</th><th class="num">Stock</th>${hasSales ? '<th class="num hide-m">Vendidos 30 días</th><th class="num">Alcanza para</th>' : ''}<th class="hide-m">Estado</th>${hasSales ? '<th class="num hide-m">Sugerido pedir</th>' : ''}</tr></thead>
+      <tbody>${rows.length ? rows.map((x) => `<tr><td><img class="thumb" src="${img(x.p)}" alt="" loading="lazy"></td><td><a class="row-title" href="#/producto/${x.p.fam || x.p.id}">${esc(x.p.n)}</a><div class="muted small">${esc(x.p.b || '')}<span class="show-m"> · ${INV_ST[x.st][0]}</span></div></td><td class="hide-m">${esc(x.p.sku || '—')}</td><td class="num">${x.p.stk == null ? '—' : x.p.stk}</td>${hasSales ? `<td class="num hide-m">${x.u}</td><td class="num nw">${x.days === Infinity ? '<span class="muted">—</span>' : plural(Math.max(0, Math.round(x.days)), 'día', 'días')}</td>` : ''}<td class="hide-m">${pillOf(INV_ST[x.st])}</td>${hasSales ? `<td class="num hide-m">${x.sug ? `<b>${x.sug}</b>` : '—'}</td>` : ''}</tr>`).join('') : '<tr class="no-items"><td colspan="8">Nada por reponer.</td></tr>'}</tbody></table>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>`;
   };
   const fmtOf = (v, p) => (v.n.match(/\d+(?:[.,]\d+)?\s?(?:ml|cc|l|lt|lts|litros?|gr?|kg|galón|gal)\b/i) || [v === p ? 'Principal' : 'Formato'])[0];
@@ -875,43 +725,33 @@
   const x1 = (n) => `${n.toFixed(1).replace('.', ',')}×`;
   const MK = {};
   MK.anuncios = (q) => {
-    const r = rangeOf(q);
-    const camps = (x) => groupBy(x.list.filter((o) => o.src.cls === 'ads' && o.camp), (o) => o.camp).map((g) => {
-      const k = CAMP.get(g.l) || { roas: 3, cpc: 250 }, spend = g.v / k.roas;
-      return { ...g, plat: x.list.find((o) => o.camp === g.l).src.lbl, spend, clicks: Math.round(spend / k.cpc), roas: k.roas };
-    });
-    const sum = (rs) => rs.reduce((s, x) => ({ spend: s.spend + x.spend, v: s.v + x.v, n: s.n + x.n, clicks: s.clicks + x.clicks }), { spend: 0, v: 0, n: 0, clicks: 0 });
-    const a = agg(r), cur = camps(a), T = sum(cur), P = sum(camps(agg(r, r)));
-    const plat = (name) => sum(cur.filter((x) => x.plat === name));
-    const m = plat('Meta Ads'), g = plat('Google Ads');
+    const r = rangeOf(q), a = agg(r), ads = a.list.filter((o) => o.src.cls === 'ads');
+    const byCamp = groupBy(ads, (o) => `${o.src.lbl}|${o.camp || 'Sin campaña'}`);
     return `
-      <div class="tiles">${tile('Inversión en anuncios', clp(T.spend), delta(T.spend, P.spend))}${tile('Ventas desde anuncios', clp(T.v), delta(T.v, P.v))}${tile('Retorno (ROAS)', T.spend ? x1(T.v / T.spend) : '—', T.spend && P.spend ? delta(T.v / T.spend, P.v / P.spend) : '')}${tile('Costo por pedido', clp(T.n ? T.spend / T.n : 0), delta(T.n ? T.spend / T.n : 0, P.n ? P.spend / P.n : 0))}</div>
-      <div class="dash">
-        ${box('Retorno por campaña', bars(cur.map((x) => ({ ...x, v: x.roas })).sort((a, b) => b.v - a.v), 0, { fmt: (x) => `${x1(x.v)}<small>${esc(x.plat.replace(' Ads', ''))}</small>`, tip: (x) => `<b>${esc(x.l)}</b><br>Inversión ${clp(x.spend)} · Ventas ${clp(x.spend * x.v)}<br>Por cada $1 invertido vuelven ${clp(x.v)}` }), 'ventas ÷ inversión', true)}
-        ${box('Por plataforma', `<table class="mini"><thead><tr><td><b>Plataforma</b></td><td class="num"><b>Inversión</b></td><td class="num"><b>Ventas</b></td><td class="num"><b>ROAS</b></td></tr></thead><tbody>${[['Meta Ads', m], ['Google Ads', g]].map(([n, x]) => `<tr><td>${n}</td><td class="num">${clp(x.spend)}</td><td class="num">${clp(x.v)}</td><td class="num"><b>${x.spend ? x1(x.v / x.spend) : '—'}</b></td></tr>`).join('')}</tbody></table><p class="muted small" style="padding:0 18px 4px">Un ROAS de 4× significa que cada $1.000 en anuncios trajo $4.000 en ventas. Se cuentan solo pedidos pagados.</p>`, '', true)}
-      </div>
-      ${box('Campañas', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Campaña</b></td><td class="num"><b>Inversión</b></td><td class="num hide-m"><b>Clics</b></td><td class="num"><b>Pedidos</b></td><td class="num"><b>Ventas</b></td><td class="num"><b>ROAS</b></td><td class="num hide-m"><b>Costo por pedido</b></td></tr></thead><tbody>${cur.sort((a, b) => b.v - a.v).map((x) => `<tr><td>${esc(x.l)}<div class="muted small">${x.plat}</div></td><td class="num">${clp(x.spend)}</td><td class="num hide-m">${miles(x.clicks)}</td><td class="num">${x.n}</td><td class="num">${clp(x.v)}</td><td class="num"><b>${x1(x.roas)}</b></td><td class="num hide-m">${clp(x.spend / x.n)}</td></tr>`).join('') || '<tr><td class="muted">Sin ventas desde anuncios en el período.</td></tr>'}</tbody></table></div>`, `${fDate(a.daily[0].d)} – ${fDate(a.daily[a.daily.length - 1].d)}`, true)}
-      <div class="notice"><p><b>En la versión real</b> la inversión y los clics llegan solos desde Meta Ads y Google Ads, y las ventas son los pedidos pagados con su campaña (UTM). Así el retorno se ve con las ventas reales, no con las que estima cada plataforma.</p></div>`;
+      ${emptyState('Conecta Meta Ads y Google Ads', 'Con las cuentas conectadas, aquí ves cuánto se invirtió en cada campaña, cuántos pedidos pagados trajo y el retorno (ROAS) calculado con las ventas reales de la tienda, no con lo que estima cada plataforma.', '<a class="button button-primary" href="#/ajustes?tab=seguimiento">Ir a Seguimiento y anuncios</a>', 'link')}
+      ${byCamp.length ? box('Pedidos que llegaron desde anuncios', `<table class="mini"><tbody>${byCamp.map((x) => { const [pl, c] = x.l.split('|'); return `<tr><td>${esc(c)}<div class="muted small">${esc(pl)}</div></td><td class="num">${plural(x.n, 'pedido', 'pedidos')}</td><td class="num">${clp(x.v)}</td></tr>`; }).join('')}</tbody></table>`, 'según UTM', true) : ''}`;
   };
   MK.cupones = () => {
-    const act = COUPONS.filter((c) => cpState(c)[0] === 'Activo');
+    const act = COUPONS.filter((c) => cpState(c)[0] === 'Activo'), withCp = ORDERS.filter((o) => o.cpCode && PAID.has(o.st));
+    const best = COUPONS.slice().sort((a, b) => b.uses - a.uses)[0];
     return `
-      <div class="tiles">${tile('Cupones activos', miles(act.length), `de ${COUPONS.length} creados`)}${tile('Usos totales', miles(COUPONS.reduce((s, c) => s + c.uses, 0)), 'pedidos pagados con cupón')}${tile('Ventas con cupón', clp(COUPONS.reduce((s, c) => s + c.uses * 52000, 0)), 'aproximado')}${tile('Más usado', esc(COUPONS.slice().sort((a, b) => b.uses - a.uses)[0].code), 'desde que se creó')}</div>
-      <table class="wp-list-table"><thead><tr><th>Código</th><th>Descuento</th><th class="hide-m">Aplica a</th><th class="hide-m">Compra mínima</th><th class="num">Usos</th><th class="hide-m">Vigencia</th><th>Estado</th></tr></thead><tbody>
+      <div class="tiles">${tile('Cupones activos', miles(act.length), `de ${plural(COUPONS.length, 'creado', 'creados')}`)}${tile('Usos', miles(COUPONS.reduce((s, c) => s + c.uses, 0)), 'pedidos con cupón')}${tile('Ventas con cupón', clp(withCp.reduce((s, o) => s + o.total, 0)), 'pedidos pagados')}${tile('Más usado', best && best.uses ? esc(best.code) : '—', best && best.uses ? plural(best.uses, 'uso', 'usos') : 'aún sin usos')}</div>
+      ${COUPONS.length ? `<table class="wp-list-table"><thead><tr><th>Código</th><th>Descuento</th><th class="hide-m">Aplica a</th><th class="hide-m">Compra mínima</th><th class="num">Usos</th><th class="hide-m">Vigencia</th><th>Estado</th></tr></thead><tbody>
       ${COUPONS.map((c) => `<tr><td><code>${esc(c.code)}</code></td><td>${cpVal(c)}</td><td class="hide-m">${esc(c.scope)}</td><td class="hide-m">${c.min ? clp(c.min) : '—'}</td><td class="num">${c.uses}${c.limit ? ` / ${c.limit}` : ''}</td><td class="hide-m">${c.to ? `${fDay(c.from)} – ${fDate(c.to)}` : `Desde ${fDate(c.from)}`}</td><td>${pillOf(cpState(c))}</td></tr>`).join('')}
-      </tbody></table>
+      </tbody></table>` : box('Cupones', emptyState('Aún no hay cupones', 'Crea el primero aquí abajo. Sirve para campañas como CyberDay o para clientes del taller, y se puede limitar por monto mínimo, fechas y cantidad de usos.', '', 'list'), '', true)}
       <div class="postbox" style="margin-top:20px"><h2 class="hndle">Crear cupón</h2><div class="inside"><div class="fgrid">
         <div class="field"><label for="cc">Código</label><input type="text" id="cc" placeholder="EJ: VERANO20" style="text-transform:uppercase" maxlength="20"></div>
         <div class="field"><label for="ct">Tipo de descuento</label><select id="ct"><option value="pct">Porcentaje</option><option value="fix">Monto fijo</option><option value="ship">Envío gratis</option></select></div>
         <div class="field"><label for="cv">Valor</label><input type="number" id="cv" min="0" placeholder="10"></div>
         <div class="field"><label for="cm">Compra mínima ($)</label><input type="number" id="cm" min="0" placeholder="Sin mínimo"></div>
         <div class="field"><label for="cl">Límite de usos</label><input type="number" id="cl" min="0" placeholder="Sin límite"></div>
-        <div class="field"><label for="cs2">Aplica a</label><select id="cs2"><option>Toda la tienda</option><option>Solo primera compra</option><option>Solo productos Motor Clean</option><option>Una categoría…</option><option>Clientes del taller</option></select></div>
+        <div class="field"><label for="cs2">Aplica a</label><select id="cs2"><option>Toda la tienda</option><option>Solo primera compra</option><option>Solo productos Motor Clean</option><option>Clientes del taller</option></select></div>
         <div class="field"><label for="cf">Desde</label><input type="date" id="cf"></div>
         <div class="field"><label for="cto">Hasta</label><input type="date" id="cto"></div>
       </div><p class="muted small" style="margin:0 0 12px">El descuento aparece como línea aparte en la boleta o factura de Bsale.</p><button class="button button-primary" data-act="crear-cupon">Crear cupón</button></div></div>`;
   };
   MK.carritos = (q) => {
+    if (!CARTS.length) return emptyState('Sin carritos abandonados', 'Cuando alguien deja su correo o teléfono en el pago y no termina la compra, aparece aquí con lo que llevaba. Se le puede enviar un recordatorio con el carro listo para pagar, solo si aceptó recibir mensajes.', '', 'list');
     const f = q.get('f') || '', base = '#/marketing';
     const list = CARTS.filter((c) => !f || c.st === f);
     const known = CARTS.filter((c) => c.st !== 'anon'), rec = CARTS.filter((c) => c.st === 'rec');
@@ -920,11 +760,8 @@
       <ul class="subsubsub">${[['', 'Todos', CARTS.length], ...Object.entries(CART_ST).map(([k, [l]]) => [k, l, CARTS.filter((c) => c.st === k).length])].map(([k, l, n]) => `<li><a href="${href(base, q, { f: k })}" class="${f === k ? 'current' : ''}">${l} <span class="n">(${n})</span></a></li>`).join('')}</ul>
       <div class="tablenav"><button class="button" data-act="recordar-todos">Enviar recordatorio a todos los pendientes</button></div>
       <table class="wp-list-table"><thead><tr><th>Cliente</th><th class="hide-m">Productos</th><th class="num">Total</th><th class="hide-m">Etapa</th><th class="hide-m">Origen</th><th>Estado</th></tr></thead><tbody>
-      ${list.map((c) => `<tr><td>${c.c ? `<b>${esc(custName(c.c))}</b><div class="muted small">${esc(c.c.email)}</div>` : '<span class="muted">Visitante sin datos</span>'}<div class="muted small">${ago(c.t)}<span class="show-m"> · ${plural(c.lines.length, 'producto', 'productos')}</span></div></td>
-        <td class="hide-m"><div class="cart-items">${c.lines.map((l) => `<img class="thumb" src="${img(l.p)}" alt="" loading="lazy" title="${esc(l.p.n)}">`).join('')}</div><div class="muted small">${esc(c.lines[0].p.n.slice(0, 48))}${c.lines.length > 1 ? ` y ${c.lines.length - 1} más` : ''}</div></td>
-        <td class="num nw">${clp(c.total)}</td><td class="hide-m">${c.stage}</td><td class="hide-m">${otag(c)}</td><td>${pillOf(CART_ST[c.st])}${c.st === 'pend' ? `<div style="margin-top:6px"><button class="button" data-act="recordar" data-id="${c.id}">Enviar recordatorio</button></div>` : ''}</td></tr>`).join('') || '<tr class="no-items"><td colspan="6">No hay carritos en este estado.</td></tr>'}
-      </tbody></table>
-      <div class="notice" style="margin-top:20px"><p><b>En la versión real</b> se envía un correo automático 1 hora después, con el carro listo para pagar, y se puede mandar un WhatsApp con un clic. Solo a quienes dejaron sus datos y aceptaron recibir mensajes.</p></div>`;
+      ${list.map((c) => `<tr><td>${c.c ? `<b>${esc(custName(c.c))}</b><div class="muted small">${esc(c.c.email)}</div>` : '<span class="muted">Visitante sin datos</span>'}<div class="muted small">${ago(c.t)}</div></td><td class="hide-m">${esc(c.lines[0].p.n.slice(0, 48))}${c.lines.length > 1 ? ` y ${c.lines.length - 1} más` : ''}</td><td class="num nw">${clp(c.total)}</td><td class="hide-m">${c.stage}</td><td class="hide-m">${otag(c)}</td><td>${pillOf(CART_ST[c.st])}${c.st === 'pend' ? `<div style="margin-top:6px"><button class="button" data-act="recordar" data-id="${c.id}">Enviar recordatorio</button></div>` : ''}</td></tr>`).join('') || '<tr class="no-items"><td colspan="6">No hay carritos en este estado.</td></tr>'}
+      </tbody></table>`;
   };
   MK.catalogos = (q) => {
     const f = q.get('f') || 'errores', page = Math.max(1, +q.get('pag') || 1), per = 20, base = '#/marketing';
@@ -944,18 +781,7 @@
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
       <p class="muted small">Revisión hecha con los productos reales de la tienda.</p>`;
   };
-  MK.pixel = () => {
-    const n7 = Math.max(1, agg(7).n), visits = Math.round(n7 / 0.013), vc = Math.round(visits * 0.47), atc = Math.round(vc * 0.11), ic = Math.round(atc * 0.5);
-    const steps = [['Visitas', visits], ['Vieron un producto', vc], ['Agregaron al carro', atc], ['Iniciaron el pago', ic], ['Compraron', n7]];
-    const ev = [['PageView', 'Visita a una página', visits * 2.6], ['ViewContent', 'Vio un producto', vc], ['AddToCart', 'Agregó al carro', atc], ['InitiateCheckout', 'Inició el pago', ic], ['Purchase', 'Compró', n7]];
-    return `
-      <div class="tiles">${tile('Compras registradas (7 días)', miles(n7), 'coinciden con los pedidos pagados')}${tile('Calidad de coincidencia (Meta)', '7,9 / 10', 'buena: se envía correo y teléfono cifrados')}${tile('Eventos sin duplicar', '97 %', 'píxel y servidor se reconocen')}${tile('Conversión', `${((n7 / visits) * 100).toFixed(1).replace('.', ',')} %`, 'de visitas a compras')}</div>
-      <div class="dash">
-        ${box('Embudo de compra · 7 días', bars(steps.map(([l, v], i) => ({ l, v, n: v, prev: i ? steps[i - 1][1] : 0 })), 0, { fmt: (x) => `${miles(x.v)}<small>${x.prev ? Math.round((x.v / x.prev) * 100) + ' %' : ''}</small>`, tip: (x) => `<b>${x.l}</b><br>${miles(x.v)} personas${x.prev ? `<br>${Math.round((x.v / x.prev) * 100)} % del paso anterior` : ''}` }), 'personas en cada paso', true)}
-        ${box('Eventos recibidos · 7 días', `<table class="mini"><thead><tr><td><b>Evento</b></td><td class="num"><b>Navegador</b></td><td class="num"><b>Servidor</b></td></tr></thead><tbody>${ev.map(([k, d, v]) => `<tr><td><code>${k}</code><div class="muted small">${d}</div></td><td class="num">${miles(Math.round(v * 0.86))}</td><td class="num">${miles(Math.round(v))}</td></tr>`).join('')}</tbody></table><p class="muted small" style="padding:0 18px 6px">El servidor (API de conversiones) recupera las visitas que los bloqueadores y el iPhone le esconden al píxel.</p>`, '', true)}
-      </div>
-      <div class="notice"><p>Cifras de ejemplo. <b>En la versión real</b> salen del Administrador de eventos de Meta y de Google Analytics 4. Las compras se envían con el mismo ID que hoy (SKU_id) y con el valor real del pedido pagado.</p></div>`;
-  };
+  MK.pixel = () => emptyState('Conecta el píxel de Meta y Google Analytics', 'Con el píxel y la API de conversiones conectados, aquí ves el embudo de compra (visitas, productos vistos, agregados al carro, pagos iniciados y compras) y si los eventos llegan bien, desde el navegador y desde el servidor. Los eventos y los ID de producto son los mismos que usan hoy las campañas.', '<a class="button button-primary" href="#/ajustes?tab=seguimiento">Ir a Seguimiento y anuncios</a>', 'link');
 
   /* ───────── portada de la tienda (sin Elementor) ───────── */
   V.portada = () => {
@@ -977,6 +803,7 @@
 
   /* ───────── registro de actividad ───────── */
   V.actividad = (q) => {
+    if (!LOG.length) return `<div class="wrap-h"><h1>Registro de actividad</h1></div>${emptyState('Sin actividad registrada', 'Cada cambio queda anotado aquí con fecha y persona: pedidos, precios, stock, cupones, exportaciones de datos y ajustes. El registro no se puede editar ni borrar.', '', 'list')}`;
     const who = q.get('u') || '', page = Math.max(1, +q.get('pag') || 1), per = 30, base = '#/actividad';
     const users = [...new Set(LOG.map((x) => x.who))];
     const list = LOG.filter((x) => !who || x.who === who), rows = list.slice((page - 1) * per, page * per);
@@ -1012,7 +839,8 @@
       [ORDERS.filter((o) => NOW - o.t < DAY && PAID.has(o.st)).length, 'pedidos pagados en las últimas 24 horas', '#/pedidos', 'st-ok'],
       [ORDERS.filter((o) => o.st === 'processing' && !o.prep).length, 'pedidos esperando preparación', '#/despachos', 'st-wait'],
       [ORDERS.filter((o) => o.st === 'failed' && NOW - o.t < 7 * DAY).length, 'pagos rechazados esta semana', '#/pedidos?estado=failed', 'st-bad'],
-      [inv.filter((x) => x.st === 'now').length, 'productos para reponer ya', '#/inventario', 'st-wait'],
+      [inv.filter((x) => x.st === 'out').length, 'productos agotados', '#/inventario', 'st-wait'],
+      [feedItems().filter((x) => x.e.length).length, 'productos con errores para los catálogos de anuncios', '#/marketing?tab=catalogos', 'st-wait'],
       [CARTS.filter((c) => c.st === 'pend').length, 'carritos abandonados por recuperar', '#/marketing?tab=carritos', 'st-info'],
       [REVIEWS.filter((r) => r.st === 'pend').length, 'reseñas nuevas por aprobar', '#/resenas', 'st-info'],
       [BOOK.filter((b) => b.st === 'agendado' && b.day - sod(NOW) <= DAY && b.day >= sod(NOW)).length, 'reservas del taller sin confirmar para hoy o mañana', '#/taller', 'st-wait'],
@@ -1057,10 +885,9 @@
   /* ───────── documento tributario al pagar ───────── */
   function emitDoc(o) {
     const type = o.fac ? 'Factura electrónica' : 'Boleta electrónica';
-    const folio = 1 + Math.max(0, ...ORDERS.filter((x) => x.doc && x.doc.type === type).map((x) => x.doc.folio));
-    o.doc = { type, folio };
+    o.doc = { type, folio: null };
     o.lines.forEach((l) => { if (l.p.stk != null) l.p.stk = Math.max(0, l.p.stk - l.q); });
-    o.notes.push({ t: Date.now(), txt: `${type} N° ${folio} emitida en Bsale${o.c.email !== '—' ? ` y enviada a ${o.c.email}` : ''}. Stock descontado en la sucursal Casa Matriz.`, kind: 'system', by: 'Reycar Store' });
+    o.notes.push({ t: Date.now(), txt: CONNECTED ? `${type} emitida en Bsale${o.c.email !== '—' ? ` y enviada a ${o.c.email}` : ''}. Stock descontado en la sucursal Casa Matriz.` : `${type} lista para emitirse en Bsale al conectar la cuenta. Stock descontado.`, kind: 'system', by: 'Reycar Store' });
   }
 
   /* ───────── pedido manual: ventas por WhatsApp, teléfono o en el local ───────── */
@@ -1144,7 +971,7 @@
       CUST.push(c);
     }
     const T = draftTot(d), now = Date.now(), m = SHIP_M[d.ship][0], paid = d.pay === 'local';
-    const o = { id: nextId(ORDERS), t: now, st: paid ? 'processing' : d.pay === 'transfer' ? 'on-hold' : 'pending', c, lines: d.lines.map((l) => ({ p: l.p, q: l.q, price: l.p.p })), sub: T.sub, disc: T.disc, cpCode: d.cp ? d.cp.code : '',
+    const o = { id: 1 + Math.max(ORDER_BASE, ...ORDERS.map((x) => x.id)), t: now, st: paid ? 'processing' : d.pay === 'transfer' ? 'on-hold' : 'pending', c, lines: d.lines.map((l) => ({ p: l.p, q: l.q, price: l.p.p })), sub: T.sub, disc: T.disc, cpCode: d.cp ? d.cp.code : '',
       ship: { m, carrier: (m.match(/^(Starken|Chilexpress|Blue Express)/) || [])[1], cost: T.ship, track: '' }, total: T.total, pay: { link: 'Link de pago Klap', transfer: 'Transferencia bancaria', local: 'Pago en el local' }[d.pay],
       auth: paid ? 'LOCAL' : '', src: MANUAL, camp: '', dev: 'Panel', pages: 0, landing: '—', doc: null, fac: d.fac && !!c.emp, nc: null, cnote: '', notes: [] };
     o.notes.push({ t: now, txt: `Pedido creado a mano desde el panel (${o.pay}).`, kind: 'system', by: 'Guillermo' });
@@ -1156,7 +983,7 @@
     log(`Pedido #${o.id}`, `Creó un pedido manual por ${clp(o.total)} (${o.pay})`);
     DRAFT = null;
     location.hash = `/pedido/${o.id}`;
-    toast(paid ? `Pedido #${o.id} creado y pagado. Boleta emitida; ya está en Despachos.` : `Pedido #${o.id} creado. ${d.pay === 'link' ? 'En la versión real el cliente recibe el link de pago.' : 'Queda en espera de la transferencia.'}`);
+    toast(paid ? `Pedido #${o.id} creado y pagado. Ya está en Despachos.` : `Pedido #${o.id} creado. ${d.pay === 'link' ? 'Al conectar Klap, el link de pago le llega al cliente por WhatsApp y correo.' : 'Queda en espera de la transferencia.'}`);
   }
 
   /* ───────── reembolso total o parcial ───────── */
@@ -1180,13 +1007,13 @@
     const now = Date.now(), restock = $('#rfStock').checked, why = $('#rfWhy').value, items = [];
     $$('[data-rq]').forEach((el) => { const l = o.lines[+el.dataset.rq], n = Math.max(0, Math.min(Math.floor(+el.value || 0), l.q - (l.rq || 0))); if (!n) return; l.rq = (l.rq || 0) + n; items.push(`${n} × ${l.p.n}`); if (restock && l.p.stk != null) l.p.stk += n; });
     if ($('#rfShip') && $('#rfShip').checked) { o.shipRef = true; items.push('envío'); }
-    const f = 1 + Math.max(411, ...ORDERS.flatMap((x) => (x.ncs || []).map((n) => n.f)));
-    o.ncs = [...(o.ncs || []), { f, a, t: now }]; o.refunded = (o.refunded || 0) + a; o.nc = o.nc || f;
+    const f = null;
+    o.ncs = [...(o.ncs || []), { f, a, t: now }]; o.refunded = (o.refunded || 0) + a;
     o.notes.push({ t: now, txt: `Reembolso de ${clp(a)} realizado en Klap (${items.join(', ')}). Motivo: ${why}.`, kind: 'private', by: 'Guillermo' });
-    o.notes.push({ t: now, txt: `Nota de crédito electrónica N° ${f} por ${clp(a)} emitida en Bsale.${restock && items.some((x) => x !== 'envío') ? ' Stock repuesto.' : ''}`, kind: 'system', by: 'Reycar Store' });
-    log(`Pedido #${o.id}`, `Reembolsó ${clp(a)} (nota de crédito N° ${f})`);
+    o.notes.push({ t: now, txt: `Nota de crédito por ${clp(a)}: ${CONNECTED ? 'emitida en Bsale' : 'lista para emitirse en Bsale al conectar la cuenta'}.${restock && items.some((x) => x !== 'envío') ? ' Stock repuesto.' : ''}`, kind: 'system', by: 'Reycar Store' });
+    log(`Pedido #${o.id}`, `Reembolsó ${clp(a)}`);
     if (o.refunded >= o.total - 1) setStatus(o, 'refunded');
-    closeModal(); route(); toast(`Reembolso de ${clp(a)} registrado. Nota de crédito N° ${f}.`);
+    closeModal(); route(); toast(`Reembolso de ${clp(a)} registrado, con su nota de crédito.`);
   }
 
   /* ───────── ficha de cliente ───────── */
@@ -1205,7 +1032,7 @@
         ${rv.length ? box('Reseñas', `<ul class="rows">${rv.map((r) => `<li>${stars(r.r)} <span class="muted small">${fDate(r.t)} · ${esc(r.p.n)}</span><div>${esc(r.txt)}</div></li>`).join('')}</ul>`) : ''}
         ${box('Notas internas', `<ul class="notes" id="cnotes">${c.cnotes.map(noteHtml).join('') || '<li class="muted" style="padding:0">Sin notas. Solo las ve el equipo.</li>'}</ul><div class="field" style="margin-top:12px"><label for="cnn">Añadir nota</label><textarea id="cnn" rows="2" placeholder="Ej: prefiere que lo llamen después de las 18:00"></textarea></div><button class="button" data-act="c-nota" data-id="${c.id}">Guardar nota</button>`)}
       </div><div>
-        ${box('Contacto', `<dl class="kv"><dt>Correo</dt><dd>${c.email !== '—' ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</dd><dt>Teléfono</dt><dd>${esc(c.phone)}${wa.length > 8 ? ` · <a href="#" data-act="wa-cliente">WhatsApp</a>` : ''}</dd><dt>RUT</dt><dd>${esc(c.rut)}</dd><dt>Dirección</dt><dd>${esc(c.street)}<br>${esc(c.comuna)}${c.region !== '—' ? `, ${esc(c.region)}` : ''}</dd></dl>`)}
+        ${box('Contacto', `<dl class="kv"><dt>Correo</dt><dd>${c.email !== '—' ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</dd><dt>Teléfono</dt><dd>${esc(c.phone)}${wa.length > 8 ? ` · <a href="#" data-act="wa-cliente" data-id="${c.id}">WhatsApp</a>` : ''}</dd><dt>RUT</dt><dd>${esc(c.rut)}</dd><dt>Dirección</dt><dd>${esc(c.street)}<br>${esc(c.comuna)}${c.region !== '—' ? `, ${esc(c.region)}` : ''}</dd></dl>`)}
         ${c.emp ? box('Facturación', `<dl class="kv"><dt>Razón social</dt><dd>${esc(c.emp.name)}</dd><dt>RUT</dt><dd>${c.emp.rut}</dd><dt>Giro</dt><dd>${esc(c.emp.giro)}</dd></dl>`) : ''}
         ${box('Etiquetas', `<div class="chips" id="ctags">${c.tags.map((t, i) => `<span class="chip">${esc(t)}<button data-act="c-untag" data-id="${c.id}" data-i="${i}" aria-label="Quitar etiqueta ${esc(t)}">×</button></span>`).join('') || '<span class="muted small">Sin etiquetas.</span>'}</div><div class="addrow"><input type="text" id="ctag" placeholder="Ej: Mayorista, Detailer" list="taglist" aria-label="Nueva etiqueta"><datalist id="taglist">${['Mayorista', 'Detailer profesional', 'Cliente del taller', 'Empresa', 'VIP'].map((t) => `<option>${t}</option>`).join('')}</datalist><button class="button" data-act="c-tag" data-id="${c.id}">Agregar</button></div>`)}
         ${box('Permisos de contacto', `<label class="switch"><input type="checkbox" data-consent="mail" data-id="${c.id}"${c.consent.mail ? ' checked' : ''}> Acepta correos con novedades y ofertas</label><br><label class="switch"><input type="checkbox" data-consent="wa" data-id="${c.id}"${c.consent.wa ? ' checked' : ''}> Acepta mensajes por WhatsApp</label><p class="muted small" style="margin:8px 0 0">Los correos del pedido (boleta, seguimiento) siempre llegan; esto es solo para promociones.</p>`)}
@@ -1233,12 +1060,12 @@
     return `
       <div class="wrap-h"><h1>Agenda del taller</h1><span class="weeknav"><a class="button" href="#/taller?w=${w - 1}" aria-label="Semana anterior"${w <= -1 ? ' aria-disabled="true" tabindex="-1"' : ''}>‹</a><a class="button" href="#/taller">Esta semana</a><a class="button" href="#/taller?w=${w + 1}" aria-label="Semana siguiente">›</a></span><button class="button button-primary" data-act="bk-nueva">Nueva reserva</button></div>
       <p class="muted" style="margin:-8px 0 18px">Semana del ${fDay(m0)} al ${fDate(addDays(m0, 5))} · 2 boxes · lunes a viernes de 9:00 a 19:00 y sábado de 9:00 a 14:00.</p>
-      <div class="tiles">${tile('Reservas de la semana', miles(live.length), `${wk.filter((b) => b.st === 'agendado').length} por confirmar`)}${tile('Ingresos estimados', clp(live.reduce((s, b) => s + b.price, 0)), 'según el precio de cada servicio')}${tile('Ocupación', `${Math.round((mins / cap) * 100)} %`, 'de las horas de los 2 boxes')}${tile('Servicio más pedido', top ? `<span class="val-txt">${esc(top.l)}</span>` : '—', top ? plural(top.n, 'reserva', 'reservas') : '')}</div>
+      <div class="tiles">${tile('Reservas de la semana', miles(live.length), `${wk.filter((b) => b.st === 'agendado').length} por confirmar`)}${tile('Ingresos estimados', clp(live.reduce((s, b) => s + b.price, 0)), 'según el precio de cada servicio')}${tile('Ocupación', `${Math.round((mins / cap) * 100)} %`, 'de las horas de los 2 boxes')}${tile('Servicio más pedido', top ? `<span class="val-txt">${esc(top.l)}</span>` : '—', top ? plural(top.n, 'reserva', 'reservas') : 'aún sin reservas')}</div>
       <div class="cal-legend"><span><i class="lg lg--b1"></i>Box 1</span><span><i class="lg lg--b2"></i>Box 2</span>${Object.entries(BK_ST).filter(([k]) => k !== 'listo').map(([k, [l]]) => `<span><i class="lg lg--${k}"></i>${l}</span>`).join('')}</div>
       <div class="cal-wrap"><div class="cal">${rail}${days.map(col).join('')}</div></div>
       <div class="dash" style="margin-top:20px">
         ${box('Próximas reservas', next.length ? `<table class="mini"><tbody>${next.map((b) => `<tr class="clickable" data-act="bk-ver" data-id="${b.id}"><td><b>${WDAYS[(new Date(b.day).getDay() + 6) % 7]} ${fDay(b.day)} · ${hm(b.start)}</b><div class="muted small">${esc(b.sv.n)} · ${esc(b.car)} ${fmtPlate(b.plate)} · ${esc(custName(b.c))}</div></td><td>${pillOf(BK_ST[b.st])}</td></tr>`).join('')}</tbody></table>` : '<p class="muted" style="margin:0;padding:16px 18px">Sin reservas próximas.</p>', '', true)}
-        ${box('Servicios y precios', `<table class="mini"><thead><tr><td><b>Servicio</b></td><td class="num"><b>Duración (min)</b></td><td class="num"><b>Precio ($)</b></td></tr></thead><tbody>${SERVICES.map((s, i) => `<tr><td>${esc(s.n)}</td><td class="num"><input type="number" data-svm="${i}" value="${s.min}" min="30" step="30" style="width:84px;min-height:32px" aria-label="Duración de ${esc(s.n)}"></td><td class="num"><input type="number" data-svp="${i}" value="${s.p}" min="0" step="1000" style="width:110px;min-height:32px" aria-label="Precio de ${esc(s.n)}"></td></tr>`).join('')}</tbody></table><div class="major-publishing-actions"><span class="muted small">Valores de ejemplo. Son los que se muestran en "Servicios de taller" de la tienda.</span><button class="button" data-act="sv-save">Guardar</button></div>`, '', true)}
+        ${box('Servicios y precios', `<table class="mini"><thead><tr><td><b>Servicio</b></td><td class="num"><b>Duración (min)</b></td><td class="num"><b>Precio ($)</b></td></tr></thead><tbody>${SERVICES.map((s, i) => `<tr><td>${esc(s.n)}</td><td class="num"><input type="number" data-svm="${i}" value="${s.min}" min="30" step="30" style="width:84px;min-height:32px" aria-label="Duración de ${esc(s.n)}"></td><td class="num"><input type="number" data-svp="${i}" value="${s.p}" min="0" step="1000" style="width:110px;min-height:32px" aria-label="Precio de ${esc(s.n)}"></td></tr>`).join('')}</tbody></table><div class="major-publishing-actions"><span class="muted small">Nombres y precios vienen de los servicios de la tienda; la duración se ajusta aquí.</span><button class="button" data-act="sv-save">Guardar</button></div>`, '', true)}
       </div>`;
   };
   function bookingModal(b) {
@@ -1251,7 +1078,7 @@
     const t0 = addDays(sod(NOW), 1), iso = (t) => { const d = new Date(t); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`; };
     modal('Nueva reserva', `
       <div class="grid2"><div class="field"><label for="bn">Nombre del cliente</label><input type="text" id="bn" autocomplete="off"></div><div class="field"><label for="bp">Teléfono</label><input type="text" id="bp" placeholder="+56 9 …" autocomplete="off"></div>
-      <div class="field"><label for="bcar">Vehículo</label><input type="text" id="bcar" list="cars" placeholder="Marca y modelo"><datalist id="cars">${CARS.map((x) => `<option>${x}</option>`).join('')}</datalist></div><div class="field"><label for="bpl">Patente</label><input type="text" id="bpl" placeholder="BBCL12" maxlength="8" style="text-transform:uppercase"></div></div>
+      <div class="field"><label for="bcar">Vehículo</label><input type="text" id="bcar" placeholder="Marca y modelo"></div><div class="field"><label for="bpl">Patente</label><input type="text" id="bpl" placeholder="BBCL12" maxlength="8" style="text-transform:uppercase"></div></div>
       <div class="field"><label for="bsv">Servicio</label><select id="bsv" style="width:100%">${SERVICES.map((s, i) => `<option value="${i}">${esc(s.n)} · ${hm(s.min).replace(':00', ' h').replace(':30', ' h 30')} · ${clp(s.p)}</option>`).join('')}</select></div>
       <div class="grid2"><div class="field"><label for="bd">Día</label><input type="date" id="bd" min="${iso(sod(NOW))}" value="${iso(t0)}"></div><div class="field"><label for="bh">Hora</label><select id="bh" style="width:100%">${Array.from({ length: 19 }, (_, i) => 540 + i * 30).map((m) => `<option value="${m}">${hm(m)}</option>`).join('')}</select></div></div>
       <div class="field"><label for="bnote">Nota (opcional)</label><input type="text" id="bnote" placeholder="Ej: tiene manchas de savia en el capó"></div>`,
@@ -1277,12 +1104,13 @@
     const b = { id: nextId(BOOK), day, start, box, sv, c, car, plate: pl, st: 'confirmado', price: sv.p, note: v('#bnote') };
     BOOK.push(b); log('Taller', `Reservó ${sv.n} el ${fDay(day)} a las ${hm(start)} (Box ${box}) para ${custName(c)}`);
     closeModal(); location.hash = `/taller?w=${weekOf(day)}`; route();
-    toast(`Reserva confirmada en el Box ${box}. En la versión real le llega la confirmación por WhatsApp.`);
+    toast(`Reserva confirmada en el Box ${box}. Puedes enviarle la confirmación con "Recordatorio por WhatsApp".`);
   }
 
   /* ───────── reseñas ───────── */
   const stars = (r) => `<span class="stars" role="img" aria-label="${r} de 5 estrellas">${'★'.repeat(r)}<span>${'★'.repeat(5 - r)}</span></span>`;
   V.resenas = (q) => {
+    if (!REVIEWS.length) return `<div class="wrap-h"><h1>Reseñas</h1></div>${emptyState('Aún no hay reseñas', 'Siete días después de cada entrega, el cliente recibe un correo para opinar. Solo opinan compras verificadas; aquí se aprueban, se responden y las estrellas se muestran en la tienda y en los anuncios de Google Shopping.', '', 'star')}`;
     const f = q.get('f') || 'pend', page = Math.max(1, +q.get('pag') || 1), per = 20, base = '#/resenas';
     const pub = REVIEWS.filter((r) => r.st === 'ok'), avg = pub.length ? pub.reduce((s, r) => s + r.r, 0) / pub.length : 0;
     const L = { pend: REVIEWS.filter((r) => r.st === 'pend'), bajas: REVIEWS.filter((r) => r.r <= 3 && !r.reply && r.st !== 'hid'), todas: REVIEWS };
@@ -1314,11 +1142,10 @@
   };
   MK.correos = () => {
     const sent = CAMPAIGNS.filter((c) => c.st === 'sent' && c.open != null), avgO = sent.reduce((s, c) => s + c.open, 0) / (sent.length || 1), avgC = sent.reduce((s, c) => s + c.click, 0) / (sent.length || 1);
-    CAMPAIGNS.forEach((c) => { if (c.n == null) c.n = Math.max(1, Math.round(segCount(c.seg) * 0.96)); });
     const segName = (k) => (MAILSEG.find((x) => x[0] === k) || MAILSEG[0])[1];
     return `
-      <div class="tiles">${tile('Clientes que aceptan correos', miles(segCount('all')), 'solo a ellos se les escribe')}${tile('Apertura promedio', pctTxt(avgO), `últimas ${sent.length} campañas`)}${tile('Clics promedio', pctTxt(avgC), 'abrieron un enlace')}${tile('Ventas por correo', clp(sent.reduce((s, c) => s + c.orders * 54000, 0)), 'pedidos atribuidos a campañas')}</div>
-      ${box('Campañas', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Asunto</b></td><td class="hide-m"><b>Para</b></td><td class="num"><b>Enviados</b></td><td class="num"><b>Abiertos</b></td><td class="num hide-m"><b>Clics</b></td><td class="num hide-m"><b>Pedidos</b></td><td><b>Estado</b></td></tr></thead><tbody>${CAMPAIGNS.map((c) => `<tr><td><b>${esc(c.subj)}</b><div class="muted small">${c.st === 'prog' ? 'Programada para el ' : ''}${fFull(c.t)}</div></td><td class="hide-m">${esc(segName(c.seg))}</td><td class="num">${miles(c.n)}</td><td class="num">${c.open != null ? pctTxt(c.open) : '—'}</td><td class="num hide-m">${c.click != null ? pctTxt(c.click) : '—'}</td><td class="num hide-m">${c.orders != null ? c.orders : '—'}</td><td>${pillOf(c.st === 'prog' ? ['Programada', 'pending'] : c.open == null ? ['Enviando', 'processing'] : ['Enviada', 'completed'])}</td></tr>`).join('')}</tbody></table></div>`, '', true)}
+      <div class="tiles">${tile('Clientes que aceptan correos', miles(segCount('all')), 'solo a ellos se les escribe')}${tile('Apertura promedio', sent.length ? pctTxt(avgO) : '—', sent.length ? `últimas ${sent.length} campañas` : 'sin campañas medidas')}${tile('Clics promedio', sent.length ? pctTxt(avgC) : '—', 'abrieron un enlace')}${tile('Ventas por correo', clp(ORDERS.filter((o) => o.src.k === 'mail' && PAID.has(o.st)).reduce((s, o) => s + o.total, 0)), 'pedidos que llegaron desde un correo')}</div>
+      ${CAMPAIGNS.length ? box('Campañas', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Asunto</b></td><td class="hide-m"><b>Para</b></td><td class="num"><b>Enviados</b></td><td class="num"><b>Abiertos</b></td><td class="num hide-m"><b>Clics</b></td><td class="num hide-m"><b>Pedidos</b></td><td><b>Estado</b></td></tr></thead><tbody>${CAMPAIGNS.map((c) => `<tr><td><b>${esc(c.subj)}</b><div class="muted small">${c.st === 'prog' ? 'Programada para el ' : ''}${fFull(c.t)}</div></td><td class="hide-m">${esc(segName(c.seg))}</td><td class="num">${miles(c.n)}</td><td class="num">${c.open != null ? pctTxt(c.open) : '—'}</td><td class="num hide-m">${c.click != null ? pctTxt(c.click) : '—'}</td><td class="num hide-m">${c.orders != null ? c.orders : '—'}</td><td>${pillOf(c.st === 'prog' ? ['Programada', 'pending'] : c.open == null ? ['Lista para enviar', 'processing'] : ['Enviada', 'completed'])}</td></tr>`).join('')}</tbody></table></div>`, '', true) : ''}
       <div class="cols composer"><div>
         ${box('Nueva campaña', `
           <div class="field"><label for="mtpl">Plantilla</label><select id="mtpl" style="width:100%"><option value="novedades">Novedades y destacados</option><option value="promo">Promoción con cupón</option><option value="volver">Recuperar clientes</option></select></div>
@@ -1331,11 +1158,11 @@
       </div><div>
         <div class="postbox"><h2 class="hndle">Vista previa <span class="act">así le llega</span></h2><div class="inside" id="mprev"></div><div class="major-publishing-actions"><button class="button" data-act="mail-test">Enviarme una prueba</button><button class="button button-primary" data-act="mail-send">Enviar</button></div></div>
       </div></div>
-      <p class="muted small">Todos los correos incluyen el enlace para darse de baja, como exige la ley. El envío lo hace el servidor de la tienda: no hace falta Mailchimp ni otra plataforma.</p>`;
+      <p class="muted small">Todos los correos incluyen el enlace para darse de baja, como exige la ley. Los envía el servidor de la tienda: no hace falta Mailchimp ni otra plataforma. La vista previa usa tu nombre en lugar de {nombre}.</p>`;
   };
   function drawMail() {
     const el = $('#mprev'); if (!el) return;
-    const subj = $('#ms').value.trim() || 'Asunto del correo', txt = $('#mtxt').value.replace(/\{nombre\}/g, 'Camila'), cp = COUPONS.find((c) => c.code === $('#mcp').value);
+    const subj = $('#ms').value.trim() || 'Asunto del correo', txt = $('#mtxt').value.replace(/\{nombre\}/g, 'Guillermo'), cp = COUPONS.find((c) => c.code === $('#mcp').value);
     const prods = [...featured].slice(0, 4).map((i) => byId.get(i)).filter(Boolean), n = segCount($('#mseg').value);
     $('#mcount').textContent = `Se enviará a ${plural(n, 'cliente', 'clientes')}.`;
     el.innerHTML = `<div class="mail"><div class="mail__h"><img src="/assets/logo.png" alt="" width="30" height="31"><svg class="brand__wm" viewBox="0 0 627 91" aria-hidden="true"><use href="#rc-wm"/></svg></div><div class="mail__b"><div class="mail__s">${esc(subj)}</div><p>${esc(txt).replace(/\n/g, '<br>')}</p>${cp ? `<div class="mail__cp">Usa el código <b>${esc(cp.code)}</b> · ${cpVal(cp)}${cp.to ? ` hasta el ${fDate(cp.to)}` : ''}</div>` : ''}<div class="mail__g">${prods.map((p) => `<div><img src="${img(p)}" alt=""><span>${esc(p.n.slice(0, 44))}</span><b>${clp(p.p)}</b></div>`).join('')}</div><span class="mail__btn">Ver en la tienda</span></div><div class="mail__f">Recibes este correo porque aceptaste novedades de Reycar Store. <u>Darte de baja</u> · Quinta Normal, Santiago</div></div>`;
@@ -1344,23 +1171,12 @@
   /* ───────── analítica: tráfico propio e informe de ventas ───────── */
   const AN = {};
   const anNav = (tab) => `<nav class="nav-tab-wrapper">${[['resumen', 'Resumen'], ['trafico', 'Tráfico y búsquedas'], ['informe', 'Informe de ventas']].map(([k, l]) => `<a class="nav-tab${k === tab ? ' nav-tab-active' : ''}" href="#/analitica${k === 'resumen' ? '' : '?tab=' + k}">${l}</a>`).join('')}</nav>`;
-  const CONV = { meta: 0.009, gads: 0.016, org: 0.014, dir: 0.024, ig: 0.008, wa: 0.035, yt: 0.007, mail: 0.028 };
   AN.trafico = (q) => {
-    const r = rangeOf(q), a = agg(r), b = agg(r, r);
-    const vis = (x) => { const m = new Map(ORIG.filter((o) => CONV[o.k]).map((o) => [o.k, { o, n: 0, v: 0, s: 0 }])); x.list.forEach((o) => { const y = m.get(o.src.k); if (y) { y.n++; y.v += o.total; } }); m.forEach((y) => (y.s = Math.round((y.n + 0.7) / CONV[y.o.k]))); return [...m.values()].sort((p, z) => z.s - p.s); };
-    const cur = vis(a), S = cur.reduce((s, y) => s + y.s, 0), PS = vis(b).reduce((s, y) => s + y.s, 0);
-    const units = new Map(); a.list.forEach((o) => o.lines.forEach((l) => { const h = l.p.fam ? byId.get(l.p.fam) : l.p; units.set(h, (units.get(h) || 0) + l.q); }));
-    const pages = [['/', 'Portada', 0.31 * S], ['/tienda', 'Tienda', 0.18 * S], ['/motor-clean', 'Motor Clean', 0.07 * S], ...[...units.entries()].sort((x, y) => y[1] - x[1]).slice(0, 7).map(([p, u]) => [`/producto/${p.s}`, p.n, u * 52 + 90])].sort((x, y) => y[2] - x[2]);
-    const k = r / 30, terms = TERMS.map(([t, n]) => ({ t, n: Math.max(1, Math.round(n * k)), hits: searchHits(t) })), totalS = terms.reduce((s, x) => s + x.n, 0);
+    const terms = [...SEARCHES].sort((a, b) => b.n - a.n).map((x) => ({ ...x, hits: searchHits(x.t) }));
     return `
-      <div class="wrap-h"><h1>Analítica</h1>${segR(q)}</div>${anNav('trafico')}
-      <div class="tiles">${tile('Visitas', miles(S), delta(S, PS))}${tile('Personas distintas', miles(Math.round(S * 0.74)), delta(S, PS))}${tile('Conversión', pctTxt(a.n / S), delta(a.n / S, b.n / PS))}${tile('Búsquedas en la tienda', miles(totalS), 'usaron el buscador')}</div>
-      <div class="dash">
-        ${box('Visitas por fuente', bars(cur.map((y) => ({ l: y.o.lbl, v: y.s, n: y.n, conv: y.n / y.s })), 0, { fmt: (y) => `${miles(y.v)}<small>${pctTxt(y.conv)}</small>`, tip: (y) => `<b>${esc(y.l)}</b><br>${miles(y.v)} visitas · ${plural(y.n, 'pedido', 'pedidos')}<br>Conversión ${pctTxt(y.conv)}` }), 'y conversión a compra', true)}
-        ${box('Páginas más vistas', `<table class="mini"><tbody>${pages.map(([u, n, v]) => `<tr><td><b>${esc(n.slice(0, 54))}</b><div class="muted small">${esc(u.slice(0, 60))}</div></td><td class="num">${miles(Math.round(v))}</td></tr>`).join('')}</tbody></table>`, 'visitas', true)}
-      </div>
-      ${box('Lo que buscan en la tienda', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Búsqueda</b></td><td class="num"><b>Veces</b></td><td class="num"><b>Resultados</b></td><td><b>Qué hacer</b></td></tr></thead><tbody>${terms.map((x) => `<tr><td><b>${esc(x.t)}</b></td><td class="num">${miles(x.n)}</td><td class="num">${x.hits}</td><td>${SYN.has(x.t) ? `<span class="tag tag--org">Lleva a: ${esc(gById.get(SYN.get(x.t)).name)}</span>` : x.hits === 0 ? `<span class="tag tag--bad">Sin resultados</span> <button class="button" data-act="syn" data-term="${esc(x.t)}">Redirigir búsqueda</button>` : x.hits <= 2 ? '<span class="tag tag--ads">Pocos resultados: oportunidad para traer más</span>' : '<span class="muted small">Bien cubierta</span>'}</td></tr>`).join('')}</tbody></table></div>`, 'resultados calculados con el catálogo real', true)}
-      <div class="notice"><p><b>Medición propia de la tienda:</b> no depende de Google Analytics ni usa cookies de terceros. GA4 y el píxel se mantienen solo para alimentar los anuncios. <span class="muted">(Visitas y búsquedas de esta maqueta son de ejemplo.)</span></p></div>`;
+      <div class="wrap-h"><h1>Analítica</h1></div>${anNav('trafico')}
+      ${emptyState('La medición empieza al publicar la tienda nueva', 'Desde que reycarstore.cl apunte a esta tienda, aquí se ven las visitas por fuente y su conversión, las páginas más vistas y lo que la gente escribe en el buscador, sin depender de Google Analytics ni de cookies de terceros.', '', 'chart')}
+      ${terms.length ? box('Lo que buscan en la tienda', `<table class="mini"><thead><tr><td><b>Búsqueda</b></td><td class="num"><b>Veces</b></td><td class="num"><b>Resultados</b></td><td><b>Qué hacer</b></td></tr></thead><tbody>${terms.map((x) => `<tr><td><b>${esc(x.t)}</b></td><td class="num">${miles(x.n)}</td><td class="num">${x.hits}</td><td>${SYN.has(x.t) ? `<span class="tag tag--org">Lleva a: ${esc(gById.get(SYN.get(x.t)).name)}</span>` : x.hits === 0 ? `<span class="tag tag--bad">Sin resultados</span> <button class="button" data-act="syn" data-term="${esc(x.t)}">Redirigir búsqueda</button>` : '<span class="muted small">Bien cubierta</span>'}</td></tr>`).join('')}</tbody></table>`, '', true) : ''}`;
   };
   const monthKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${p2(d.getMonth() + 1)}`; };
   function salesReport(mk) {
@@ -1377,13 +1193,13 @@
       <div class="wrap-h no-print"><h1>Analítica</h1><select aria-label="Mes" data-qsel="m">${months.map((k) => { const [y, m] = k.split('-'); return `<option value="${k}"${k === mk ? ' selected' : ''}>${MESL[+m - 1]} ${y}</option>`; }).join('')}</select><button class="button" data-act="csv-informe" data-m="${mk}">Exportar a Excel</button><button class="button" data-act="imprimir">Imprimir</button></div>
       <div class="no-print">${anNav('informe')}</div>
       <div class="print-only print-head"><img src="/assets/logo.png" alt="" width="40" height="41"><div><b>Reycar Store · Informe de ventas de ${MESL[R.m - 1]} ${R.y}</b><br>Generado el ${fFull(Date.now())}</div></div>
-      <div class="tiles">${tile('Ventas del mes (con IVA)', clp(R.T.total), 'boletas + facturas − notas de crédito')}${tile('Neto', clp(R.T.neto), 'sin IVA')}${tile('IVA débito', clp(R.T.total - R.T.neto), '19 %')}${tile('Documentos emitidos', miles(R.T.bol + R.T.fac + R.T.nc), `${plural(R.T.bol, 'boleta', 'boletas')} · ${plural(R.T.fac, 'factura', 'facturas')} · ${plural(R.T.nc, 'nota de crédito', 'notas de crédito')}`)}</div>
+      ${!(R.docs.length || R.ncs.length) ? emptyState(`Sin documentos en ${MESL[R.m - 1]} ${R.y}`, 'El informe muestra día por día las boletas, facturas y notas de crédito emitidas en Bsale, con neto, IVA y total, más los totales por medio de pago. Se exporta a Excel para el contador.', '', 'chart') : `<div class="tiles">${tile('Ventas del mes (con IVA)', clp(R.T.total), 'boletas + facturas − notas de crédito')}${tile('Neto', clp(R.T.neto), 'sin IVA')}${tile('IVA débito', clp(R.T.total - R.T.neto), '19 %')}${tile('Documentos emitidos', miles(R.T.bol + R.T.fac + R.T.nc), `${plural(R.T.bol, 'boleta', 'boletas')} · ${plural(R.T.fac, 'factura', 'facturas')} · ${plural(R.T.nc, 'nota de crédito', 'notas de crédito')}`)}</div>
       <div class="dash">
         ${box('Por medio de pago', `<table class="mini"><tbody>${R.pay.map((x) => `<tr><td>${esc(x.l)}</td><td class="num">${plural(x.n, 'venta', 'ventas')}</td><td class="num">${clp(x.v)}</td></tr>`).join('') || '<tr><td class="muted">Sin ventas.</td></tr>'}</tbody></table>`, '', true)}
         ${box('Otros totales', `<dl class="kv"><dt>Envíos cobrados</dt><dd>${clp(R.ship)}</dd><dt>Descuentos con cupón</dt><dd>${clp(R.disc)}</dd><dt>Devoluciones</dt><dd>${clp(R.ncs.reduce((s, n) => s + n.a, 0))}</dd><dt>Ticket promedio</dt><dd>${clp(R.docs.length ? R.docs.reduce((s, o) => s + o.total, 0) / R.docs.length : 0)}</dd></dl>`)}
       </div>
       ${box('Detalle por día', `<div style="overflow-x:auto"><table class="mini"><thead><tr><td><b>Día</b></td><td class="num"><b>Boletas</b></td><td class="num"><b>Facturas</b></td><td class="num"><b>N. crédito</b></td><td class="num"><b>Neto</b></td><td class="num"><b>IVA</b></td><td class="num"><b>Total</b></td></tr></thead><tbody>${R.days.map((x) => `<tr><td class="nw">${fDate(x.d)}</td><td class="num">${x.bol}</td><td class="num">${x.fac}</td><td class="num">${x.nc}</td><td class="num">${clp(x.neto)}</td><td class="num">${clp(x.total - x.neto)}</td><td class="num"><b>${clp(x.total)}</b></td></tr>`).join('')}<tr class="sumrow"><td><b>Total</b></td><td class="num"><b>${R.T.bol}</b></td><td class="num"><b>${R.T.fac}</b></td><td class="num"><b>${R.T.nc}</b></td><td class="num"><b>${clp(R.T.neto)}</b></td><td class="num"><b>${clp(R.T.total - R.T.neto)}</b></td><td class="num"><b>${clp(R.T.total)}</b></td></tr></tbody></table></div>`, `${MESL[R.m - 1]} ${R.y}`, true)}
-      <div class="notice"><p>Para revisar con el contador. Los documentos son los emitidos en Bsale; el registro oficial de ventas es el del SII.</p></div>`;
+      <div class="notice"><p>Para revisar con el contador. Los documentos son los emitidos en Bsale; el registro oficial de ventas es el del SII.</p></div>`}`;
   };
 
   /* ───────── productos: crear, stock y edición en lote ───────── */
@@ -1419,7 +1235,7 @@
     if (!$('#npV').checked) hidden.add(p.id);
     log('Productos', `Creó "${n}" (SKU ${sku}, ${clp(price)}, ${stk} u.)`);
     location.hash = `/producto/${p.id}`;
-    toast(`Producto creado en Bsale y en la tienda${hidden.has(p.id) ? ' (oculto hasta que lo publiques)' : ''}. Falta subir la foto.`);
+    toast(`Producto creado${CONNECTED ? ' en Bsale y en la tienda' : ''}${hidden.has(p.id) ? ', oculto hasta que lo publiques' : ''}. Falta subir la foto. ${CONNECTED ? '' : NOSAVE}`);
   }
   function stockModal(p) {
     const vs = p.vs || [p];
@@ -1440,7 +1256,7 @@
     p.stk = after;
     (head.mov = head.mov || []).unshift({ t: Date.now(), type, n, before, after, r, by: 'Guillermo', v: p !== head ? p.n : '' });
     log('Stock', `${{ in: 'Ingreso', out: 'Salida', set: 'Corrección' }[type]} de "${p.n}": ${before} → ${after}${r ? ` (${r})` : ''}`);
-    closeModal(); route(); toast(`Stock actualizado: ${before} → ${after}. Registrado en Bsale.`);
+    closeModal(); route(); toast(`Stock actualizado: ${before} → ${after}.${CONNECTED ? ' Registrado en Bsale.' : ' ' + NOSAVE}`);
   }
   const PERMS = [['Pedidos y despachos', 1, 1, 1], ['Ventas manuales', 1, 1, 0], ['Productos y stock', 1, 1, 1], ['Cambiar precios', 1, 0, 0], ['Clientes', 1, 1, 0], ['Exportar datos de clientes', 1, 0, 0], ['Marketing, cupones y correos', 1, 1, 0], ['Portada', 1, 1, 0], ['Agenda del taller', 1, 1, 1], ['Analítica e informe de ventas', 1, 1, 0], ['Ajustes, claves y usuarios', 1, 0, 0]];
   function shortcutsModal() {
@@ -1555,7 +1371,7 @@
         ids.forEach((i) => setStatus(oId.get(i), to)); route(); return toast(`${plural(ids.length, 'pedido actualizado', 'pedidos actualizados')}. ${NOSAVE}`);
       }
       if (act === 'guardar-pedido') { const o = oId.get(id), to = $('#ost').value, ac = $('#oact').value; const ch = to !== o.st; if (ch) setStatus(o, to); if (ac) o.notes.push({ t: Date.now(), txt: `Acción realizada: ${ac}.`, kind: 'system', by: 'Guillermo' }); route(); return toast(ch || ac ? `Pedido actualizado. ${NOSAVE}` : 'No hay cambios que guardar.'); }
-      if (act === 'nota') { const o = oId.get(id), txt = $('#nn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); const n = { t: Date.now(), txt, kind: $('#nk').value, by: 'Guillermo' }; o.notes.push(n); $('#notes').insertAdjacentHTML('afterbegin', noteHtml(n)); $('#nn').value = ''; return toast(n.kind === 'customer' ? 'Nota añadida. En la versión real le llega al cliente por correo.' : 'Nota privada añadida.'); }
+      if (act === 'nota') { const o = oId.get(id), txt = $('#nn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); const n = { t: Date.now(), txt, kind: $('#nk').value, by: 'Guillermo' }; o.notes.push(n); $('#notes').insertAdjacentHTML('afterbegin', noteHtml(n)); $('#nn').value = ''; return toast(n.kind === 'customer' ? 'Nota para el cliente guardada; le llega por correo.' : 'Nota privada guardada.'); }
       if (act === 'guardar-producto') {
         const p = byId.get(id), multi = $$('[data-vp]').length > 1, name = $('#pt').value.trim(), price = multi ? p.p : Math.round(+$('#pp').value), offer = $('#po').value ? Math.round(+$('#po').value) : 0;
         if (name.length < 5) return toast('El nombre es muy corto.');
@@ -1569,7 +1385,7 @@
         if (multi) { p.vs.sort((x, y) => x.p - y.p); }
         const v = $('#pv').value === '1'; v ? hidden.delete(id) : hidden.add(id); $('#pf').checked ? featured.add(id) : featured.delete(id); seo.set(id, { t: $('#seoT').value, d: $('#seoD').value });
         log('Productos', `Actualizó "${name}"${ch.length ? ': ' + ch.join(', ') : ''}`); route();
-        return toast(ch.length ? `Guardado y sincronizado con Bsale (${ch.join(', ')}). ${NOSAVE}` : `Producto actualizado. ${NOSAVE}`);
+        return toast(ch.length ? `Guardado${CONNECTED ? ' y sincronizado con Bsale' : ''}: ${ch.join(', ')}. ${CONNECTED ? '' : NOSAVE}` : `Producto actualizado. ${CONNECTED ? '' : NOSAVE}`);
       }
       if (act === 'dlg-close') return closeModal();
       if (act === 'reembolso') return refundModal(oId.get(id));
@@ -1604,11 +1420,11 @@
       if (act === 'c-borrar') return confirmBox('Borrar datos personales', 'Se borran nombre, correo, teléfono, RUT y dirección, y se quitan los permisos de contacto. Los pedidos y boletas se conservan sin datos personales, por obligación tributaria. No se puede deshacer.', 'c-borrar-ok', 'Borrar datos', id);
       if (act === 'c-borrar-ok') { const c = CUST.find((x) => x.id === id); const was = custName(c); Object.assign(c, { first: 'Cliente', last: `eliminado #${c.id}`, email: '—', phone: '—', rut: '—', street: '—', tags: [], cnotes: [], consent: { mail: false, wa: false } }); if (c.emp) c.emp = { ...c.emp, name: 'Empresa eliminada' }; log('Privacidad', `Borró los datos personales de ${was} a pedido del cliente`); closeModal(); route(); return toast('Datos personales borrados. Queda registrado.'); }
       if (act === 'bk-ver') return bookingModal(BOOK.find((b) => b.id === id));
-      if (act === 'bk-save') { const b = BOOK.find((x) => x.id === id), st = $('#bkst').value; if (st !== b.st) { log('Taller', `${fmtPlate(b.plate)}: ${BK_ST[b.st][0]} → ${BK_ST[st][0]}`); b.st = st; } closeModal(); route(); return toast(st === 'listo' ? 'Marcado como listo. En la versión real se avisa al cliente por WhatsApp.' : 'Reserva actualizada.'); }
-      if (act === 'bk-wa') { const b = BOOK.find((x) => x.id === id); return toast(`En la versión real abre WhatsApp con: "Hola ${b.c.first}, te esperamos el ${fDay(b.day)} a las ${hm(b.start)} para ${b.sv.n.toLowerCase()}".`); }
+      if (act === 'bk-save') { const b = BOOK.find((x) => x.id === id), st = $('#bkst').value; if (st !== b.st) { log('Taller', `${fmtPlate(b.plate)}: ${BK_ST[b.st][0]} → ${BK_ST[st][0]}`); b.st = st; } closeModal(); route(); return toast(st === 'listo' ? 'Marcado como listo para entregar. Usa "Recordatorio por WhatsApp" para avisarle.' : 'Reserva actualizada.'); }
+      if (act === 'bk-wa') { const b = BOOK.find((x) => x.id === id); return void waOpen(b.c.phone, b.st === 'listo' ? `Hola ${b.c.first}, tu ${b.car} ya está listo para retirar en Reycar, Quinta Normal.` : `Hola ${b.c.first}, te recordamos tu hora en Reycar: ${WDAYS[(new Date(b.day).getDay() + 6) % 7].toLowerCase()} ${fDay(b.day)} a las ${hm(b.start)} (${b.sv.n}).`); }
       if (act === 'bk-del') return confirmBox('Cancelar reserva', 'La hora queda libre para otro cliente.', 'bk-del-ok', 'Cancelar reserva', id);
       if (act === 'bk-del-ok') { const i = BOOK.findIndex((x) => x.id === id), b = BOOK[i]; BOOK.splice(i, 1); log('Taller', `Canceló la reserva de ${fmtPlate(b.plate)} del ${fDay(b.day)}`); closeModal(); route(); return toast('Reserva cancelada.'); }
-      if (act === 'bk-nueva') return newBookingModal();
+      if (act === 'bk-nueva') return SERVICES.length ? newBookingModal() : toast('Primero agrega un servicio de taller en Productos (categoría "Servicios de taller").');
       if (act === 'bk-ok') return bookingCreate();
       if (act === 'sv-save') { log('Taller', 'Actualizó servicios y precios'); return toast(`Servicios guardados. ${NOSAVE}`); }
       if (act === 'rv-ok' || act === 'rv-show') { const r = REVIEWS.find((x) => x.id === id); r.st = 'ok'; log('Reseñas', `Publicó una reseña de ${r.r} estrellas`); route(); return toast('Reseña publicada en la tienda.'); }
@@ -1616,7 +1432,7 @@
       if (act === 'rv-hide-ok') { const r = REVIEWS.find((x) => x.id === id); r.st = 'hid'; log('Reseñas', 'Ocultó una reseña como spam'); closeModal(); route(); return toast('Reseña oculta.'); }
       if (act === 'rv-reply') { const r = REVIEWS.find((x) => x.id === id); return modal('Responder reseña', `<p style="margin-top:0">${stars(r.r)} ${esc(r.txt)}</p><div class="field"><label for="rvt">Respuesta pública</label><textarea id="rvt" rows="4" maxlength="600">${esc(r.reply || `Hola ${r.c.first}, gracias por tu opinión. `)}</textarea></div><p class="muted small" style="margin:0">Se muestra debajo de la reseña, firmada por Reycar Store.</p>`, `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="rv-reply-ok" data-id="${r.id}">Publicar respuesta</button>`); }
       if (act === 'rv-reply-ok') { const r = REVIEWS.find((x) => x.id === id), t = $('#rvt').value.trim(); if (t.length < 5) return toast('Escribe la respuesta.'); r.reply = t; if (r.st === 'pend') r.st = 'ok'; log('Reseñas', 'Respondió una reseña'); closeModal(); route(); return toast('Respuesta publicada.'); }
-      if (act === 'mail-test') return toast('Prueba enviada a guillermo@ejemplo.cl (en la maqueta no sale ningún correo).');
+      if (act === 'mail-test') return toast('La prueba se envía a tu correo cuando el envío de correos esté conectado.');
       if (act === 'mail-send') {
         const subj = $('#ms').value.trim(), txt = $('#mtxt').value.trim(), seg = $('#mseg').value, n = segCount(seg), when = $('#mwhen').value;
         if (subj.length < 5) return toast('Escribe el asunto.'); if (txt.length < 10) return toast('Escribe el mensaje.'); if (!n) return toast('Ese grupo no tiene clientes con permiso para recibir correos.');
@@ -1624,7 +1440,7 @@
         DRAFT_MAIL = { subj, seg, n, when };
         return confirmBox(when ? 'Programar campaña' : 'Enviar campaña', `"${esc(subj)}" ${when ? `se enviará el ${fFull(new Date(when).getTime())}` : 'se enviará ahora'} a <b>${plural(n, 'cliente', 'clientes')}</b>.`, 'mail-ok', when ? 'Programar' : 'Enviar ahora');
       }
-      if (act === 'mail-ok') { const m = DRAFT_MAIL; CAMPAIGNS.unshift({ subj: m.subj, seg: m.seg, n: m.n, t: m.when ? new Date(m.when).getTime() : Date.now(), st: m.when ? 'prog' : 'sent', open: null, click: null, orders: null }); log('Marketing', `${m.when ? 'Programó' : 'Envió'} la campaña "${m.subj}" a ${m.n} clientes`); closeModal(); route(); return toast(m.when ? 'Campaña programada.' : `Campaña en envío a ${plural(m.n, 'cliente', 'clientes')} (en la maqueta no sale ningún correo).`); }
+      if (act === 'mail-ok') { const m = DRAFT_MAIL; CAMPAIGNS.unshift({ subj: m.subj, seg: m.seg, n: m.n, t: m.when ? new Date(m.when).getTime() : Date.now(), st: m.when ? 'prog' : 'sent', open: null, click: null, orders: null }); log('Marketing', `${m.when ? 'Programó' : 'Envió'} la campaña "${m.subj}" a ${m.n} clientes`); closeModal(); route(); return toast(m.when ? 'Campaña programada.' : `Campaña lista para ${plural(m.n, 'cliente', 'clientes')}. Sale cuando el envío de correos esté conectado.`); }
       if (act === 'syn') { const term = a.dataset.term; return modal(`Redirigir "${term}"`, `<p style="margin-top:0">Nadie encuentra nada al buscar <b>${esc(term)}</b>. Elige a dónde llevarlo:</p><div class="field"><label for="synG">Mostrar la categoría</label><select id="synG" style="width:100%">${GROUPS.map((g) => `<option value="${g.id}">${esc(g.name)}</option>`).join('')}</select></div>`, `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="syn-ok" data-term="${esc(term)}">Guardar</button>`); }
       if (act === 'syn-ok') { SYN.set(a.dataset.term, $('#synG').value); log('Tienda', `La búsqueda "${a.dataset.term}" ahora lleva a ${gById.get($('#synG').value).name}`); closeModal(); route(); return toast('Listo: esa búsqueda ya no queda vacía.'); }
       if (act === 'csv-informe') { const R2 = salesReport(a.dataset.m); csv(`informe-ventas-${a.dataset.m}.csv`, ['Día', 'Boletas', 'Facturas', 'Notas de crédito', 'Neto', 'IVA', 'Total'], R2.days.map((x) => [fDate(x.d), x.bol, x.fac, x.nc, x.neto, x.total - x.neto, x.total])); log('Exportación', `Exportó el informe de ventas de ${a.dataset.m}`); return toast('Se descargó el informe del mes.'); }
@@ -1639,16 +1455,16 @@
         ids.forEach((i) => { const p = byId.get(i); if (v === 'show') hidden.delete(i); if (v === 'hide') hidden.add(i); if (v === 'feat') featured.add(i); if (v === 'unfeat') featured.delete(i); if (v.startsWith('g:')) [p, ...(p.vs || [])].forEach((x) => { x.g = v.slice(2); x.sc = ''; }); });
         log('Productos', `Acción en lote sobre ${ids.length} productos`); route(); return toast(`${plural(ids.length, 'producto actualizado', 'productos actualizados')}. ${NOSAVE}`);
       }
-      const o = oId.get(id), note = (txt, kind = 'private', by = 'Ventas y despacho') => o.notes.push({ t: Date.now(), txt, kind, by });
-      if (act === 'prep') { o.prep = true; note('Pedido preparado y embalado.'); log(`Pedido #${o.id}`, 'Lo marcó como preparado', 'Ventas y despacho'); route(); return toast(`#${o.id} preparado. ${isPick(o) ? 'Ahora avisa al cliente que puede retirarlo.' : 'Ahora genera la etiqueta.'}`); }
-      if (act === 'avisar') { note(`Se avisó por WhatsApp que el pedido está listo para retiro en Quinta Normal.`, 'customer'); return toast(`En la versión real abre WhatsApp con: "Hola ${o.c.first}, tu pedido #${o.id} ya está listo para retiro en Quinta Normal".`); }
+      const o = oId.get(id), note = (txt, kind = 'private', by = 'Guillermo') => o.notes.push({ t: Date.now(), txt, kind, by });
+      if (act === 'prep') { o.prep = true; note('Pedido preparado y embalado.'); log(`Pedido #${o.id}`, 'Lo marcó como preparado'); route(); return toast(`#${o.id} preparado. ${isPick(o) ? 'Ahora avisa al cliente que puede retirarlo.' : 'Ahora genera la etiqueta.'}`); }
+      if (act === 'avisar') { if (waOpen(o.c.phone, `Hola ${o.c.first}, tu pedido #${o.id} de Reycar Store ya está listo para retiro en Quinta Normal.`)) { note('Se avisó por WhatsApp que el pedido está listo para retiro.', 'customer'); route(); } return; }
       if (act === 'retirado') { note('El cliente retiró el pedido en la tienda.'); setStatus(o, 'completed'); route(); return toast(`#${o.id} entregado y completado.`); }
-      if (act === 'etiqueta') { Object.assign(o.ship, { track: String(1e9 + Math.floor(Math.random() * 8.9e9)), carrier: o.ship.carrier || 'Starken' }); note(`Envío creado en Sendu con ${o.ship.carrier}. N° de seguimiento ${o.ship.track}.`, 'customer'); setStatus(o, 'completed'); route(); return toast(`Etiqueta de ${o.ship.carrier} lista (en la versión real se descarga el PDF para imprimir). El cliente recibe el seguimiento por correo.`); }
-      if (act === 'seguimiento') return toast(`${o.ship.carrier} · N° ${o.ship.track}. En la versión real abre el seguimiento del courier.`);
+      if (act === 'etiqueta') { Object.assign(o.ship, { track: String(1e9 + Math.floor(Math.random() * 8.9e9)), carrier: o.ship.carrier || 'Starken' }); note(`Envío creado en Sendu con ${o.ship.carrier}. N° de seguimiento ${o.ship.track}.`, 'customer'); setStatus(o, 'completed'); route(); return toast(`Etiqueta de ${o.ship.carrier} generada con el N° ${o.ship.track}. Al conectar Sendu se descarga el PDF para imprimir.`); }
+      if (act === 'seguimiento') return toast(`${o.ship.carrier} · N° de seguimiento ${o.ship.track}.`);
       if (act === 'imprimir') return print();
-      if (act === 'csv-pedidos') { const l = V.pedidos.last || []; csv(`pedidos-reycar-${stamp()}.csv`, ['Pedido', 'Fecha', 'Estado', 'Cliente', 'Correo', 'Teléfono', 'Comuna', 'Región', 'Documento', 'Folio', 'RUT', 'Envío', 'Costo envío', 'Medio de pago', 'Origen', 'Campaña', 'Productos', 'Total'], l.map((o) => [o.id, fFull(o.t), ST[o.st], custName(o.c), o.c.email, o.c.phone, o.c.comuna, o.c.region, o.doc ? o.doc.type : '', o.doc ? o.doc.folio : '', o.fac ? o.c.emp.rut : o.c.rut, o.ship.m, o.ship.cost, o.pay, o.src.lbl, o.camp, o.lines.map((x) => `${x.q} × ${x.p.n}`).join(' | '), o.total])); log('Exportación', `Exportó ${l.length} pedidos a Excel`); return toast(`Se descargó un archivo con ${plural(l.length, 'pedido', 'pedidos')}. Queda anotado en el registro de actividad.`); }
+      if (act === 'csv-pedidos') { const l = V.pedidos.last || []; csv(`pedidos-reycar-${stamp()}.csv`, ['Pedido', 'Fecha', 'Estado', 'Cliente', 'Correo', 'Teléfono', 'Comuna', 'Región', 'Documento', 'Folio', 'RUT', 'Envío', 'Costo envío', 'Medio de pago', 'Origen', 'Campaña', 'Productos', 'Total'], l.map((o) => [o.id, fFull(o.t), ST[o.st], custName(o.c), o.c.email, o.c.phone, o.c.comuna, o.c.region, o.doc ? o.doc.type : '', (o.doc && o.doc.folio) || '', o.fac ? o.c.emp.rut : o.c.rut, o.ship.m, o.ship.cost, o.pay, o.src.lbl, o.camp, o.lines.map((x) => `${x.q} × ${x.p.n}`).join(' | '), o.total])); log('Exportación', `Exportó ${l.length} pedidos a Excel`); return toast(`Se descargó un archivo con ${plural(l.length, 'pedido', 'pedidos')}. Queda anotado en el registro de actividad.`); }
       if (act === 'csv-clientes') { const l = V.clientes.last || []; csv(`clientes-reycar-${stamp()}.csv`, ['Nombre', 'Correo', 'Teléfono', 'Comuna', 'Región', 'Empresa', 'Pedidos pagados', 'Gasto total', 'Último pedido'], l.map((x) => [custName(x.c), x.c.email, x.c.phone, x.c.comuna, x.c.region, x.c.emp ? x.c.emp.name : '', x.n, x.v, fDate(x.last)])); log('Exportación', `Exportó ${l.length} clientes a Excel`); return toast(`Se descargó un archivo con ${plural(l.length, 'cliente', 'clientes')}. Queda anotado en el registro de actividad.`); }
-      if (act === 'csv-inventario') { const l = (V.inventario.last || []).filter((x) => x.sug || x.st === 'out'); csv(`reposicion-reycar-${stamp()}.csv`, ['Producto', 'Marca', 'SKU', 'Stock', 'Vendidos 30 días', 'Sugerido pedir'], l.map((x) => [x.p.n, x.p.b || '', x.p.sku, x.p.stk ?? '', x.u, x.sug])); return toast(`Se descargó la lista de reposición (${plural(l.length, 'producto', 'productos')}).`); }
+      if (act === 'csv-inventario') { const l = (V.inventario.last || []).filter((x) => x.sug || ['out', 'low', 'now', 'soon'].includes(x.st)); csv(`reposicion-reycar-${stamp()}.csv`, ['Producto', 'Marca', 'SKU', 'Stock', 'Vendidos 30 días', 'Sugerido pedir'], l.map((x) => [x.p.n, x.p.b || '', x.p.sku, x.p.stk ?? '', x.u, x.sug])); return toast(`Se descargó la lista de reposición (${plural(l.length, 'producto', 'productos')}).`); }
       if (act === 'crear-cupon') {
         const code = $('#cc').value.trim().toUpperCase().replace(/\s+/g, ''), type = $('#ct').value, val = +$('#cv').value || 0;
         if (!/^[A-Z0-9-]{3,20}$/.test(code)) return toast('El código debe tener de 3 a 20 letras o números, sin espacios.');
@@ -1659,7 +1475,7 @@
         COUPONS.unshift({ code, type, val, min: +$('#cm').value || 0, uses: 0, limit: +$('#cl').value || 0, from: dt('#cf') || Date.now(), to: dt('#cto') ? dt('#cto') + DAY - MIN : 0, scope: $('#cs2').value });
         log('Cupón', `Creó el cupón ${code} (${cpVal(COUPONS[0])})`); route(); return toast(`Cupón ${code} creado. ${NOSAVE}`);
       }
-      if (act === 'recordar' || act === 'recordar-todos') { const l = act === 'recordar' ? CARTS.filter((c) => c.id === id) : CARTS.filter((c) => c.st === 'pend'); l.forEach((c) => (c.st = 'sent')); log('Marketing', `Envió recordatorio a ${plural(l.length, 'carrito abandonado', 'carritos abandonados')}`); route(); return toast(l.length ? `Recordatorio enviado a ${plural(l.length, 'cliente', 'clientes')} (en la maqueta no sale ningún mensaje).` : 'No hay carritos pendientes.'); }
+      if (act === 'recordar' || act === 'recordar-todos') { const l = act === 'recordar' ? CARTS.filter((c) => c.id === id) : CARTS.filter((c) => c.st === 'pend'); l.forEach((c) => (c.st = 'sent')); log('Marketing', `Envió recordatorio a ${plural(l.length, 'carrito abandonado', 'carritos abandonados')}`); route(); return toast(l.length ? `Recordatorio enviado a ${plural(l.length, 'cliente', 'clientes')}.` : 'No hay carritos pendientes.'); }
       const mvArr = (arr, i, d) => { const j = i + d; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; route(); };
       const ii = +a.dataset.i;
       if (act === 'ban-up' || act === 'ban-down') return mvArr(HOME.banners, ii, act.endsWith('up') ? -1 : 1);
@@ -1668,8 +1484,10 @@
       if (act === 'quitar-dest') { featured.delete(id); route(); return toast('Quitado de destacados.'); }
       if (act === 'agregar-dest') { const v = +$('#addDest').value; if (!v) return toast('Elige un producto.'); featured.add(v); route(); return toast('Producto destacado.'); }
       if (act === 'publicar') { HOME.bar = { on: $('#barOn').checked, txt: $('#barTxt').value }; HOME.mc = ($('input[name=mc]:checked') || {}).value || 'auto'; log('Portada', 'Publicó cambios en la portada'); return toast(`Portada publicada. ${NOSAVE}`); }
-      if (act === 'wa-cliente') return toast('En la versión real abre WhatsApp con el cliente. En la maqueta los teléfonos son inventados.');
-      const MSG = { 'ver-correo': 'Aquí se ve el correo tal como le llega al cliente, con el logo de Reycar.', solicitud: 'Se busca al cliente por correo o RUT; la acción queda registrada con fecha y responsable.', 'nuevo-pedido': 'Los pedidos llegan solos desde la tienda. En la versión real también se podrán crear a mano (ventas por WhatsApp).', reembolso: 'En la versión real: devuelve el dinero en Klap y emite la nota de crédito en Bsale.', pdf: 'Al conectar Bsale, abre el PDF del documento.', papelera: 'En la maqueta no se borra nada.', unir: 'Elegirás otro producto de Bsale para mostrarlo como formato de este.', foto: 'Aquí se suben fotos (se optimizan solas para la web).', 'nueva-redir': 'Aquí se agrega una redirección: dirección antigua → nueva.', 'nuevo-usuario': 'Aquí se invita a una persona por correo, con su perfil.', guardar: `Guardado. ${NOSAVE}` };
+      if (act === 'wa-cliente') { const c = CUST.find((x) => x.id === id); return void (c && waOpen(c.phone, `Hola ${c.first}, te escribimos de Reycar Store.`)); }
+      if (act === 'papelera') return confirmBox('Mover a la papelera', `El pedido #${id} deja de aparecer en las listas e informes. Si ya tiene boleta, primero haz el reembolso para emitir la nota de crédito.`, 'papelera-ok', 'Mover a la papelera', id);
+      if (act === 'papelera-ok') { const i = ORDERS.findIndex((x) => x.id === id); if (i >= 0) { ORDERS.splice(i, 1); oId.delete(id); CS = null; log(`Pedido #${id}`, 'Lo movió a la papelera'); } closeModal(); location.hash = '/pedidos'; return toast(`Pedido #${id} movido a la papelera.`); }
+      const MSG = { 'ver-correo': 'Aquí se ve el correo tal como le llega al cliente, con el logo de Reycar.', solicitud: 'Se busca al cliente por correo o RUT; la acción queda registrada con fecha y responsable.', pdf: 'El PDF del documento se abre desde Bsale al conectar la cuenta.', unir: 'Elegirás otro producto de Bsale para mostrarlo como formato de este.', foto: 'La carga de fotos se activa al conectar el almacenamiento de la tienda; se optimizan solas para la web.', 'nueva-redir': 'Aquí se agrega una redirección: dirección antigua → nueva.', 'nuevo-usuario': 'Aquí se invita a una persona por correo, con su perfil.', guardar: `Cambios aplicados. ${NOSAVE}` };
       return toast(MSG[act] || NOSAVE);
     }
     const row = e.target.closest('tr[data-go]');
