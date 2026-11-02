@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /reycar
 Disallow: /admin
 
 Sitemap: https://reycar.vercel.app/sitemap.xml

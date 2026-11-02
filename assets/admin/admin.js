@@ -76,6 +76,8 @@
   const otag = (o) => `<span class="tag${o.src.cls ? ' tag--' + o.src.cls : ''}">${esc(o.src.lbl)}</span>`;
   const qty = (o) => o.lines.reduce((s, l) => s + l.q, 0);
   const isPick = (o) => /Retiro/.test(o.ship.m);
+  const has = (v) => !!v && v !== '—';
+  const addrHtml = (c) => [has(c.street) ? `<p>${esc(c.street)}</p>` : '', [c.comuna, c.region].filter(has).length ? `<p>${[c.comuna, c.region].filter(has).map(esc).join(', ')}</p>` : ''].join('');
   const docTxt = (d) => `${d.type}${d.folio ? ` N° ${d.folio}` : ''}`;
   const CART_ST = { pend: ['Por recuperar', 'processing'], sent: ['Recordatorio enviado', 'pending'], rec: ['Recuperado', 'completed'], anon: ['Sin datos de contacto', 'cancelled'] };
   const cpState = (c, now = Date.now()) => (c.to && c.to < now ? ['Vencido', 'cancelled'] : c.from > now ? ['Programado', 'pending'] : c.limit && c.uses >= c.limit ? ['Agotado', 'failed'] : ['Activo', 'completed']);
@@ -171,9 +173,10 @@
     mkt: 'M16 3v14l-5.5-3.2H7.2L6.4 18H4.2l.9-4.4A3.2 3.2 0 0 1 2 10.5v-1A3.5 3.5 0 0 1 5.5 6h5zm1.5 4a3 3 0 0 1 0 6z',
     cal: 'M5 1.5h2v2h6v-2h2v2h2.5v15h-15v-15H5zm-1 6v9h12v-9zm2 2h3v3H6z',
     home: 'M10 2 1.5 9.2H4V18h4.6v-5.2h2.8V18H16V9.2h2.5z',
+    help: 'M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16zm0 12.1a1.1 1.1 0 1 1 0 2.2 1.1 1.1 0 0 1 0-2.2zM10 4.6c1.9 0 3.3 1.2 3.3 2.9 0 1.3-.7 2-1.7 2.6-.7.4-.9.7-.9 1.3v.5H9V11c0-1.1.5-1.7 1.4-2.3.7-.4 1-.8 1-1.3 0-.7-.6-1.2-1.4-1.2-.9 0-1.5.5-1.6 1.4L6.7 7.4C6.9 5.7 8.2 4.6 10 4.6z',
     set: 'M3 5h8.2a2.5 2.5 0 0 1 4.6 0H17v1.5h-1.2a2.5 2.5 0 0 1-4.6 0H3zm0 8.5h1.2a2.5 2.5 0 0 1 4.6 0H17V15H8.8a2.5 2.5 0 0 1-4.6 0H3z',
   };
-  const ico = (k) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${IC[k]}" fill="currentColor"/></svg>`;
+  const ico = (k) => `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="${IC[k]}" fill="currentColor"${k === 'help' ? ' fill-rule="evenodd"' : ''}/></svg>`;
   const MENU = [
     { k: 'dash', href: '#/', t: 'Escritorio', match: ['', 'escritorio'] },
     { k: 'orders', href: '#/pedidos', t: 'Pedidos', match: ['pedidos', 'pedido', 'despachos'], badge: () => ORDERS.filter((o) => o.st === 'processing').length, subs: [['#/pedidos', 'Todos los pedidos'], ['#/pedido/nuevo', 'Nuevo pedido'], ['#/despachos', 'Despachos']] },
@@ -186,6 +189,7 @@
     { k: 'seo', href: '#/seo', t: 'SEO', match: ['seo'] },
     { k: 'users', href: '#/usuarios', t: 'Usuarios', match: ['usuarios', 'actividad'], subs: [['#/usuarios', 'Usuarios y permisos'], ['#/actividad', 'Registro de actividad']] },
     { k: 'set', href: '#/ajustes', t: 'Ajustes', match: ['ajustes'], def: 'general', subs: [['#/ajustes?tab=general', 'General'], ['#/ajustes?tab=pagos', 'Pagos (Klap)'], ['#/ajustes?tab=envios', 'Envíos'], ['#/ajustes?tab=bsale', 'Bsale'], ['#/ajustes?tab=seguimiento', 'Seguimiento y anuncios'], ['#/ajustes?tab=correos', 'Correos al cliente'], ['#/ajustes?tab=privacidad', 'Privacidad y datos']] },
+    { k: 'help', href: '#/ayuda', t: 'Ayuda', match: ['ayuda'] },
   ];
   const ALIAS = { pedido: 'pedidos', producto: 'productos', cliente: 'clientes' };
   const subKey = (h) => { const [path, qs] = h.replace(/^#\//, '').split('?'); return `${path}|${new URLSearchParams(qs || '').get('tab') || ''}`; };
@@ -303,7 +307,7 @@
       <div class="tiles">
         ${tile(`Ventas de ${MESL[m.getMonth()]}`, clp(sum(inM)), inP.length ? delta(sum(inM), sum(inP)) : 'pedidos pagados del mes')}
         ${tile('Pedidos pagados del mes', miles(inM.length), inP.length ? delta(inM.length, inP.length) : 'web, WhatsApp y local')}
-        ${tile('Ticket promedio del mes', inM.length ? clp(sum(inM) / inM.length) : '—', 'con IVA')}
+        ${tile(`Ticket promedio del mes ${qm('ticket')}`, inM.length ? clp(sum(inM) / inM.length) : '—', 'con IVA')}
         ${tile('Por preparar y despachar', miles(proc.length), `<a href="#/despachos">Ir a despachos</a>`)}
       </div>
       <div class="dash">
@@ -392,12 +396,13 @@
     const c = o.c, paidNote = o.notes.find((n) => n.txt.startsWith('Klap aprobó'));
     const notes = [...o.notes].reverse();
     return `
-      <div class="wrap-h no-print"><h1>Editar pedido</h1><button class="button" data-act="imprimir">Imprimir pedido</button><a class="button" href="https://wa.me/${c.phone.replace(/\D/g, '')}" target="_blank" rel="noopener" data-act="wa-cliente" data-id="${c.id}">WhatsApp al cliente</a></div>
+      <div class="no-print">${crumbs([['Pedidos', '#/pedidos'], [`Pedido #${o.id}`]])}</div>
+      <div class="wrap-h no-print"><h1>Pedido #${o.id}</h1>${pill(o.st)}<button class="button" data-act="imprimir">Imprimir pedido</button><a class="button" href="https://wa.me/${c.phone.replace(/\D/g, '')}" target="_blank" rel="noopener" data-act="wa-cliente" data-id="${c.id}">WhatsApp al cliente</a></div>
       <div class="print-only print-head"><img src="/assets/logo.png" alt="" width="40" height="41"><div><b>Reycar Store · Pedido #${o.id}</b><br>${fFull(o.t)} · ${esc(o.ship.m)}</div></div>
       <div class="cols">
         <div>
           <div class="postbox"><div class="inside">
-            <h2 style="font-size:24px;font-weight:800;font-stretch:88%;letter-spacing:-.01em;margin:0 0 4px">Detalles del pedido #${o.id}</h2>
+            <h2 style="font-size:24px;font-weight:800;font-stretch:88%;letter-spacing:-.01em;margin:0 0 4px">Detalles</h2>
             <p class="muted" style="margin:0 0 16px">${o.auth === 'LOCAL' ? 'Pagado en el local.' : o.auth ? `Pago con Klap (${esc(o.pay)}). Pagado el ${fFull(paidNote ? paidNote.t : o.t)}.` : o.doc ? `Pagado por ${esc(o.pay.toLowerCase())}.` : o.st === 'failed' ? 'Pago rechazado por Klap.' : o.st === 'on-hold' ? 'Esperando la transferencia.' : o.st === 'pending' && o.src === MANUAL ? 'Link de pago enviado; aún sin pagar.' : 'Aún sin pago.'} ${o.doc ? `${docTxt(o.doc)}.` : ''}${o.src === MANUAL ? ' Venta creada desde el panel.' : ''}</p>
             <div class="grid3">
               <div>
@@ -408,15 +413,15 @@
               </div>
               <div class="addr">
                 <h3 style="font-size:14px;margin:0 0 10px">Facturación</h3>
-                ${o.fac ? `<p><b>${esc(c.emp.name)}</b></p><p>RUT ${c.emp.rut}</p><p>Giro: ${esc(c.emp.giro)}</p>` : `<p>${esc(custName(c))}</p><p>RUT ${c.rut}</p>`}
-                <p>${esc(c.street)}</p><p>${esc(c.comuna)}, ${esc(c.region)}</p>
-                <p style="margin-top:10px"><b>Correo:</b> <a href="mailto:${esc(c.email)}">${esc(c.email)}</a></p>
-                <p><b>Teléfono:</b> <a href="https://wa.me/${c.phone.replace(/\D/g, '')}" target="_blank" rel="noopener">${esc(c.phone)}</a></p>
+                ${o.fac ? `<p><b>${esc(c.emp.name)}</b></p><p>RUT ${c.emp.rut}</p><p>Giro: ${esc(c.emp.giro)}</p>` : `<p>${esc(custName(c))}</p>${has(c.rut) ? `<p>RUT ${esc(c.rut)}</p>` : ''}`}
+                ${addrHtml(c)}
+                <p style="margin-top:10px"><b>Correo:</b> ${has(c.email) ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '<span class="muted">No indicado</span>'}</p>
+                <p><b>Teléfono:</b> ${has(c.phone) ? esc(c.phone) : '<span class="muted">No indicado</span>'}</p>
                 <p style="margin-top:10px"><b>Documento:</b> ${o.fac ? 'Factura' : 'Boleta'}</p>
               </div>
               <div class="addr">
                 <h3 style="font-size:14px;margin:0 0 10px">Envío</h3>
-                ${o.ship.cost || !/Retiro/.test(o.ship.m) ? `<p>${esc(custName(c))}</p><p>${esc(c.street)}</p><p>${esc(c.comuna)}, ${esc(c.region)}</p>` : '<p>Retira en la tienda de Quinta Normal.</p>'}
+                ${!/Retiro/.test(o.ship.m) ? `<p>${esc(custName(c))}</p>${addrHtml(c) || '<p class="muted">Sin dirección registrada: pídela al cliente antes de despachar.</p>'}` : '<p>Retira en la tienda de Quinta Normal.</p>'}
                 <p style="margin-top:10px"><b>Método:</b> ${esc(o.ship.m)}</p>
                 ${o.ship.track ? `<p><b>Seguimiento:</b> ${esc(o.ship.carrier)} ${o.ship.track}</p>` : ''}
                 ${o.cnote ? `<p style="margin-top:10px"><b>Nota del cliente:</b> ${esc(o.cnote)}</p>` : ''}
@@ -442,8 +447,8 @@
           <div class="postbox"><h2 class="hndle">Acciones del pedido</h2><div class="inside">
             <select id="oact" style="width:100%" aria-label="Acción del pedido"><option value="">Elige una acción…</option><option>Enviar detalles del pedido al cliente</option><option>Reenviar ${o.fac ? 'factura' : 'boleta'} al cliente</option><option>Generar envío en Sendu</option><option>Emitir documento en Bsale de nuevo</option></select>
           </div><div class="major-publishing-actions"><button class="button-link-delete" data-act="papelera" data-id="${o.id}">Mover a la papelera</button><button class="button button-primary" data-act="guardar-pedido" data-id="${o.id}">Actualizar</button></div></div>
-          ${box('Documento tributario', o.doc ? `<dl class="kv"><dt>Tipo</dt><dd>${o.doc.type}</dd><dt>Folio</dt><dd>${o.doc.folio ? `N° ${o.doc.folio}` : 'Lo asigna Bsale al emitir'}</dd>${(o.ncs || []).map((n) => `<dt>Nota de crédito</dt><dd>${n.f ? `N° ${n.f} · ` : ''}${clp(n.a)}</dd>`).join('')}<dt>Emitido</dt><dd>${o.src === MANUAL ? 'Desde el panel, al registrar el pago' : 'Automático, al aprobarse el pago'}</dd><dt>Stock</dt><dd>Descontado en Bsale</dd></dl><p style="margin:12px 0 0"><button class="button" data-act="pdf">Ver PDF en Bsale</button></p>` : `<p class="muted" style="margin:0">${o.st === 'on-hold' ? 'Se emite en Bsale cuando confirmes la transferencia (estado Procesando).' : 'Se emite automáticamente en Bsale cuando se paga.'}</p>`)}
-          ${box('De dónde vino', `<dl class="kv"><dt>Origen</dt><dd>${otag(o)}</dd><dt>Tipo de origen</dt><dd>${o.src.type}</dd><dt>Fuente / medio</dt><dd>${esc(o.src.src)} / ${esc(o.src.med)}</dd>${o.camp ? `<dt>Campaña</dt><dd>${esc(o.camp)}</dd>` : ''}<dt>Página de entrada</dt><dd>${esc(o.landing)}</dd><dt>Dispositivo</dt><dd>${o.dev}</dd><dt>Páginas vistas</dt><dd>${o.pages}</dd></dl>`)}
+          ${box(`Documento tributario ${qm('boleta')}`, o.doc ? `<dl class="kv"><dt>Tipo</dt><dd>${o.doc.type}</dd><dt>Folio</dt><dd>${o.doc.folio ? `N° ${o.doc.folio}` : 'Lo asigna Bsale al emitir'}</dd>${(o.ncs || []).map((n) => `<dt>Nota de crédito</dt><dd>${n.f ? `N° ${n.f} · ` : ''}${clp(n.a)}</dd>`).join('')}<dt>Emitido</dt><dd>${o.src === MANUAL ? 'Desde el panel, al registrar el pago' : 'Automático, al aprobarse el pago'}</dd><dt>Stock</dt><dd>${CONNECTED ? 'Descontado en Bsale' : 'Descontado'}</dd></dl><p style="margin:12px 0 0"><button class="button" data-act="pdf">Ver PDF en Bsale</button></p>` : `<p class="muted" style="margin:0">${o.st === 'on-hold' ? 'Se emite en Bsale cuando confirmes la transferencia (estado Procesando).' : 'Se emite automáticamente en Bsale cuando se paga.'}</p>`)}
+          ${box(`De dónde vino ${qm('utm')}`, `<dl class="kv"><dt>Origen</dt><dd>${otag(o)}</dd><dt>Tipo de origen</dt><dd>${o.src.type}</dd><dt>Fuente / medio</dt><dd>${esc(o.src.src)} / ${esc(o.src.med)}</dd>${o.camp ? `<dt>Campaña</dt><dd>${esc(o.camp)}</dd>` : ''}<dt>Página de entrada</dt><dd>${esc(o.landing)}</dd><dt>Dispositivo</dt><dd>${o.dev}</dd><dt>Páginas vistas</dt><dd>${o.pages}</dd></dl>`)}
           ${box('Historial del cliente', (() => { const all = ORDERS.filter((x) => x.c === c && PAID.has(x.st)); return `<dl class="kv"><dt>Pedidos pagados</dt><dd>${all.length}</dd><dt>Total gastado</dt><dd>${clp(all.reduce((s, x) => s + x.total, 0))}</dd><dt>Ticket promedio</dt><dd>${clp(all.length ? all.reduce((s, x) => s + x.total, 0) / all.length : 0)}</dd></dl>`; })())}
           ${box('Notas del pedido', `<ul class="notes" id="notes">${notes.map(noteHtml).join('')}</ul>
             <div class="field" style="margin-top:12px"><label for="nn">Añadir nota</label><textarea id="nn" rows="3"></textarea></div>
@@ -502,6 +507,7 @@
     const vs = p.vs || [p], sm = seo.get(p.id) || { t: `${p.n} - Reycars Store`, d: String(p.d || '').replace(/\s+/g, ' ').replace(/^.{0,60}?descripci[oó]n\s*:?\s*/i, '').slice(0, 155) };
     const sold = ORDERS.filter((o) => PAID.has(o.st) && o.lines.some((l) => vs.includes(l.p)));
     return `
+      ${crumbs([['Productos', '#/productos'], [p.n.length > 60 ? p.n.slice(0, 58) + '…' : p.n]])}
       <div class="wrap-h"><h1>Editar producto</h1><a class="page-title-action" href="#/producto/nuevo">Añadir nuevo</a></div>
       <div class="cols">
         <div>
@@ -588,7 +594,7 @@
     return `
       <div class="wrap-h"><h1>Analítica</h1>${seg('r', [[7, '7 días'], [30, '30 días'], [90, '90 días']], r)}</div>${anNav('resumen')}
       <p class="muted" style="margin:-6px 0 14px">${fDate(a.daily[0].d)} – ${fDate(a.daily[a.daily.length - 1].d)}, comparado con ${fDate(b.daily[0].d)} – ${fDate(b.daily[b.daily.length - 1].d)}. Solo pedidos pagados (Procesando y Completado).</p>
-      <div class="tiles">${tile('Ventas', clp(a.sales), delta(a.sales, b.sales))}${tile('Pedidos', miles(a.n), delta(a.n, b.n))}${tile('Ticket promedio', clp(a.avg), delta(a.avg, b.avg))}${tile('Productos vendidos', miles(a.units), delta(a.units, b.units))}</div>
+      <div class="tiles">${tile('Ventas', clp(a.sales), delta(a.sales, b.sales))}${tile('Pedidos', miles(a.n), delta(a.n, b.n))}${tile(`Ticket promedio ${qm('ticket')}`, clp(a.avg), delta(a.avg, b.avg))}${tile('Productos vendidos', miles(a.units), delta(a.units, b.units))}</div>
       <div class="postbox"><div class="chart-head"><h2>Ventas por día</h2><span class="legend"><span><i style="background:var(--data)"></i>Período seleccionado</span><span><i style="background:var(--cmp)"></i>Período anterior</span></span>${seg('ver', [['grafico', 'Gráfico'], ['tabla', 'Tabla']], view)}</div>
         ${view === 'tabla' ? `<div style="max-height:360px;overflow:auto"><table class="mini"><thead><tr><td><b>Día</b></td><td class="num"><b>Pedidos</b></td><td class="num"><b>Ventas</b></td><td class="num"><b>Período anterior</b></td></tr></thead><tbody>${a.daily.map((d, i) => `<tr><td>${fDate(d.d)}</td><td class="num">${d.n}</td><td class="num">${clp(d.v)}</td><td class="num muted">${clp(b.daily[i].v)}</td></tr>`).join('')}</tbody></table></div>` : '<div class="chart" id="cday"></div>'}</div>
       <div class="dash">
@@ -700,7 +706,7 @@
     return `
       <div class="wrap-h"><h1>Inventario y reposición</h1><button class="button" data-act="csv-inventario">Exportar para el proveedor</button></div>
       <div class="notice"><p>Stock real de cada producto y formato. ${hasSales ? 'Con las ventas de los últimos 30 días se calcula para cuántos días alcanza y cuánto pedir para cubrir 45 días.' : 'Cuando haya ventas, aquí también se calcula para cuántos días alcanza el stock y cuánto conviene pedir.'}</p></div>
-      <div class="tiles">${tile('Agotados', miles(cnt('out')), 'sin stock')}${tile('Stock bajo', miles(cnt('low', 'now', 'soon')), hasSales ? 'por ventas o con 1–2 unidades' : 'con 1 o 2 unidades')}${tile('Con stock', miles(cnt('ok')), 'sin problemas')}${tile('Sin control de stock', miles(cnt('free')), 'se venden sin límite')}</div>
+      <div class="tiles">${tile('Agotados', miles(cnt('out')), 'sin stock')}${tile(`Stock bajo ${qm('stockbajo')}`, miles(cnt('low', 'now', 'soon')), hasSales ? 'por ventas o con 1–2 unidades' : 'con 1 o 2 unidades')}${tile('Con stock', miles(cnt('ok')), 'sin problemas')}${tile(`Sin control de stock ${qm('sincontrol')}`, miles(cnt('free')), 'se venden sin límite')}</div>
       <ul class="subsubsub">${[['reponer', 'Por reponer', cnt('out', 'now', 'soon', 'low')], ['todos', 'Todos', all.length]].map(([k, l, n]) => `<li><a href="${href(base, q, { f: k, pag: '' })}" class="${f === k ? 'current' : ''}">${l} <span class="n">(${miles(n)})</span></a></li>`).join('')}</ul>
       <div class="tablenav">${pager(list.length, page, per, (p) => href(base, q, { pag: p }))}</div>
       <table class="wp-list-table"><thead><tr><th style="width:60px"><span class="screen-reader-text">Foto</span></th><th>Producto</th><th class="hide-m">SKU</th><th class="num">Stock</th>${hasSales ? '<th class="num hide-m">Vendidos 30 días</th><th class="num">Alcanza para</th>' : ''}<th class="hide-m">Estado</th>${hasSales ? '<th class="num hide-m">Sugerido pedir</th>' : ''}</tr></thead>
@@ -865,7 +871,7 @@
   function modal(title, body, foot) {
     $('#dlgT').textContent = title; $('#dlgB').innerHTML = body; $('#dlgF').innerHTML = foot;
     const d = $('#dlg'); if (!d.open) d.showModal();
-    const f = $('#dlgB input:not([type=hidden]):not([disabled]), #dlgB select, #dlgB textarea'); if (f) f.focus();
+    const f = $('#dlgB input:not([type=hidden]):not([disabled]), #dlgB select, #dlgB textarea') || $('#dlgF .button-primary'); if (f) f.focus();
   }
   const closeModal = () => { const d = $('#dlg'); if (d.open) d.close(); };
   const confirmBox = (title, txt, act, label, id = '') => modal(title, `<p style="margin:0">${txt}</p>`, `<button class="button" data-act="dlg-close">Cancelar</button><button class="button button-primary" data-act="${act}" data-id="${id}">${label}</button>`);
@@ -893,7 +899,7 @@
   /* ───────── pedido manual: ventas por WhatsApp, teléfono o en el local ───────── */
   let DRAFT = null;
   const newDraft = (c = null) => ({ lines: [], c, fac: false, ship: 0, shipCost: 0, pay: 'link', cp: null });
-  const SHIP_M = [['Retiro en tienda — Quinta Normal', 0], ['Starken a domicilio', 4490], ['Chilexpress a domicilio', 4490], ['Blue Express a domicilio', 3990], ['Envío por pagar (lo paga quien recibe)', 0]];
+  const SHIP_M = [['Retiro en tienda — Quinta Normal', 0], ['Starken a domicilio', 0], ['Chilexpress a domicilio', 0], ['Blue Express a domicilio', 0], ['Envío por pagar (lo paga quien recibe)', 0]];
   const PAYS = [['link', 'Enviar link de pago (Klap)', 'Le llega por WhatsApp y correo. El pedido se confirma solo cuando paga.'], ['transfer', 'Transferencia bancaria', 'Queda "En espera" hasta que confirmes que llegó la transferencia.'], ['local', 'Pagado en el local', 'Efectivo o tarjeta en la máquina del local. La boleta se emite al tiro.']];
   const draftTot = (d) => {
     const sub = d.lines.reduce((s, l) => s + l.q * l.p.p, 0), cp = d.cp;
@@ -905,6 +911,7 @@
   V.nuevoPedido = () => {
     DRAFT = DRAFT || newDraft();
     return `
+      ${crumbs([['Pedidos', '#/pedidos'], ['Nuevo pedido']])}
       <div class="wrap-h"><h1>Nuevo pedido</h1><button class="button" data-act="d-reset">Empezar de nuevo</button></div>
       <p class="muted" style="margin:-8px 0 18px">Para ventas por WhatsApp, teléfono o en el local. Descuenta stock, emite la boleta y aparece en Despachos igual que una compra web.</p>
       <div class="cols"><div>
@@ -916,7 +923,7 @@
       </div><div>
         <div class="postbox"><h2 class="hndle">Envío</h2><div class="inside">
           <div class="field"><label for="dship">Método</label><select id="dship" style="width:100%">${SHIP_M.map(([m, c], i) => `<option value="${i}">${esc(m)}${c ? ` · ${clp(c)}` : ''}</option>`).join('')}</select></div>
-          <div class="field" style="margin:0"><label for="dshipc">Costo de envío cobrado ($)</label><input type="number" id="dshipc" min="0" step="10" style="width:100%"></div>
+          <div class="field" style="margin:0"><label for="dshipc">Costo de envío cobrado ($)</label><input type="number" id="dshipc" min="0" step="10" style="width:100%"><p class="muted small" style="margin:4px 0 0">Escribe lo que se le cobra al cliente. Al conectar Sendu se cotiza solo.</p></div>
         </div></div>
         <div class="postbox"><h2 class="hndle">Pago</h2><div class="inside">
           ${PAYS.map(([v, l, d]) => `<label class="radio-card"><input type="radio" name="dpay" value="${v}"${DRAFT.pay === v ? ' checked' : ''}><span><b>${l}</b><small>${d}</small></span></label>`).join('')}
@@ -974,7 +981,7 @@
     const o = { id: 1 + Math.max(ORDER_BASE, ...ORDERS.map((x) => x.id)), t: now, st: paid ? 'processing' : d.pay === 'transfer' ? 'on-hold' : 'pending', c, lines: d.lines.map((l) => ({ p: l.p, q: l.q, price: l.p.p })), sub: T.sub, disc: T.disc, cpCode: d.cp ? d.cp.code : '',
       ship: { m, carrier: (m.match(/^(Starken|Chilexpress|Blue Express)/) || [])[1], cost: T.ship, track: '' }, total: T.total, pay: { link: 'Link de pago Klap', transfer: 'Transferencia bancaria', local: 'Pago en el local' }[d.pay],
       auth: paid ? 'LOCAL' : '', src: MANUAL, camp: '', dev: 'Panel', pages: 0, landing: '—', doc: null, fac: d.fac && !!c.emp, nc: null, cnote: '', notes: [] };
-    o.notes.push({ t: now, txt: `Pedido creado a mano desde el panel (${o.pay}).`, kind: 'system', by: 'Guillermo' });
+    o.notes.push({ t: now, txt: `Pedido creado a mano desde el panel (${o.pay}).`, kind: 'system', by: 'Guillermo Araya' });
     if (d.pay === 'link') o.notes.push({ t: now, txt: `Link de pago por ${clp(o.total)} enviado por WhatsApp y correo. Vence en 24 horas.`, kind: 'customer', by: 'Reycar Store' });
     if (d.pay === 'transfer') o.notes.push({ t: now, txt: 'Datos de transferencia enviados al cliente. Cuando llegue, cambia el estado a Procesando: se emite la boleta y se descuenta el stock.', kind: 'customer', by: 'Reycar Store' });
     if (paid) emitDoc(o);
@@ -1009,7 +1016,7 @@
     if ($('#rfShip') && $('#rfShip').checked) { o.shipRef = true; items.push('envío'); }
     const f = null;
     o.ncs = [...(o.ncs || []), { f, a, t: now }]; o.refunded = (o.refunded || 0) + a;
-    o.notes.push({ t: now, txt: `Reembolso de ${clp(a)} realizado en Klap (${items.join(', ')}). Motivo: ${why}.`, kind: 'private', by: 'Guillermo' });
+    o.notes.push({ t: now, txt: `Reembolso de ${clp(a)} realizado en Klap (${items.join(', ')}). Motivo: ${why}.`, kind: 'private', by: 'Guillermo Araya' });
     o.notes.push({ t: now, txt: `Nota de crédito por ${clp(a)}: ${CONNECTED ? 'emitida en Bsale' : 'lista para emitirse en Bsale al conectar la cuenta'}.${restock && items.some((x) => x !== 'envío') ? ' Stock repuesto.' : ''}`, kind: 'system', by: 'Reycar Store' });
     log(`Pedido #${o.id}`, `Reembolsó ${clp(a)}`);
     if (o.refunded >= o.total - 1) setStatus(o, 'refunded');
@@ -1023,6 +1030,7 @@
     const x = cstats().get(c), os = x.orders.slice().sort((a, b) => b.t - a.t), bk = BOOK.filter((b) => b.c === c).sort((a, b) => b.day - a.day || b.start - a.start), rv = REVIEWS.filter((r) => r.c === c);
     const wa = c.phone.replace(/\D/g, '');
     return `
+      ${crumbs([['Clientes', '#/clientes'], [custName(c)]])}
       <div class="wrap-h"><h1 class="cust-h"><span class="av av--lg">${esc((c.first[0] || '?') + (c.last[0] || ''))}</span>${esc(custName(c))}</h1>${pillOf(SEGS[segOf(c)])}<button class="button" data-act="d-for" data-id="${c.id}">Nuevo pedido para este cliente</button></div>
       <p class="muted" style="margin:-8px 0 18px">Cliente desde ${fDate(x.first || c.since || NOW)}${c.emp ? ` · ${esc(c.emp.name)}` : ''}${x.brands.size ? ` · Compra ${[...x.brands].slice(0, 4).map(esc).join(', ')}` : ''}</p>
       <div class="tiles">${tile('Total gastado', clp(x.v), 'pedidos pagados, con IVA')}${tile('Pedidos pagados', miles(x.n), `${x.orders.length} en total`)}${tile('Ticket promedio', clp(x.n ? x.v / x.n : 0), '')}${tile('Última compra', x.last ? ago(x.last) : '—', x.last ? fDate(x.last) : 'sin compras pagadas')}</div>
@@ -1032,7 +1040,7 @@
         ${rv.length ? box('Reseñas', `<ul class="rows">${rv.map((r) => `<li>${stars(r.r)} <span class="muted small">${fDate(r.t)} · ${esc(r.p.n)}</span><div>${esc(r.txt)}</div></li>`).join('')}</ul>`) : ''}
         ${box('Notas internas', `<ul class="notes" id="cnotes">${c.cnotes.map(noteHtml).join('') || '<li class="muted" style="padding:0">Sin notas. Solo las ve el equipo.</li>'}</ul><div class="field" style="margin-top:12px"><label for="cnn">Añadir nota</label><textarea id="cnn" rows="2" placeholder="Ej: prefiere que lo llamen después de las 18:00"></textarea></div><button class="button" data-act="c-nota" data-id="${c.id}">Guardar nota</button>`)}
       </div><div>
-        ${box('Contacto', `<dl class="kv"><dt>Correo</dt><dd>${c.email !== '—' ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '—'}</dd><dt>Teléfono</dt><dd>${esc(c.phone)}${wa.length > 8 ? ` · <a href="#" data-act="wa-cliente" data-id="${c.id}">WhatsApp</a>` : ''}</dd><dt>RUT</dt><dd>${esc(c.rut)}</dd><dt>Dirección</dt><dd>${esc(c.street)}<br>${esc(c.comuna)}${c.region !== '—' ? `, ${esc(c.region)}` : ''}</dd></dl>`)}
+        ${box('Contacto', `<dl class="kv"><dt>Correo</dt><dd>${has(c.email) ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : '<span class="muted">No indicado</span>'}</dd><dt>Teléfono</dt><dd>${has(c.phone) ? esc(c.phone) : '<span class="muted">No indicado</span>'}${wa.length > 8 ? ` · <a href="#" data-act="wa-cliente" data-id="${c.id}">WhatsApp</a>` : ''}</dd><dt>RUT</dt><dd>${has(c.rut) ? esc(c.rut) : '<span class="muted">No indicado</span>'}</dd><dt>Dirección</dt><dd>${[c.street, c.comuna, c.region].filter(has).map(esc).join(', ') || '<span class="muted">No indicada</span>'}</dd></dl>`)}
         ${c.emp ? box('Facturación', `<dl class="kv"><dt>Razón social</dt><dd>${esc(c.emp.name)}</dd><dt>RUT</dt><dd>${c.emp.rut}</dd><dt>Giro</dt><dd>${esc(c.emp.giro)}</dd></dl>`) : ''}
         ${box('Etiquetas', `<div class="chips" id="ctags">${c.tags.map((t, i) => `<span class="chip">${esc(t)}<button data-act="c-untag" data-id="${c.id}" data-i="${i}" aria-label="Quitar etiqueta ${esc(t)}">×</button></span>`).join('') || '<span class="muted small">Sin etiquetas.</span>'}</div><div class="addrow"><input type="text" id="ctag" placeholder="Ej: Mayorista, Detailer" list="taglist" aria-label="Nueva etiqueta"><datalist id="taglist">${['Mayorista', 'Detailer profesional', 'Cliente del taller', 'Empresa', 'VIP'].map((t) => `<option>${t}</option>`).join('')}</datalist><button class="button" data-act="c-tag" data-id="${c.id}">Agregar</button></div>`)}
         ${box('Permisos de contacto', `<label class="switch"><input type="checkbox" data-consent="mail" data-id="${c.id}"${c.consent.mail ? ' checked' : ''}> Acepta correos con novedades y ofertas</label><br><label class="switch"><input type="checkbox" data-consent="wa" data-id="${c.id}"${c.consent.wa ? ' checked' : ''}> Acepta mensajes por WhatsApp</label><p class="muted small" style="margin:8px 0 0">Los correos del pedido (boleta, seguimiento) siempre llegan; esto es solo para promociones.</p>`)}
@@ -1060,7 +1068,7 @@
     return `
       <div class="wrap-h"><h1>Agenda del taller</h1><span class="weeknav"><a class="button" href="#/taller?w=${w - 1}" aria-label="Semana anterior"${w <= -1 ? ' aria-disabled="true" tabindex="-1"' : ''}>‹</a><a class="button" href="#/taller">Esta semana</a><a class="button" href="#/taller?w=${w + 1}" aria-label="Semana siguiente">›</a></span><button class="button button-primary" data-act="bk-nueva">Nueva reserva</button></div>
       <p class="muted" style="margin:-8px 0 18px">Semana del ${fDay(m0)} al ${fDate(addDays(m0, 5))} · 2 boxes · lunes a viernes de 9:00 a 19:00 y sábado de 9:00 a 14:00.</p>
-      <div class="tiles">${tile('Reservas de la semana', miles(live.length), `${wk.filter((b) => b.st === 'agendado').length} por confirmar`)}${tile('Ingresos estimados', clp(live.reduce((s, b) => s + b.price, 0)), 'según el precio de cada servicio')}${tile('Ocupación', `${Math.round((mins / cap) * 100)} %`, 'de las horas de los 2 boxes')}${tile('Servicio más pedido', top ? `<span class="val-txt">${esc(top.l)}</span>` : '—', top ? plural(top.n, 'reserva', 'reservas') : 'aún sin reservas')}</div>
+      <div class="tiles">${tile('Reservas de la semana', miles(live.length), `${wk.filter((b) => b.st === 'agendado').length} por confirmar`)}${tile('Ingresos estimados', clp(live.reduce((s, b) => s + b.price, 0)), 'según el precio de cada servicio')}${tile(`Ocupación ${qm('ocupacion')}`, `${Math.round((mins / cap) * 100)} %`, 'de las horas de los 2 boxes')}${tile('Servicio más pedido', top ? `<span class="val-txt">${esc(top.l)}</span>` : '—', top ? plural(top.n, 'reserva', 'reservas') : 'aún sin reservas')}</div>
       <div class="cal-legend"><span><i class="lg lg--b1"></i>Box 1</span><span><i class="lg lg--b2"></i>Box 2</span>${Object.entries(BK_ST).filter(([k]) => k !== 'listo').map(([k, [l]]) => `<span><i class="lg lg--${k}"></i>${l}</span>`).join('')}</div>
       <div class="cal-wrap"><div class="cal">${rail}${days.map(col).join('')}</div></div>
       <div class="dash" style="margin-top:20px">
@@ -1193,7 +1201,7 @@
       <div class="wrap-h no-print"><h1>Analítica</h1><select aria-label="Mes" data-qsel="m">${months.map((k) => { const [y, m] = k.split('-'); return `<option value="${k}"${k === mk ? ' selected' : ''}>${MESL[+m - 1]} ${y}</option>`; }).join('')}</select><button class="button" data-act="csv-informe" data-m="${mk}">Exportar a Excel</button><button class="button" data-act="imprimir">Imprimir</button></div>
       <div class="no-print">${anNav('informe')}</div>
       <div class="print-only print-head"><img src="/assets/logo.png" alt="" width="40" height="41"><div><b>Reycar Store · Informe de ventas de ${MESL[R.m - 1]} ${R.y}</b><br>Generado el ${fFull(Date.now())}</div></div>
-      ${!(R.docs.length || R.ncs.length) ? emptyState(`Sin documentos en ${MESL[R.m - 1]} ${R.y}`, 'El informe muestra día por día las boletas, facturas y notas de crédito emitidas en Bsale, con neto, IVA y total, más los totales por medio de pago. Se exporta a Excel para el contador.', '', 'chart') : `<div class="tiles">${tile('Ventas del mes (con IVA)', clp(R.T.total), 'boletas + facturas − notas de crédito')}${tile('Neto', clp(R.T.neto), 'sin IVA')}${tile('IVA débito', clp(R.T.total - R.T.neto), '19 %')}${tile('Documentos emitidos', miles(R.T.bol + R.T.fac + R.T.nc), `${plural(R.T.bol, 'boleta', 'boletas')} · ${plural(R.T.fac, 'factura', 'facturas')} · ${plural(R.T.nc, 'nota de crédito', 'notas de crédito')}`)}</div>
+      ${!(R.docs.length || R.ncs.length) ? emptyState(`Sin documentos en ${MESL[R.m - 1]} ${R.y}`, 'El informe muestra día por día las boletas, facturas y notas de crédito emitidas en Bsale, con neto, IVA y total, más los totales por medio de pago. Se exporta a Excel para el contador.', '', 'chart') : `<div class="tiles">${tile('Ventas del mes (con IVA)', clp(R.T.total), 'boletas + facturas − notas de crédito')}${tile(`Neto ${qm('neto')}`, clp(R.T.neto), 'sin IVA')}${tile(`IVA débito ${qm('neto')}`, clp(R.T.total - R.T.neto), '19 %')}${tile('Documentos emitidos', miles(R.T.bol + R.T.fac + R.T.nc), `${plural(R.T.bol, 'boleta', 'boletas')} · ${plural(R.T.fac, 'factura', 'facturas')} · ${plural(R.T.nc, 'nota de crédito', 'notas de crédito')}`)}</div>
       <div class="dash">
         ${box('Por medio de pago', `<table class="mini"><tbody>${R.pay.map((x) => `<tr><td>${esc(x.l)}</td><td class="num">${plural(x.n, 'venta', 'ventas')}</td><td class="num">${clp(x.v)}</td></tr>`).join('') || '<tr><td class="muted">Sin ventas.</td></tr>'}</tbody></table>`, '', true)}
         ${box('Otros totales', `<dl class="kv"><dt>Envíos cobrados</dt><dd>${clp(R.ship)}</dd><dt>Descuentos con cupón</dt><dd>${clp(R.disc)}</dd><dt>Devoluciones</dt><dd>${clp(R.ncs.reduce((s, n) => s + n.a, 0))}</dd><dt>Ticket promedio</dt><dd>${clp(R.docs.length ? R.docs.reduce((s, o) => s + o.total, 0) / R.docs.length : 0)}</dd></dl>`)}
@@ -1206,6 +1214,7 @@
   V.nuevoProducto = () => {
     const brands = [...new Set(HEADS.map((x) => x.b).filter(Boolean))].sort((a, z) => a.localeCompare(z, 'es'));
     return `
+      ${crumbs([['Productos', '#/productos'], ['Nuevo producto']])}
       <div class="wrap-h"><h1>Nuevo producto</h1><a class="button" href="#/productos">Cancelar</a></div>
       <p class="muted" style="margin:-8px 0 18px">Se crea a la vez en Bsale (con su SKU, precio y stock) y en la tienda. No hace falta entrar a Bsale.</p>
       <div class="cols"><div>
@@ -1230,7 +1239,7 @@
     if (!g) return toast('Elige la categoría.');
     if (ALL.some((p) => p.sku === sku)) return toast('Ya existe un producto con ese código.');
     let s = slugify(n), k = 2; while (ALL.some((p) => p.s === s)) s = `${slugify(n)}-${k++}`;
-    const p = { id: nextId(ALL), n, s, p: price, b: v('#npB'), g, sc: v('#npSC'), c: [], im: [], stk, d: v('#npD'), sku, mov: [{ t: Date.now(), type: 'in', n: stk, before: 0, after: stk, r: 'Stock inicial', by: 'Guillermo' }] };
+    const p = { id: nextId(ALL), n, s, p: price, b: v('#npB'), g, sc: v('#npSC'), c: [], im: [], stk, d: v('#npD'), sku, mov: [{ t: Date.now(), type: 'in', n: stk, before: 0, after: stk, r: 'Stock inicial', by: 'Guillermo Araya' }] };
     ALL.push(p); HEADS.push(p); byId.set(p.id, p);
     if (!$('#npV').checked) hidden.add(p.id);
     log('Productos', `Creó "${n}" (SKU ${sku}, ${clp(price)}, ${stk} u.)`);
@@ -1254,7 +1263,7 @@
     if (type !== 'set' && !n) return toast('La cantidad debe ser mayor que 0.');
     const after = type === 'in' ? before + n : type === 'out' ? before - n : n;
     p.stk = after;
-    (head.mov = head.mov || []).unshift({ t: Date.now(), type, n, before, after, r, by: 'Guillermo', v: p !== head ? p.n : '' });
+    (head.mov = head.mov || []).unshift({ t: Date.now(), type, n, before, after, r, by: 'Guillermo Araya', v: p !== head ? p.n : '' });
     log('Stock', `${{ in: 'Ingreso', out: 'Salida', set: 'Corrección' }[type]} de "${p.n}": ${before} → ${after}${r ? ` (${r})` : ''}`);
     closeModal(); route(); toast(`Stock actualizado: ${before} → ${after}.${CONNECTED ? ' Registrado en Bsale.' : ' ' + NOSAVE}`);
   }
@@ -1263,13 +1272,112 @@
     modal('Atajos de teclado', `<table class="mini keys"><tbody>${[['/', 'Buscar pedidos, productos o clientes'], ['n', 'Nuevo pedido'], ['g  e', 'Ir al escritorio'], ['g  p', 'Ir a pedidos'], ['g  d', 'Ir a despachos'], ['g  r', 'Ir a productos'], ['g  c', 'Ir a clientes'], ['g  t', 'Ir a la agenda del taller'], ['g  m', 'Ir a marketing'], ['g  a', 'Ir a analítica'], ['?', 'Ver esta ayuda'], ['Esc', 'Cerrar ventanas y menús']].map(([k, d]) => `<tr><td class="nw">${k.split('  ').map((x) => `<kbd>${x}</kbd>`).join(' luego ')}</td><td>${d}</td></tr>`).join('')}</tbody></table>`, '<button class="button button-primary" data-act="dlg-close">Entendido</button>');
   }
 
+  /* ───────── ayuda: guía de cada pantalla, glosario y bienvenida ───────── */
+  const HELP = {
+    dash: { t: 'Escritorio', d: 'El resumen del día: lo que hay que hacer hoy, cómo van las ventas del mes y qué falta para dejar la tienda funcionando.', s: ['Revisa "Para hoy": cada número lleva a la lista de pendientes (pedidos por preparar, autos en el taller, reseñas por aprobar…).', 'Mira las tarjetas de arriba para saber cómo va el mes comparado con el mes anterior.', 'Mientras la tienda se pone en marcha, completa los pasos de "Puesta en marcha" en orden.'], tip: 'La campana de arriba junta todo lo urgente. Si tiene un número rojo, hay algo que revisar.' },
+    pedidos: { t: 'Pedidos', d: 'Todas las ventas: las de la tienda web, las de WhatsApp y las del local.', s: ['Filtra por estado con los botones de arriba (Procesando = pagado y por despachar).', 'Busca por número, nombre, correo o comuna.', 'Abre un pedido para ver sus productos, la boleta, de dónde vino el cliente y sus notas.', 'Para cambiar varios a la vez, márcalos y usa "Acciones en lote".'], tip: 'Los estados siguen la lógica de WooCommerce: Pendiente de pago → Procesando → Completado.' },
+    pedido: { t: 'Ficha del pedido', d: 'Todo sobre una venta: productos, pago, documento tributario, envío, origen y el historial de lo que se hizo.', s: ['Cambia el estado en "General" y presiona "Actualizar".', 'Usa "Notas del pedido" para dejar registro interno o escribirle al cliente.', 'Si hay que devolver dinero, usa "Reembolso": eliges qué unidades y si se devuelve el envío; la nota de crédito se genera sola.', '"Imprimir pedido" deja una hoja limpia para la caja.'], tip: 'Todo lo que pasa con el pedido queda anotado con fecha y persona.' },
+    pedidoNuevo: { t: 'Nuevo pedido', d: 'Para registrar ventas por WhatsApp, teléfono o en el local, con el mismo flujo que una compra web.', s: ['Busca y agrega los productos; ajusta las cantidades.', 'Busca al cliente o completa sus datos si es nuevo (el RUT se valida).', 'Elige el envío y cómo paga: link de pago, transferencia o pagado en el local.', 'Presiona "Crear pedido". Si ya está pagado, se descuenta el stock y pasa a Despachos.'], tip: 'Con transferencia, el pedido queda "En espera"; cuando llegue el dinero, cámbialo a Procesando.' },
+    despachos: { t: 'Despachos', d: 'El tablero de bodega: cada pedido pagado avanza de izquierda a derecha hasta que sale.', s: ['"Por preparar": arma la caja y presiona "Marcar preparado".', 'Si es retiro, avísale por WhatsApp y marca "Retirado" cuando lo lleve.', 'Si es envío, presiona "Generar etiqueta": queda el número de seguimiento y el cliente lo recibe.', 'Abajo está la lista de preparación: todo lo que hay que sacar de bodega, sumado por producto.'], tip: 'Imprime la lista de preparación al empezar el día.' },
+    productos: { t: 'Productos', d: 'El catálogo de la tienda: lo que se ve en la web y lo que se vende.', s: ['Busca o filtra por categoría, marca o stock.', 'Abre un producto para cambiar nombre, precio, ofertas, fotos, descripción, categoría y SEO.', 'La estrella ★ lo destaca en la portada.', 'Para cambiar muchos a la vez, márcalos y usa "Acciones en lote".'], tip: 'Un producto sin descripción o sin foto no entra a los catálogos de anuncios: revísalos en Marketing → Catálogos.' },
+    producto: { t: 'Ficha del producto', d: 'Todo lo que define cómo se ve y se vende un producto.', s: ['General: precio normal y oferta con fechas.', 'Inventario: el stock y su historial; "Ajustar stock" registra llegadas de mercadería y mermas.', 'Formatos: cada tamaño (1 L, 5 L…) con su propio precio, mostrados como un solo producto.', 'SEO: cómo aparece en Google; la vista previa se actualiza mientras escribes.'], tip: 'Cuida la descripción: es lo que lee el cliente, lo que usa Google y lo que exigen Meta y Google para los anuncios.' },
+    productoNuevo: { t: 'Nuevo producto', d: 'Crea un producto en la tienda y en Bsale a la vez.', s: ['Escribe el nombre completo, con marca y formato.', 'Indica el precio con IVA y el stock inicial.', 'Escanea el código de barras o genera uno interno.', 'Elige categoría y subcategoría; decide si se publica al tiro.'], tip: 'El código de barras del fabricante ayuda a que el producto aparezca en Google Shopping.' },
+    inventario: { t: 'Inventario y reposición', d: 'Qué productos se están acabando y cuánto conviene pedir.', s: ['"Por reponer" muestra los agotados y los que quedan con poco stock.', 'Cuando hay ventas, se calcula para cuántos días alcanza cada producto.', '"Exportar para el proveedor" descarga la lista para enviarla.'], tip: 'Los productos "sin control de stock" se venden sin límite; úsalo solo para servicios.' },
+    resenas: { t: 'Reseñas', d: 'Las opiniones de clientes con compra verificada.', s: ['Aprueba las nuevas para que se muestren en la tienda.', 'Responde las de 1 a 3 estrellas: una buena respuesta genera más confianza que una reseña perfecta.', 'Oculta solo spam u ofensas.'], tip: 'Las estrellas también aparecen en los anuncios de Google Shopping.' },
+    clientes: { t: 'Clientes', d: 'Todas las personas que compraron o reservaron, con su historial.', s: ['Filtra por segmento: frecuentes, nuevos, en riesgo…', 'Abre la ficha para ver pedidos, visitas al taller, notas y permisos de contacto.', '"Exportar a Excel" descarga la lista (queda registrado).'], tip: '"En riesgo" son clientes que no compran hace más de 90 días: buenos candidatos para un correo con descuento.' },
+    cliente: { t: 'Ficha del cliente', d: 'Todo sobre un cliente: compras, taller, notas internas y privacidad.', s: ['"Nuevo pedido para este cliente" arma la venta con sus datos.', 'Las etiquetas ayudan a agruparlos (Mayorista, Detailer…).', 'Los permisos indican si acepta correos o WhatsApp con promociones.', 'Si pide sus datos o que se borren, usa los botones de Privacidad.'], tip: 'Los correos del pedido (boleta, seguimiento) siempre llegan; los permisos son solo para promociones.' },
+    taller: { t: 'Agenda del taller', d: 'Las horas de los 2 boxes del taller.', s: ['"Nueva reserva": cliente, vehículo, patente, servicio, día y hora. El sistema evita choques de horario.', 'Toca una reserva para cambiar su estado o enviar un recordatorio por WhatsApp.', 'Muévete entre semanas con las flechas.', 'Ajusta la duración de cada servicio en la tabla de abajo.'], tip: 'Confirma por WhatsApp las reservas del día siguiente: reduce mucho las inasistencias.' },
+    'marketing:anuncios': { t: 'Anuncios', d: 'Cuánto rinde lo que se invierte en Meta Ads y Google Ads.', s: ['Conecta las cuentas en Ajustes → Seguimiento y anuncios.', 'Verás la inversión, los pedidos pagados y el retorno (ROAS) de cada campaña.'], tip: 'El retorno se calcula con las ventas reales pagadas, no con lo que estima cada plataforma.' },
+    'marketing:cupones': { t: 'Cupones', d: 'Códigos de descuento para campañas y clientes especiales.', s: ['Escribe el código, el tipo (porcentaje, monto fijo o envío gratis) y el valor.', 'Opcional: compra mínima, límite de usos y fechas.', 'Elige a quién aplica (toda la tienda, primera compra, Motor Clean…).'], tip: 'Usa códigos fáciles de dictar por teléfono: CYBER20, TALLER10.' },
+    'marketing:correos': { t: 'Correos a clientes', d: 'Campañas por correo, solo a quienes aceptaron recibirlas.', s: ['Elige una plantilla y el grupo de clientes.', 'Escribe el asunto y el mensaje; {nombre} se reemplaza por el nombre de cada uno.', 'Agrega un cupón si quieres y revisa la vista previa.', 'Envía ahora o programa la fecha.'], tip: 'Un asunto corto y concreto (menos de 50 caracteres) se abre más.' },
+    'marketing:carritos': { t: 'Carritos abandonados', d: 'Clientes que llegaron al pago y no terminaron.', s: ['Revisa qué llevaban y cuánto suma.', 'Envía un recordatorio a quienes dejaron sus datos y aceptaron mensajes.'], tip: 'El mejor momento para recordar es dentro de las primeras 24 horas.' },
+    'marketing:catalogos': { t: 'Catálogos de anuncios', d: 'La lista de productos que se envía a Meta y Google para los anuncios de catálogo.', s: ['"Con errores": Meta y Google los rechazan (sin foto o sin descripción).', '"Con advertencias": se publican, pero rinden menos (sin marca, por ejemplo).', 'Presiona "Corregir" para ir directo al producto.'], tip: 'Mientras más completo el catálogo, mejor funcionan las campañas de remarketing.' },
+    'marketing:pixel': { t: 'Píxel y eventos', d: 'Si las visitas y compras llegan bien a Meta y Google.', s: ['Conecta el píxel, la API de conversiones y Google Analytics en Ajustes.', 'Aquí verás el embudo de compra y los eventos recibidos.'], tip: 'Se usan los mismos eventos e ID de producto que hoy, para no reiniciar las campañas.' },
+    portada: { t: 'Portada', d: 'Lo que se ve al entrar a la tienda.', s: ['Edita los banners: título, texto, enlace e imagen; ordénalos con las flechas.', 'La barra de aviso sirve para promociones o envíos.', 'Elige los productos destacados y el orden de las secciones.', 'Presiona "Publicar cambios".'], tip: 'En celular se muestra solo el primer banner: pon ahí lo más importante.' },
+    'analitica:resumen': { t: 'Analítica', d: 'Cómo van las ventas y de dónde vienen.', s: ['Elige 7, 30 o 90 días arriba a la derecha; todo se compara con el período anterior.', 'Pasa el mouse por el gráfico para ver cada día.', 'Revisa qué origen trae más ventas: anuncios, Google, Instagram, WhatsApp…'], tip: 'Mira el ticket promedio: subirlo un poco (con kits o envío gratis desde cierto monto) suele rendir más que traer más visitas.' },
+    'analitica:trafico': { t: 'Tráfico y búsquedas', d: 'Visitas, páginas más vistas y lo que la gente escribe en el buscador.', s: ['Las búsquedas "sin resultados" son productos que buscan y no encuentran.', 'Redirígelas a una categoría o considera traer ese producto.'], tip: 'La medición es propia de la tienda y no usa cookies de terceros.' },
+    'analitica:informe': { t: 'Informe de ventas', d: 'El resumen mensual para el contador.', s: ['Elige el mes.', 'Revisa boletas, facturas y notas de crédito por día, con neto, IVA y total.', 'Exporta a Excel o imprime.'], tip: 'El registro oficial es el del SII; este informe sirve para cuadrar.' },
+    seo: { t: 'SEO', d: 'Cómo aparece la tienda en Google.', s: ['Redirecciones: las direcciones antiguas que llevan a las nuevas, para no perder posiciones ni romper anuncios.', 'Mapa del sitio: la lista que se envía a Google.', 'Títulos y metas: el formato del título de cada página.'], tip: 'Antes de cambiar la dirección de un producto, agrega una redirección.' },
+    usuarios: { t: 'Usuarios y permisos', d: 'Quién entra al panel y qué puede hacer.', s: ['"Añadir nuevo" invita a una persona por correo con su perfil.', 'Ajusta qué puede hacer cada perfil en la tabla de permisos.'], tip: 'Da a cada persona solo el perfil que necesita: por ejemplo, Despacho y taller para bodega.' },
+    actividad: { t: 'Registro de actividad', d: 'Quién hizo qué y cuándo.', s: ['Filtra por persona.', 'Cada cambio de pedidos, precios, stock, cupones y exportaciones queda anotado.'], tip: 'El registro no se puede editar ni borrar.' },
+    ajustes: { t: 'Ajustes', d: 'Datos de la tienda y conexiones con los servicios externos.', s: ['General: nombre, dirección y WhatsApp.', 'Pagos, Envíos y Bsale: las credenciales de cada servicio.', 'Seguimiento y anuncios: Google Analytics, Tag Manager y el píxel de Meta.', 'Correos y Privacidad: avisos automáticos al cliente y la Ley 21.719.'], tip: 'Las claves se guardan cifradas en el servidor y nunca se vuelven a mostrar.' },
+    cuenta: { t: 'Mi cuenta', d: 'Tus datos de acceso y preferencias.', s: ['Actualiza tu nombre y correo.', 'Cambia la contraseña (mínimo 10 caracteres).', 'Activa la verificación en dos pasos.'], tip: 'Usa una contraseña distinta a la de tu correo.' },
+    ayuda: { t: 'Ayuda', d: 'Guías de cada pantalla, glosario y atajos.', s: ['Abre cualquier guía para ver el paso a paso.', 'Busca términos en el glosario.'], tip: 'En cada pantalla, el botón "¿Cómo funciona?" abre su guía.' },
+  };
+  const GLOSS = [
+    ['boleta', 'Boleta o factura', 'Documento tributario de la venta. La boleta es para personas; la factura para empresas, con RUT, razón social y giro. Ambas las emite Bsale.'],
+    ['nc', 'Nota de crédito', 'Documento que anula total o parcialmente una boleta o factura cuando hay un reembolso.'],
+    ['sku', 'SKU', 'Código único de cada producto o formato. Idealmente es el código de barras del fabricante.'],
+    ['ticket', 'Ticket promedio', 'Lo que gasta en promedio cada pedido pagado: ventas totales ÷ número de pedidos.'],
+    ['conversion', 'Conversión', 'Porcentaje de visitas que terminan en compra. Si 1.000 personas entran y 13 compran, la conversión es 1,3 %.'],
+    ['roas', 'ROAS (retorno de la inversión en anuncios)', 'Ventas ÷ inversión. Un ROAS de 4 significa que cada $1.000 en anuncios trajo $4.000 en ventas.'],
+    ['utm', 'UTM / origen', 'Etiqueta en el enlace que indica de dónde vino la visita (Meta Ads, Google, newsletter…). Permite saber qué campaña trajo cada venta.'],
+    ['neto', 'Neto e IVA', 'El neto es el precio sin IVA; el IVA es el 19 % del neto. Neto + IVA = total que paga el cliente.'],
+    ['stockbajo', 'Stock bajo', 'Producto con 1 o 2 unidades, o que según las ventas se acabaría en menos de 30 días.'],
+    ['sincontrol', 'Sin control de stock', 'Producto que se vende sin límite de unidades (por ejemplo, un servicio).'],
+    ['ocupacion', 'Ocupación del taller', 'Porcentaje de las horas disponibles de los 2 boxes que ya están reservadas.'],
+    ['segmento', 'Segmento de cliente', 'Grupo según cómo compra: Frecuente (3 o más pedidos recientes), Nuevo, Ocasional, En riesgo (más de 90 días sin comprar) o Gran comprador.'],
+    ['carrito', 'Carrito abandonado', 'Cliente que dejó sus datos en el pago y no terminó la compra.'],
+    ['pixel', 'Píxel y API de conversiones', 'Las piezas que le avisan a Meta y Google qué pasa en la tienda (visitas, carros, compras) para que los anuncios aprendan.'],
+  ];
+  const glossOf = (k) => GLOSS.find((g) => g[0] === k);
+  const qm = (k) => `<button class="qmark" data-act="glosa" data-k="${k}" aria-label="¿Qué es ${esc(glossOf(k)[1])}?">?</button>`;
+  const helpKey = (key, q, id) => (key === 'pedido' && id === 'nuevo' ? 'pedidoNuevo' : key === 'producto' && id === 'nuevo' ? 'productoNuevo' : key === 'marketing' ? `marketing:${q.get('tab') || 'anuncios'}` : key === 'analitica' ? `analitica:${q.get('tab') || 'resumen'}` : key);
+  function helpModal(k) {
+    const h = HELP[k]; if (!h) return;
+    modal(h.t, `<p class="guide-d">${h.d}</p><ol class="guide">${h.s.map((x) => `<li><span>${x}</span></li>`).join('')}</ol>${h.tip ? `<div class="guide-tip"><b>Consejo:</b> ${h.tip}</div>` : ''}`, `<a class="button" href="#/ayuda">Todas las guías</a><button class="button button-primary" data-act="dlg-close">Entendido</button>`);
+  }
+  const crumbs = (items) => `<nav class="crumbs" aria-label="Estás en">${items.map(([l, h], i) => (h && i < items.length - 1 ? `<a href="${h}">${esc(l)}</a>` : `<span aria-current="page">${esc(l)}</span>`)).join('<span class="crumbs__s" aria-hidden="true">›</span>')}</nav>`;
+
+  V.ayuda = (q) => {
+    const s = deacc((q.get('q') || '').trim().toLowerCase());
+    const groups = [['Ventas', ['pedidos', 'pedidoNuevo', 'pedido', 'despachos']], ['Catálogo', ['productos', 'producto', 'productoNuevo', 'inventario', 'resenas']], ['Clientes y taller', ['clientes', 'cliente', 'taller']], ['Marketing', ['marketing:cupones', 'marketing:correos', 'marketing:carritos', 'marketing:catalogos', 'marketing:anuncios', 'marketing:pixel', 'portada']], ['Análisis', ['analitica:resumen', 'analitica:trafico', 'analitica:informe', 'seo']], ['Administración', ['dash', 'usuarios', 'actividad', 'ajustes', 'cuenta']]];
+    const hit = (k) => !s || deacc(`${HELP[k].t} ${HELP[k].d} ${HELP[k].s.join(' ')}`.toLowerCase()).includes(s);
+    const gl = GLOSS.filter((g) => !s || deacc(`${g[1]} ${g[2]}`.toLowerCase()).includes(s));
+    return `
+      <div class="wrap-h"><h1>Ayuda</h1><button class="button" data-act="bienvenida">Ver la bienvenida</button><button class="button" data-act="atajos">Atajos de teclado</button></div>
+      <p class="muted" style="margin:-8px 0 18px">Guías paso a paso de cada pantalla y un glosario de los términos que usa el panel. En cada pantalla, el botón "¿Cómo funciona?" abre su guía.</p>
+      <form class="tablenav" data-form="ayuda"><span class="search-box" style="margin-left:0;flex:1"><label class="screen-reader-text" for="hq">Buscar en la ayuda</label><input type="search" id="hq" name="q" value="${esc(q.get('q') || '')}" placeholder="Buscar en la ayuda: reembolso, cupón, boleta…" style="flex:1;width:auto"><button class="button" type="submit">Buscar</button></span></form>
+      ${groups.map(([g, ks]) => { const l = ks.filter(hit); return l.length ? `<h2 class="help-h">${g}</h2><div class="help-grid">${l.map((k) => `<button class="help-card" data-act="ayuda" data-k="${k}"><b>${HELP[k].t}</b><span>${HELP[k].d}</span></button>`).join('')}</div>` : ''; }).join('')}
+      ${gl.length ? `<h2 class="help-h" id="glosario">Glosario</h2><div class="postbox"><div class="inside"><dl class="gloss">${gl.map(([k, t, d]) => `<div id="g-${k}"><dt>${t}</dt><dd>${d}</dd></div>`).join('')}</dl></div></div>` : ''}
+      ${s && !groups.some(([, ks]) => ks.some(hit)) && !gl.length ? emptyState('Sin resultados', `No encontramos "${esc(q.get('q'))}" en la ayuda. Prueba con otra palabra.`, '', 'list') : ''}`;
+  };
+
+  V.cuenta = () => `
+    <div class="wrap-h"><h1>Mi cuenta</h1></div>
+    <div class="cols"><div>
+      ${box('Datos personales', `<div class="grid2"><div class="field"><label for="acN">Nombre</label><input type="text" id="acN" value="Guillermo Araya" autocomplete="name"></div><div class="field"><label for="acE">Correo</label><input type="email" id="acE" placeholder="tu@correo.cl" autocomplete="email"></div></div><button class="button button-primary" data-act="cuenta-datos">Guardar datos</button>`)}
+      ${box('Contraseña', `<div class="field"><label for="acP0">Contraseña actual</label><input type="password" id="acP0" autocomplete="current-password"></div><div class="grid2"><div class="field"><label for="acP1">Nueva contraseña</label><input type="password" id="acP1" autocomplete="new-password"><div class="meter"><i id="acPm"></i></div><p class="muted small" id="acPt" style="margin:4px 0 0">Mínimo 10 caracteres. Mejor si mezcla letras, números y símbolos.</p></div><div class="field"><label for="acP2">Repetir nueva contraseña</label><input type="password" id="acP2" autocomplete="new-password"></div></div><button class="button button-primary" data-act="cuenta-clave">Cambiar contraseña</button>`)}
+    </div><div>
+      ${box('Verificación en dos pasos', `<p style="margin-top:0">Además de la contraseña, al entrar se pide un código de 6 dígitos de una app como Google Authenticator. Protege la tienda aunque alguien sepa tu contraseña.</p><label class="switch"><input type="checkbox" id="ac2f"> Activar verificación en dos pasos</label>`)}
+      ${box('Sesiones abiertas', `<dl class="kv"><dt>Este navegador</dt><dd>Activa ahora</dd></dl><p class="muted small" style="margin:10px 0 0">Las sesiones se cierran solas tras 12 horas sin uso.</p>`)}
+      ${box('Preferencias', `<label class="switch"><input type="checkbox" checked> Recibir un correo por cada pedido pagado</label><br><label class="switch"><input type="checkbox" checked> Resumen diario de pendientes a las 9:00</label>`)}
+    </div></div>`;
+  V.cuenta.after = () => {
+    const el = $('#acP1'); if (!el) return;
+    el.addEventListener('input', () => { const v = el.value, sc = (v.length >= 10) + (v.length >= 14) + /[0-9]/.test(v) + /[^A-Za-z0-9]/.test(v) + (/[a-z]/.test(v) && /[A-Z]/.test(v)); const lv = !v ? 0 : sc <= 2 ? 1 : sc <= 3 ? 2 : 3; const b = $('#acPm'); b.style.width = ['0', '33%', '66%', '100%'][lv]; b.style.background = ['', 'var(--bad)', 'var(--warn)', 'var(--ok)'][lv]; $('#acPt').textContent = !v ? 'Mínimo 10 caracteres. Mejor si mezcla letras, números y símbolos.' : ['', 'Débil', 'Aceptable', 'Segura'][lv] + (v.length < 10 ? ' · faltan ' + (10 - v.length) + ' caracteres' : ''); });
+  };
+  function welcome() {
+    modal('Bienvenido a ReyCar', `<p class="guide-d" style="margin-top:0">Desde aquí se maneja toda la tienda: ventas, despachos, catálogo, clientes, taller y marketing. Cuatro cosas para empezar:</p>
+      <ol class="guide guide--big">
+        <li><span><b>El menú de la izquierda</b> tiene cada área. Las que tienen subsecciones se abren al entrar.</span></li>
+        <li><span><b>El buscador de arriba</b> encuentra pedidos, productos, clientes y patentes. Atajo: tecla <kbd>/</kbd>.</span></li>
+        <li><span><b>La campana</b> junta lo urgente: pedidos por preparar, productos agotados, reservas sin confirmar.</span></li>
+        <li><span><b>"¿Cómo funciona?"</b> está en cada pantalla y explica paso a paso qué hacer.</span></li>
+      </ol>
+      <div class="guide-tip"><b>Vista previa:</b> el panel aún no está conectado a la base de datos ni a Bsale. Puedes probar todo con confianza: lo que crees se borra al recargar.</div>`,
+      `<a class="button" href="#/ayuda">Ir a la ayuda</a><button class="button button-primary" data-act="dlg-close">Empezar</button>`);
+    try { localStorage.setItem('reycar-bienvenida', '1'); } catch (e) { /* modo privado */ }
+  }
+
   /* ───────── enrutador (#/seccion/id?filtros) ───────── */
-  const TITLES = { taller: 'Agenda del taller', resenas: 'Reseñas', cliente: 'Cliente', despachos: 'Despachos', inventario: 'Inventario y reposición', marketing: 'Marketing', portada: 'Portada', actividad: 'Registro de actividad', dash: 'Escritorio', pedidos: 'Pedidos', pedido: 'Editar pedido', productos: 'Productos', producto: 'Editar producto', clientes: 'Clientes', analitica: 'Analítica', seo: 'SEO', usuarios: 'Usuarios', ajustes: 'Ajustes' };
+  const TITLES = { ayuda: 'Ayuda', cuenta: 'Mi cuenta', taller: 'Agenda del taller', resenas: 'Reseñas', cliente: 'Cliente', despachos: 'Despachos', inventario: 'Inventario y reposición', marketing: 'Marketing', portada: 'Portada', actividad: 'Registro de actividad', dash: 'Escritorio', pedidos: 'Pedidos', pedido: 'Editar pedido', productos: 'Productos', producto: 'Editar producto', clientes: 'Clientes', analitica: 'Analítica', seo: 'SEO', usuarios: 'Usuarios', ajustes: 'Ajustes' };
   function route() {
     const h = location.hash.replace(/^#/, '') || '/';
     const [path, qs] = h.split('?'), q = new URLSearchParams(qs || ''), parts = path.split('/').filter(Boolean);
     const sec = parts[0] || '', key = sec === '' || sec === 'escritorio' ? 'dash' : sec, view = V[key];
     hideTip();
+    closeModal();
     drawMenu(sec, q, path);
     setMenu(false);
     closePops();
@@ -1277,7 +1385,9 @@
     const main = $('#wpbody');
     main.innerHTML = view ? view(q, parts[1]) : `<div class="wrap-h"><h1>No encontrado</h1></div><p><a href="#/">Volver al escritorio</a></p>`;
     if (view && view.after) view.after(q, parts[1]);
-    document.title = `${TITLES[key] || 'No encontrado'} · Panel Reycar`;
+    document.title = `${TITLES[key] || 'No encontrado'} · ReyCar`;
+    const hk = helpKey(key, q, parts[1]), wh = $('.wrap-h', main);
+    if (wh && HELP[hk]) wh.insertAdjacentHTML('beforeend', `<button class="help-btn no-print" data-act="ayuda" data-k="${hk}"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="${IC.help}" fill="currentColor" fill-rule="evenodd"/></svg>¿Cómo funciona?</button>`);
     if (route.last !== path) { scrollTo(0, 0); main.focus({ preventScroll: true }); }
     route.last = path;
     drawBell();
@@ -1341,6 +1451,7 @@
     if (t.id === 'npG') { const g = gById.get(t.value), sc = $('#npSC'); sc.innerHTML = g && (g.subs || []).length ? '<option value="">Sin subcategoría</option>' + g.subs.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join('') : '<option value="">No tiene subcategorías</option>'; sc.disabled = !(g && (g.subs || []).length); }
     if (t.id === 'mtpl') { const [sj, tx] = TPL[t.value]; $('#ms').value = sj; $('#mtxt').value = tx; if (t.value !== 'novedades' && !$('#mcp').value && $('#mcp').options.length > 1) $('#mcp').selectedIndex = 1; drawMail(); }
     if (t.matches('[data-consent]')) { const c = CUST.find((x) => x.id === +t.dataset.id); c.consent[t.dataset.consent] = t.checked; log('Cliente', `${t.checked ? 'Activó' : 'Quitó'} el permiso de ${t.dataset.consent === 'mail' ? 'correos' : 'WhatsApp'} de ${custName(c)}`); toast('Permiso actualizado. Queda registrado con fecha y responsable.'); }
+    if (t.id === 'ac2f') toast(t.checked ? 'Al activar el acceso real, se te pedirá escanear un código QR con tu app de autenticación.' : 'Verificación en dos pasos desactivada.');
     if (t.matches('[data-qsel]')) { const cur = new URLSearchParams((location.hash.split('?')[1]) || ''); location.hash = href(location.hash.split('?')[0], cur, { [t.dataset.qsel]: t.value }).slice(1); }
     if (e.target.matches('[data-all]')) $$('tbody input[type=checkbox]', e.target.closest('table')).forEach((c) => (c.checked = e.target.checked));
   });
@@ -1370,8 +1481,8 @@
         if (!to || !ids.length) return toast('Elige una acción y marca al menos un pedido.');
         ids.forEach((i) => setStatus(oId.get(i), to)); route(); return toast(`${plural(ids.length, 'pedido actualizado', 'pedidos actualizados')}. ${NOSAVE}`);
       }
-      if (act === 'guardar-pedido') { const o = oId.get(id), to = $('#ost').value, ac = $('#oact').value; const ch = to !== o.st; if (ch) setStatus(o, to); if (ac) o.notes.push({ t: Date.now(), txt: `Acción realizada: ${ac}.`, kind: 'system', by: 'Guillermo' }); route(); return toast(ch || ac ? `Pedido actualizado. ${NOSAVE}` : 'No hay cambios que guardar.'); }
-      if (act === 'nota') { const o = oId.get(id), txt = $('#nn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); const n = { t: Date.now(), txt, kind: $('#nk').value, by: 'Guillermo' }; o.notes.push(n); $('#notes').insertAdjacentHTML('afterbegin', noteHtml(n)); $('#nn').value = ''; return toast(n.kind === 'customer' ? 'Nota para el cliente guardada; le llega por correo.' : 'Nota privada guardada.'); }
+      if (act === 'guardar-pedido') { const o = oId.get(id), to = $('#ost').value, ac = $('#oact').value; const ch = to !== o.st; if (ch) setStatus(o, to); if (ac) o.notes.push({ t: Date.now(), txt: `Acción realizada: ${ac}.`, kind: 'system', by: 'Guillermo Araya' }); route(); return toast(ch || ac ? `Pedido actualizado. ${NOSAVE}` : 'No hay cambios que guardar.'); }
+      if (act === 'nota') { const o = oId.get(id), txt = $('#nn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); const n = { t: Date.now(), txt, kind: $('#nk').value, by: 'Guillermo Araya' }; o.notes.push(n); $('#notes').insertAdjacentHTML('afterbegin', noteHtml(n)); $('#nn').value = ''; return toast(n.kind === 'customer' ? 'Nota para el cliente guardada; le llega por correo.' : 'Nota privada guardada.'); }
       if (act === 'guardar-producto') {
         const p = byId.get(id), multi = $$('[data-vp]').length > 1, name = $('#pt').value.trim(), price = multi ? p.p : Math.round(+$('#pp').value), offer = $('#po').value ? Math.round(+$('#po').value) : 0;
         if (name.length < 5) return toast('El nombre es muy corto.');
@@ -1408,7 +1519,7 @@
       }
       if (act === 'd-cupon-x') { DRAFT.cp = null; return drawDraft('t'); }
       if (act === 'd-crear') return draftCreate();
-      if (act === 'c-nota') { const c = CUST.find((x) => x.id === id), txt = $('#cnn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); c.cnotes.unshift({ t: Date.now(), txt, kind: 'private', by: 'Guillermo' }); log('Cliente', `Agregó una nota a ${custName(c)}`); route(); return toast('Nota guardada. Solo la ve el equipo.'); }
+      if (act === 'c-nota') { const c = CUST.find((x) => x.id === id), txt = $('#cnn').value.trim(); if (!txt) return toast('Escribe la nota primero.'); c.cnotes.unshift({ t: Date.now(), txt, kind: 'private', by: 'Guillermo Araya' }); log('Cliente', `Agregó una nota a ${custName(c)}`); route(); return toast('Nota guardada. Solo la ve el equipo.'); }
       if (act === 'c-tag') { const c = CUST.find((x) => x.id === id), t = $('#ctag').value.trim(); if (!t) return toast('Escribe la etiqueta.'); if (!c.tags.includes(t)) c.tags.push(t); return route(); }
       if (act === 'c-untag') { const c = CUST.find((x) => x.id === id); c.tags.splice(+a.dataset.i, 1); return route(); }
       if (act === 'c-export') {
@@ -1449,13 +1560,18 @@
       if (act === 'np-ean') { $('#npK').value = ean13(); return toast('Código interno generado (empieza con 2: solo para uso en la tienda).'); }
       if (act === 'np-crear') return productCreate();
       if (act === 'atajos') return shortcutsModal();
+      if (act === 'ayuda') return helpModal(a.dataset.k);
+      if (act === 'bienvenida') return welcome();
+      if (act === 'glosa') { const g = glossOf(a.dataset.k); return modal(g[1], `<p style="margin:0">${g[2]}</p>`, `<a class="button" href="#/ayuda">Ver el glosario completo</a><button class="button button-primary" data-act="dlg-close">Entendido</button>`); }
+      if (act === 'cuenta-datos') { const e = $('#acE').value.trim(); if ($('#acN').value.trim().length < 3) return toast('Escribe tu nombre.'); if (e && !emailOk(e)) return toast('El correo no parece válido.'); log('Cuenta', 'Actualizó sus datos'); return toast(`Datos guardados. ${NOSAVE}`); }
+      if (act === 'cuenta-clave') { const a0 = $('#acP0').value, a1 = $('#acP1').value, a2 = $('#acP2').value; if (!a0) return toast('Escribe tu contraseña actual.'); if (a1.length < 10) return toast('La nueva contraseña debe tener al menos 10 caracteres.'); if (a1 === a0) return toast('La nueva contraseña debe ser distinta de la actual.'); if (a1 !== a2) return toast('Las contraseñas nuevas no coinciden.'); ['#acP0', '#acP1', '#acP2'].forEach((x) => ($(x).value = '')); log('Cuenta', 'Cambió su contraseña'); return toast('Contraseña cambiada. Se cerrarán las otras sesiones abiertas.'); }
       if (act === 'pbulk') {
         const v = $('[name=pbulk]').value, ids = $$('tbody input[type=checkbox]:checked').map((c) => +c.value).filter(Boolean);
         if (!v || !ids.length) return toast('Elige una acción y marca al menos un producto.');
         ids.forEach((i) => { const p = byId.get(i); if (v === 'show') hidden.delete(i); if (v === 'hide') hidden.add(i); if (v === 'feat') featured.add(i); if (v === 'unfeat') featured.delete(i); if (v.startsWith('g:')) [p, ...(p.vs || [])].forEach((x) => { x.g = v.slice(2); x.sc = ''; }); });
         log('Productos', `Acción en lote sobre ${ids.length} productos`); route(); return toast(`${plural(ids.length, 'producto actualizado', 'productos actualizados')}. ${NOSAVE}`);
       }
-      const o = oId.get(id), note = (txt, kind = 'private', by = 'Guillermo') => o.notes.push({ t: Date.now(), txt, kind, by });
+      const o = oId.get(id), note = (txt, kind = 'private', by = 'Guillermo Araya') => o.notes.push({ t: Date.now(), txt, kind, by });
       if (act === 'prep') { o.prep = true; note('Pedido preparado y embalado.'); log(`Pedido #${o.id}`, 'Lo marcó como preparado'); route(); return toast(`#${o.id} preparado. ${isPick(o) ? 'Ahora avisa al cliente que puede retirarlo.' : 'Ahora genera la etiqueta.'}`); }
       if (act === 'avisar') { if (waOpen(o.c.phone, `Hola ${o.c.first}, tu pedido #${o.id} de Reycar Store ya está listo para retiro en Quinta Normal.`)) { note('Se avisó por WhatsApp que el pedido está listo para retiro.', 'customer'); route(); } return; }
       if (act === 'retirado') { note('El cliente retiró el pedido en la tienda.'); setStatus(o, 'completed'); route(); return toast(`#${o.id} entregado y completado.`); }
@@ -1495,11 +1611,12 @@
   });
   function setStatus(o, to) {
     if (!o || o.st === to) return;
-    o.notes.push({ t: Date.now(), txt: `El estado del pedido cambió de ${ST[o.st]} a ${ST[to]}.`, kind: 'system', by: 'Guillermo' });
+    o.notes.push({ t: Date.now(), txt: `El estado del pedido cambió de ${ST[o.st]} a ${ST[to]}.`, kind: 'system', by: 'Guillermo Araya' });
     log(`Pedido #${o.id}`, `Cambió el estado de ${ST[o.st]} a ${ST[to]}`);
     if (to === 'processing' && !o.doc && ['pending', 'on-hold'].includes(o.st)) emitDoc(o);
     o.st = to; CS = null;
   }
 
   route();
+  try { if (!localStorage.getItem('reycar-bienvenida')) setTimeout(welcome, 500); } catch (e) { /* modo privado */ }
 })();

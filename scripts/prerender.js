@@ -105,6 +105,7 @@ ${urls.map((u) => `  <url><loc>${esc(SITE + u)}</loc></url>`).join('\n')}
 fs.writeFileSync(path.join(ROOT, 'robots.txt'), `User-agent: *
 Allow: /
 Disallow: /api/
+Disallow: /reycar
 Disallow: /admin
 
 Sitemap: ${SITE}/sitemap.xml

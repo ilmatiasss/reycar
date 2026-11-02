@@ -609,6 +609,38 @@ input[type=date], input[type=datetime-local] { font-family: var(--f); }
 .steps li.is-done a { color: var(--muted); }
 @media (max-width: 782px) { .steps { grid-template-columns: minmax(0, 1fr); } .empty { padding: 32px 16px; } }
 
+/* ── ayuda: guías, glosario, migas de pan ── */
+.help-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 0 12px 0 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink2); font-size: 13px; font-weight: 600; cursor: pointer; }
+.help-btn svg { width: 16px; height: 16px; color: var(--gold); }
+.help-btn:hover { border-color: var(--line2); color: var(--ink); }
+.weeknav ~ .help-btn, .seg ~ .help-btn { margin-left: 0; }
+.qmark { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 1px solid currentColor; background: none; color: inherit; opacity: .7; font: 700 10.5px/1 var(--f); cursor: pointer; vertical-align: 1px; margin-left: 3px; padding: 0; }
+.qmark:hover { opacity: 1; }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin: -6px 0 10px; }
+.crumbs a { color: var(--muted); font-weight: 600; }
+.crumbs a:hover { color: var(--red-t); }
+.crumbs [aria-current] { color: var(--ink2); }
+.crumbs__s { color: var(--faint); }
+.guide-d { color: var(--ink2); line-height: 1.55; }
+.guide { margin: 0 0 4px; padding-left: 0; list-style: none; counter-reset: g; display: grid; gap: 10px; }
+.guide li { counter-increment: g; display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; line-height: 1.5; }
+.guide li::before { content: counter(g); width: 24px; height: 24px; border-radius: 50%; background: var(--red-s); color: var(--red-t); font-weight: 800; font-size: 12.5px; display: grid; place-items: center; margin-top: -1px; }
+.guide--big li { font-size: 14.5px; }
+.guide-tip { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--gold-s); color: var(--ink2); font-size: 13.5px; line-height: 1.5; }
+.help-h { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 0 10px; }
+.help-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.help-card { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; box-shadow: var(--shadow); color: var(--ink); }
+.help-card:hover { border-color: var(--line2); transform: translateY(-1px); }
+.help-card b { font-size: 14.5px; }
+.help-card span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.gloss { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 28px; }
+.gloss dt { font-weight: 700; margin-bottom: 3px; }
+.gloss dd { margin: 0; color: var(--ink2); line-height: 1.5; font-size: 13.5px; }
+a.me { color: var(--bink); border-radius: 10px; padding: 6px; margin: -6px; }
+a.me:hover { background: rgba(255,255,255,.06); text-decoration: none; color: #fff; }
+.wrap-h .order-status { font-size: 13px; }
+@media (max-width: 782px) { .gloss { grid-template-columns: minmax(0, 1fr); } .help-btn { margin-left: 0; } }
+
 /* ── impresión: pedido y lista de preparación ── */
 @media print {
   #side, #topbar, #toast, #tip, #scrim, .no-print, .cols > div:last-child, .major-publishing-actions, .notice, .tablenav { display: none !important; }

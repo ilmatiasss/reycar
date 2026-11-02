@@ -61,6 +61,11 @@
       "source": "/checkout",
       "destination": "/",
       "permanent": false
+    },
+    {
+      "source": "/admin",
+      "destination": "/reycar",
+      "permanent": true
     }
   ],
   "headers": [
@@ -119,7 +124,7 @@
       ]
     },
     {
-      "source": "/admin",
+      "source": "/reycar",
       "headers": [
         {
           "key": "X-Robots-Tag",

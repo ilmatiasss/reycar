@@ -83,9 +83,11 @@ boleta o factura). Se cambia con la constante `CHECKOUT` al inicio de `app.js`.
 
 ## Panel de administración (maqueta)
 
-`/admin` (`admin.html`, `assets/admin/`) es una maqueta navegable con la identidad de Reycar, pensada para operar
+`/reycar` (`reycar.html`, `assets/admin/`; `/admin` redirige ahí) es el panel ReyCar, pensado para operar
 toda la tienda desde un solo lugar:
-- Escritorio con tareas del día y taller de hoy; buscador general (`/`), avisos y atajos de teclado (`?`).
+- Escritorio con puesta en marcha y tareas del día; buscador general (`/`), avisos y atajos de teclado (`?`).
+- Didáctico: bienvenida la primera vez, botón "¿Cómo funciona?" con la guía de cada pantalla, centro de Ayuda
+  con buscador y glosario, botones "?" junto a términos técnicos, migas de pan y página Mi cuenta.
 - Pedidos: lista, detalle, imprimir, exportar a Excel, reembolsos totales o parciales con nota de crédito, y
   **pedido manual** (WhatsApp, teléfono o local) con link de pago, transferencia o pago en el local. Despachos.
 - Productos: crear, editar nombre y precio, ofertas, ajustes de stock con historial (todo sincronizado con Bsale),
